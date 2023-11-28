@@ -29,4 +29,4 @@ do
 	else
 		echo "$i cluster join failed"
 	fi
-done		
+done

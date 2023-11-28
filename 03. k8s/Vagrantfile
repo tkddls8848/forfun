@@ -1,8 +1,8 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
-N = 1
+Worker_Nodes = 1
 Vagrant.configure("2") do |config|
-  (1..N).each do |worker|
+  (1..Worker_Nodes).each do |worker|
     config.vm.define "worker#{worker}" do |cfg|
       cfg.vm.box = "centos/7"
       cfg.vm.provider "virtualbox" do |vb|
@@ -12,9 +12,9 @@ Vagrant.configure("2") do |config|
         vb.gui = false
       end
       cfg.vm.host_name = "worker#{worker}"
-      cfg.vm.network "private_network", ip: "192.168.55.1#{N}"
+      cfg.vm.network "private_network", ip: "192.168.55.1#{Worker_Nodes}"
       cfg.vm.provision "shell", path: "ssh_config.sh", privileged: true
-      cfg.vm.provision "shell", path: "k8s_common_install.sh", privileged: true
+      cfg.vm.provision "shell", path: "k8s_common_install.sh", args: Worker_Nodes, privileged: true
     end
   end
   config.vm.define "master" do |cfg|
@@ -28,8 +28,8 @@ Vagrant.configure("2") do |config|
     cfg.vm.host_name = "master"
     cfg.vm.network "private_network", ip: "192.168.55.10"
     cfg.vm.provision "shell", path: "ssh_config.sh", privileged: true
-    cfg.vm.provision "shell", path: "k8s_common_install.sh", privileged: true
+    cfg.vm.provision "shell", path: "k8s_common_install.sh", args: Worker_Nodes, privileged: true
     cfg.vm.provision "shell", path: "k8s_master.sh", privileged: true
-    #cfg.vm.provision "shell", path: "send_k8s_token.sh", privileged: false
+    cfg.vm.provision "shell", path: "send_k8s_token.sh", privileged: true
   end
 end
