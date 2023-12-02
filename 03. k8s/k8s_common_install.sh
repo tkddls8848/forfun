@@ -50,16 +50,3 @@ systemctl enable --now kubelet
 # swap disable
 swapoff -a
 sed -e '/swap/s/^/#/' -i /etc/fstab
-
-# entitle hostname 
-tee /etc/hosts <<EOF
-127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
-:1         localhost localhost.localdomain localhost6 localhost6.localdomain6
-EOF
-
-# enroll DNS, $1 is worker_node number from vagrantfile
-for i in $1
-do
-    echo "192.168.55.1$i worker$i w$i" >> /etc/hosts
-done
-echo "192.168.55.10 master  m" >> /etc/hosts

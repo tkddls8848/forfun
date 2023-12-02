@@ -19,7 +19,8 @@ sudo rpm -ivh http://vault.centos.org/8.5.2111/cloud/x86_64/openstack-ussuri/Pac
 
 for i in ${worker_nodes[*]}
 do
-    sshpass -p $password ssh-copy-id -i -f ${user}@${i} > /dev/null
+	echo "TEST $i"
+	sshpass -p $password ssh-copy-id -i -f ${user}@${i} > /dev/null
 	scp /home/vagrant/token ${user}@${i}:/home/vagrant/
 	ssh ${user}@${i} 'chmod u+x /home/vagrant/token'
 	ssh ${user}@${i} 'sudo /home/vagrant/token > /dev/null 2>&1' && join="success"
@@ -29,4 +30,4 @@ do
 	else
 		echo "$i cluster join failed"
 	fi
-done
+done		
