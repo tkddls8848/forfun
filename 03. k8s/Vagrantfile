@@ -20,9 +20,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         vb.memory = 1024
         vb.gui = false
       end
-      cfg.vm.provision "shell", path: "ssh_config.sh", privileged: true
-      cfg.vm.provision "shell", path: "k8s_common_install.sh", privileged: true
-      cfg.vm.provision "shell", path: "k8s_enroll_DNS.sh", args: Worker_Nodes, privileged: true
+      cfg.vm.provision "shell", path: "common_ssh_config.sh", privileged: true
+      cfg.vm.provision "shell", path: "common_k8s_install.sh", privileged: true
+      cfg.vm.provision "shell", path: "common_k8s_enroll_DNS.sh", args: Worker_Nodes, privileged: true
     end
   end
   config.vm.define "master" do |cfg|
@@ -35,10 +35,11 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       vb.memory = 2048
       vb.gui = false
     end
-    cfg.vm.provision "shell", path: "ssh_config.sh", privileged: true
-    cfg.vm.provision "shell", path: "k8s_common_install.sh", privileged: true
-    cfg.vm.provision "shell", path: "k8s_enroll_DNS.sh", args: Worker_Nodes, privileged: true
-    cfg.vm.provision "shell", path: "k8s_master.sh", privileged: true
-    cfg.vm.provision "shell", path: "send_k8s_token.sh", args: Worker_Nodes, privileged: false
+    cfg.vm.provision "shell", path: "common_ssh_config.sh", privileged: true
+    cfg.vm.provision "shell", path: "common_k8s_install.sh", privileged: true
+    cfg.vm.provision "shell", path: "common_k8s_enroll_DNS.sh", args: Worker_Nodes, privileged: true
+    cfg.vm.provision "shell", path: "master_k8s_install.sh", privileged: true
+    cfg.vm.provision "shell", path: "master_send_k8s_token.sh", args: Worker_Nodes, privileged: false
+    cfg.vm.provision "shell", path: "master_network.sh", privileged: true
   end
 end
