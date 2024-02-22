@@ -1,45 +1,45 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
-VAGRANTFILE_API_VERSION = "2"
-Worker_Nodes = 2
-k8s_cluster = {
-  "w1.example.com" => { :ip => "192.168.14.51", :cpus => 1, :memory => 2048 },
-	"m.example.com" => { :ip => "192.168.14.50", :cpus => 2, :memory => 2048 },
-}
 
-Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
-  config.ssh.insert_key = false
-  (1..Worker_Nodes).each do |worker|
-    config.vm.define "worker#{worker}" do |cfg|
-      cfg.vm.box = "centos/7"
-      cfg.vm.host_name = "worker#{worker}"
-      cfg.vm.network "private_network", ip: "192.168.55.1#{worker}"
-      cfg.vm.provider "virtualbox" do |vb|
-        vb.name = "worker#{worker}"
-        vb.cpus = 1
-        vb.memory = 1024
-        vb.gui = false
+Vagrant.configure("2") do |config|
+
+  ### Master Node ####
+
+  config.vm.define "k8s-master" do |master|
+    master.vm.box = "centos/7"
+    master.vm.provider "virtualbox" do |vb|
+      vb.name = "k8s-master"
+      vb.cpus = 3
+      vb.memory = 2560
+      vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster"]
+    end
+    master.vm.host_name = "k8s-master"
+    master.vm.network "private_network", ip: "192.168.1.10"
+    master.vm.network "forwarded_port", guest: 22, host: 10030, auto_correct: true, id: "ssh"
+    master.vm.synced_folder ".", "/vagrant", disabled: true
+    master.vm.provision "shell", path: "config.sh", privileged: true
+    master.vm.provision "shell", path: "install.sh", privileged: true
+    master.vm.provision "shell", path: "master_node.sh", privileged: true
+  end
+
+  ### Worker node ###
+
+  (1..2).each do |i|
+    config.vm.define "k8s-worker#{i}" do |worker|
+      worker.vm.box = "centos/7"
+      worker.vm.provider "virtualbox" do |vb|
+        vb.name = "k8s-worker#{i}"
+        vb.cpus = 2
+        vb.memory = 1536
+        vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster"]
       end
-      cfg.vm.provision "shell", path: "common_ssh_config.sh", privileged: true
-      cfg.vm.provision "shell", path: "common_k8s_install.sh", privileged: true
-      cfg.vm.provision "shell", path: "common_k8s_enroll_DNS.sh", args: Worker_Nodes, privileged: true
+      worker.vm.host_name = "k8s-worker#{i}"
+      worker.vm.network "private_network", ip: "192.168.1.1#{i}"
+      worker.vm.network "forwarded_port", guest: 22, host: "1003#{i}", auto_correct: true, id: "ssh"
+      worker.vm.provision "shell", path: "config.sh", privileged: true
+      worker.vm.provision "shell", path: "install.sh", privileged: true
+      worker.vm.provision "shell", path: "worker_node.sh", privileged: true
     end
   end
-  config.vm.define "master" do |cfg|
-    cfg.vm.box = "centos/7"
-    cfg.vm.host_name = "master"
-    cfg.vm.network "private_network", ip: "192.168.55.10"
-    cfg.vm.provider "virtualbox" do |vb|
-      vb.name = "master"
-      vb.cpus = 2
-      vb.memory = 2048
-      vb.gui = false
-    end
-    cfg.vm.provision "shell", path: "common_ssh_config.sh", privileged: true
-    cfg.vm.provision "shell", path: "common_k8s_install.sh", privileged: true
-    cfg.vm.provision "shell", path: "common_k8s_enroll_DNS.sh", args: Worker_Nodes, privileged: true
-    cfg.vm.provision "shell", path: "master_k8s_install.sh", privileged: true
-    cfg.vm.provision "shell", path: "master_send_k8s_token.sh", args: Worker_Nodes, privileged: false
-    cfg.vm.provision "shell", path: "master_network.sh", privileged: true
-  end
+
 end
