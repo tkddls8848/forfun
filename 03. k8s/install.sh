@@ -1,6 +1,4 @@
 #!/usr/bin/bash
-# time config
-sudo timedatectl set-timezone Asia/Seoul
 
 # install packages for docker
 sudo yum install -y yum-utils
@@ -10,10 +8,8 @@ sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/dock
 
 # yum update and install docker
 sudo yum update -y && sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
 sudo mkdir -p /etc/containerd
 sudo containerd config default | sudo tee /etc/containerd/config.toml
-
 sudo systemctl enable --now docker
 
 # Backup the original file

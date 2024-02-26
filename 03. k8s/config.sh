@@ -1,8 +1,5 @@
 #!/usr/bin/bash
 
-# install vim
-sudo yum install -y vim
-
 # swapoff -a to disable swapping
 sudo swapoff -a
 sudo sed -e '/swap/s/^/#/' -i /etc/fstab
@@ -22,17 +19,14 @@ sudo bash -c 'cat <<EOF >  /etc/sysctl.d/k8s.conf
 net.bridge.bridge-nf-call-ip6tables = 1
 net.bridge.bridge-nf-call-iptables = 1
 EOF'
-
 sudo modprobe br_netfilter
 sudo sysctl --system
 
 #ip forward
 sudo dnf install -y iproute-tc
-
 sudo bash -c  'cat << EOF >> /etc/sysctl.conf
 net.ipv4.ip_forward = 1
 EOF' 
-
 sudo sysctl -p
 
 # add hosts
@@ -50,6 +44,9 @@ EOF'
 # ssh password Authentication no to yes
 sudo sed -i -e 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
 sudo systemctl restart sshd
+
+# time config
+sudo timedatectl set-timezone Asia/Seoul
 
 # allow ssh login with password
 sudo time=$(date "+%Y%m%d.%H%M%S")

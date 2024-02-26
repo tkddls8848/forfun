@@ -17,18 +17,45 @@ sudo curl https://raw.githubusercontent.com/projectcalico/calico/v3.26.4/manifes
 sudo sed -i -e 's?cidr: 192.168.0.0\/16?cidr: 10.224.0.0\/16?g' calico.yaml
 sudo kubectl apply -f calico.yaml
 
-# Backup the original file
-#sudo cp custom-resources.yaml custom-resources.yaml.backup
-#sudo cp calico.yaml calico.yaml.backup
-
-#sudo sed -i -e 's?cidr: 192.168.0.0\/16?cidr: 10.224.0.0\/16?g' custom-resources.yaml
-#sudo sed -i -e 's?cidr: 192.168.0.0\/16?cidr: 10.224.0.0\/16?g' calico.yaml
-#sudo kubectl create -f custom-resources.yaml
-#sudo kubectl create -f calico.yaml
-
 # set bash-completion
 sudo yum install bash-completion -y
-
 echo 'source <(kubectl completion bash)' >>~/.bashrc
 echo 'alias k=kubectl' >>~/.bashrc
 echo 'complete -F __start_kubectl k' >>~/.bashrc
+
+# make test.yaml file
+touch test.yaml
+sudo bash -c 'cat <<EOF > ./test.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:latest
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  selector:
+    app: nginx
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: NodePort
+EOF'
