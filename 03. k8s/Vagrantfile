@@ -1,7 +1,18 @@
-# -*- mode: ruby -*-
-# vi: set ft=ruby :
+##
+# versions = ["", ""]
+#  docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+#  kubeadm  kubectl  kubelet
+#  calico
+#  metallb
+#  helm
+#  grafana
+#  prometheus
+#  network = ["", ""]
+# --apiserver-advertise-address=192.168.1.10 \
+# --pod-network-cidr=10.244.0.0/16
+# masterhost 192.168.1.10
 
-versions = ["", ""]
+Node_Number = 1
 Vagrant.configure("2") do |config|
 
   ### Master Node ####
@@ -10,29 +21,29 @@ Vagrant.configure("2") do |config|
     master.vm.box = "centos/7"
     master.vm.provider "virtualbox" do |vb|
       vb.name = "k8s-master"
-      vb.cpus = 3
-      vb.memory = 2560
+      vb.cpus = 2
+      vb.memory = 2048
       vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster"]
     end
     master.vm.host_name = "k8s-master"
     master.vm.network "private_network", ip: "192.168.1.10"
     master.vm.network "forwarded_port", guest: 22, host: 10030, auto_correct: true, id: "ssh"
-    master.vm.synced_folder ".", "/vagrant", disabled: false
     master.vm.provision "shell", path: "config.sh", privileged: true
     master.vm.provision "shell", path: "install.sh", privileged: true
     master.vm.provision "shell", path: "master_node.sh", privileged: true
     master.vm.provision "shell", path: "monitoring.sh", privileged: true
+    master.vm.provision "shell", path: "loadbalancer.sh", privileged: true
   end
 
   ### Worker node ###
 
-  (1..2).each do |i|
+  (1..Node_Number).each do |i|
     config.vm.define "k8s-worker#{i}" do |worker|
       worker.vm.box = "centos/7"
       worker.vm.provider "virtualbox" do |vb|
         vb.name = "k8s-worker#{i}"
         vb.cpus = 2
-        vb.memory = 2048
+        vb.memory = 1536
         vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster"]
       end
       worker.vm.host_name = "k8s-worker#{i}"

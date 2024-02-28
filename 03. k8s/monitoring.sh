@@ -42,12 +42,4 @@ helm upgrade --install grafana grafana/grafana \
 kubectl get svc -n monitoring -o yaml grafana > grafana.yaml
 sudo chmod 777 grafana.yaml
 sudo sed -i 's/type: ClusterIP/type: NodePort/g' grafana.yaml
-
-# Prometheus와 Grafana 설치 확인
-echo "Grafana and Prometheus have been installed. It may take a few minutes for the services to be up and running."
-
-echo "Grafana:"
-echo "Use 'kubectl get svc -n monitoring' to find the Grafana service, and then use 'kubectl port-forward' to access it."
-
-echo "Prometheus:"
-echo "Use 'kubectl get svc -n monitoring' to find the Prometheus service, and then use 'kubectl port-forward' to access it."
+kubectl apply -f grafana.yaml

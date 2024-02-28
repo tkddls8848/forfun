@@ -4,7 +4,7 @@
 sudo swapoff -a
 sudo sed -e '/swap/s/^/#/' -i /etc/fstab
 
-# set SELinux 
+# set SELinux disable
 sudo setenforce 0
 sudo sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
 sudo sed -i --follow-symlinks 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/sysconfig/selinux
@@ -15,7 +15,7 @@ sudo systemctl stop firewalld && sudo systemctl disable firewalld
 sudo systemctl stop NetworkManager && sudo systemctl disable NetworkManager
 
 # enabling iptables kernel options
-sudo bash -c 'cat <<EOF >  /etc/sysctl.d/k8s.conf
+sudo bash -c 'cat << EOF > /etc/sysctl.d/k8s.conf
 net.bridge.bridge-nf-call-ip6tables = 1
 net.bridge.bridge-nf-call-iptables = 1
 EOF'
@@ -37,7 +37,7 @@ sudo bash -c 'cat << EOF >> /etc/hosts
 EOF'
 
 # config DNS
-sudo bash -c 'cat <<EOF > /etc/resolv.conf
+sudo bash -c 'cat << EOF > /etc/resolv.conf
 nameserver 8.8.8.8 #Google DNS
 EOF'
 

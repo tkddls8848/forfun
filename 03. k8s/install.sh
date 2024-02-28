@@ -1,5 +1,8 @@
 #!/usr/bin/bash
 
+# install packages for util
+sudo yum install -y sshpass
+
 # install packages for docker
 sudo yum install -y yum-utils
 
@@ -19,7 +22,7 @@ sudo cp /etc/containerd/config.toml /etc/containerd/config.toml.backup
 sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
 
 # kubernetes repository
-sudo bash -c 'cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+sudo bash -c 'cat << EOF > /etc/yum.repos.d/kubernetes.repo
 [kubernetes]
 name=Kubernetes
 baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
