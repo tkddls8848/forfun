@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
 # create token for clustering k8s nodes
-sudo kubeadm token generate | tee k8s_token
+sudo kubeadm token generate | sudo tee k8s_token
 sudo chmod 777 k8s_token
 
 # init kubernetes for kubeadm

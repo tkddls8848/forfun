@@ -22,17 +22,17 @@ sudo cp /etc/containerd/config.toml /etc/containerd/config.toml.backup
 sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
 
 # kubernetes repository
-sudo bash -c 'cat << EOF > /etc/yum.repos.d/kubernetes.repo
-[kubernetes]
-name=Kubernetes
-baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
-enabled=1
-gpgcheck=1
-repo_gpgcheck=1
-gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
-exclude=kubelet kubeadm kubectl
-EOF'
+#sudo bash -c 'cat << EOF > /etc/yum.repos.d/kubernetes.repo
+#[kubernetes]
+#name=Kubernetes
+#baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+#enabled=1
+#gpgcheck=1
+#repo_gpgcheck=1
+#gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+#exclude=kubelet kubeadm kubectl
+#EOF'
 
 # install kubernetes
-sudo yum install -y --disableexcludes=kubernetes kubeadm kubectl kubelet
+sudo yum install -y kubeadm kubectl kubelet
 sudo systemctl enable --now kubelet
