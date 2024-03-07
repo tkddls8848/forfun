@@ -42,7 +42,6 @@ spec:
         image: nginxdemos/hello:plain-text
         ports:
         - containerPort: 80
-
 ---
 apiVersion: v1
 kind: Service
@@ -55,6 +54,5 @@ spec:
   - port: 80
     targetPort: 80
   type: LoadBalancer
-EOF
-'
+EOF'
 kubectl apply -f test.yaml
