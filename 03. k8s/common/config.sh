@@ -40,6 +40,7 @@ sudo bash -c 'cat << EOF >> /etc/hosts
 192.168.1.10 k8s-master
 192.168.1.11 k8s-worker1
 192.168.1.12 k8s-worker2
+192.168.1.13 k8s-nfs
 EOF'
 
 # config DNS
@@ -48,10 +49,6 @@ nameserver 8.8.8.8 #Google DNS
 EOF'
 
 # ssh password Authentication no to yes
-sudo sed -i -e 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
-sudo systemctl restart sshd
-
-# backup before overwriting
 sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config_$time.backup
 sudo sed -i -e 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
 sudo systemctl restart sshd
