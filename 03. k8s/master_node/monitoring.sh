@@ -22,10 +22,10 @@ helm upgrade --install prometheus prometheus-community/prometheus \
   --namespace monitoring \
   --set alertmanager.persistentVolume.storageClass="gp2",server.persistentVolume.storageClass="gp2"
 
-# install Prometheus by Grafana
+# install Grafana by Helm
 helm upgrade --install grafana grafana/grafana \
   --namespace monitoring \
-  --set persistence.storageClassName="gp2",adminPassword='YOUR_GRAFANA_PASSWORD' \
+  --set persistence.storageClassName="gp2",adminPassword='password' \
   --set datasources."datasources\.yaml".apiVersion=1 \
   --set datasources."datasources\.yaml".datasources[0].name=Prometheus \
   --set datasources."datasources\.yaml".datasources[0].type=prometheus \
@@ -33,7 +33,7 @@ helm upgrade --install grafana grafana/grafana \
   --set datasources."datasources\.yaml".datasources[0].access=proxy \
   --set datasources."datasources\.yaml".datasources[0].isDefault=true
 
-# Grafana admin password: initial password is 'YOUR_GRAFANA_PASSWORD'
+# Grafana admin password: initial password is 'password'
 
 # config Grafana service type to NodePort
 kubectl get svc -n monitoring -o yaml grafana > grafana.yaml

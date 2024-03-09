@@ -40,7 +40,7 @@ sudo bash -c 'cat << EOF >> /etc/hosts
 192.168.1.10 k8s-master
 192.168.1.11 k8s-worker1
 192.168.1.12 k8s-worker2
-192.168.1.13 k8s-nfs
+192.168.1.100 k8s-nfs
 EOF'
 
 # config DNS

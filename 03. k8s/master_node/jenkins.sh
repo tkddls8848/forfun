@@ -12,8 +12,8 @@ spec:
   accessModes:
     - ReadWriteMany
   nfs:
-    server: 192.168.1.10 ## master node ip
-    path: /var/nfs/general
+    server: 192.168.1.100 ## NFS server node ip
+    path: /nfs
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
