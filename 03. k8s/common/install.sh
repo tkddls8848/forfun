@@ -32,13 +32,13 @@ sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/conf
 sudo bash -c 'cat << EOF > /etc/yum.repos.d/kubernetes.repo
 [kubernetes]
 name=Kubernetes
-baseurl=https://pkgs.k8s.io/core:/stable:/v1.28/rpm/
+baseurl=https://pkgs.k8s.io/core:/stable:/v1.29/rpm/
 enabled=1
 gpgcheck=1
-gpgkey=https://pkgs.k8s.io/core:/stable:/v1.28/rpm/repodata/repomd.xml.key
+gpgkey=https://pkgs.k8s.io/core:/stable:/v1.29/rpm/repodata/repomd.xml.key
 exclude=kubelet kubeadm kubectl
 EOF'
-# kubernetes repository (legacy)
+# kubernetes repository (legacy repository)
 #cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
 #[kubernetes]
 #name=Kubernetes
@@ -50,5 +50,5 @@ EOF'
 #EOF
 
 # install kubernetes
-sudo yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
+sudo yum install -y kubelet-1.29.1 kubeadm-1.29.1 kubectl-1.29.1 --disableexcludes=kubernetes
 sudo systemctl enable --now kubelet

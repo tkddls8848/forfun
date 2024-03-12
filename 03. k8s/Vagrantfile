@@ -12,8 +12,10 @@
 # --pod-network-cidr=10.244.0.0/16
 # masterhost 192.168.1.10
 
-Node_Number = 2
+Node_Number = 1
 Vagrant.configure("2") do |config|
+
+  config.ssh.insert_key = false #disable ssh key for vagrant
 
   ### NFS Server ###
   
@@ -22,7 +24,7 @@ Vagrant.configure("2") do |config|
     nfs.vm.provider "virtualbox" do |vb|
       vb.name = "k8s-nfs"
       vb.cpus = 1
-      vb.memory = 1024
+      vb.memory = 1000
       vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster"]
     end
     nfs.vm.host_name = "k8s-nfs"
@@ -38,7 +40,7 @@ Vagrant.configure("2") do |config|
     master.vm.box = "centos/7"
     master.vm.provider "virtualbox" do |vb|
       vb.name = "k8s-master"
-      vb.cpus = 2
+      vb.cpus = 3
       vb.memory = 2048
       vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster"]
     end
@@ -50,18 +52,20 @@ Vagrant.configure("2") do |config|
     master.vm.provision "shell", path: "./master_node/master_node.sh"
     master.vm.provision "shell", path: "./master_node/loadbalancer.sh"
     master.vm.provision "shell", path: "./master_node/monitoring.sh"
-    #master.vm.provision "shell", path: "./master_node/jenkins.sh", privileged: false ## installing jenkins account is not root user
+    master.vm.provision "shell", path: "./master_node/jenkins.sh", privileged: false ## installing jenkins with normal user
+    #master.vm.provision "shell", path: "./master_node/kubeflow.sh"
   end
 
   ### Worker node ###
 
   (1..Node_Number).each do |i|
+    config.ssh.insert_key = false #disable ssh key for vagrant
     config.vm.define "k8s-worker#{i}" do |worker|
       worker.vm.box = "centos/7"
       worker.vm.provider "virtualbox" do |vb|
         vb.name = "k8s-worker#{i}"
         vb.cpus = 2
-        vb.memory = 1536
+        vb.memory = 1800
         vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster"]
       end
       worker.vm.host_name = "k8s-worker#{i}"
