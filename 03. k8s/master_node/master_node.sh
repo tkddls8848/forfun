@@ -11,9 +11,9 @@ sudo kubeadm init --token $(cat k8s_token) \
             --pod-network-cidr=10.244.0.0/16
 
 # configuration for authorization to use kubecli command (for root user)
-sudo mkdir -p $HOME/.kube
-sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-sudo chown $(id -u):$(id -g) $HOME/.kube/config
+sudo mkdir -p /root/.kube
+sudo cp -i /etc/kubernetes/admin.conf /root/.kube/config
+sudo chown $(id -u):$(id -g) /root/.kube/config
 
 # configuration for authorization to use kubecli command (for vagrant user)
 sudo mkdir -p /home/vagrant/.kube
