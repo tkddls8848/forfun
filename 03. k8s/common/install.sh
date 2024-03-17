@@ -4,8 +4,8 @@
 sudo yum install -y nfs nfs-utils cifs-utils rpc-bind
 
 # make share folder
-sudo mkdir -p /nfs
-mount -t nfs 192.168.1.100:/nfs /nfs
+sudo mkdir -p /share/nfs
+mount -t nfs 192.168.1.100:/share/nfs /share/nfs
 
 # install packages for util
 sudo yum install -y sshpass
@@ -22,9 +22,6 @@ sudo mkdir -p /etc/containerd
 sudo containerd config default | sudo tee /etc/containerd/config.toml
 sudo systemctl enable --now docker
 
-# Backup the original file
-sudo cp /etc/containerd/config.toml /etc/containerd/config.toml.backup
-
 # Update the configuration
 sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
 
@@ -32,10 +29,10 @@ sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/conf
 sudo bash -c 'cat << EOF > /etc/yum.repos.d/kubernetes.repo
 [kubernetes]
 name=Kubernetes
-baseurl=https://pkgs.k8s.io/core:/stable:/v1.29/rpm/
+baseurl=https://pkgs.k8s.io/core:/stable:/v1.28/rpm/
 enabled=1
 gpgcheck=1
-gpgkey=https://pkgs.k8s.io/core:/stable:/v1.29/rpm/repodata/repomd.xml.key
+gpgkey=https://pkgs.k8s.io/core:/stable:/v1.28/rpm/repodata/repomd.xml.key
 exclude=kubelet kubeadm kubectl
 EOF'
 # kubernetes repository (legacy repository)
@@ -50,5 +47,5 @@ EOF'
 #EOF
 
 # install kubernetes
-sudo yum install -y kubelet-1.29.1 kubeadm-1.29.1 kubectl-1.29.1 --disableexcludes=kubernetes
+sudo yum install -y kubelet-1.28.1 kubeadm-1.28.1 kubectl-1.28.1 --disableexcludes=kubernetes
 sudo systemctl enable --now kubelet

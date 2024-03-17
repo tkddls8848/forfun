@@ -28,18 +28,19 @@ EOF'
 sudo modprobe br_netfilter
 sudo sysctl --system
 
-#ip forward
+# enable ip forward
 sudo dnf install -y iproute-tc
-sudo bash -c  'cat << EOF >> /etc/sysctl.conf
+sudo bash -c 'cat << EOF >> /etc/sysctl.conf
 net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding=1
 EOF' 
 sudo sysctl -p
 
 # add hosts
 sudo bash -c 'cat << EOF >> /etc/hosts
 192.168.1.10 k8s-master
-192.168.1.11 k8s-worker1
-192.168.1.12 k8s-worker2
+192.168.1.21 k8s-worker1
+192.168.1.22 k8s-worker2
 192.168.1.100 k8s-nfs
 EOF'
 
