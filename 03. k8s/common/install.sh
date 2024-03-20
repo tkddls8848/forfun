@@ -1,5 +1,8 @@
 #!/usr/bin/bash
 
+# update yum repo
+sudo yum update -y
+
 # install NFS server
 sudo yum install -y nfs nfs-utils cifs-utils rpc-bind
 
@@ -17,7 +20,7 @@ sudo yum install -y yum-utils
 sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 
 # yum update and install docker
-sudo yum update -y && sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 sudo mkdir -p /etc/containerd
 sudo containerd config default | sudo tee /etc/containerd/config.toml
 sudo systemctl enable --now docker

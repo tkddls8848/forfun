@@ -15,7 +15,6 @@
 
 Vagrant.configure("2") do |config|
 
-  #config.ssh.insert_key = false #disable ssh key for vagrant
   Node_Number = 1
   ### NFS Server ###
   
@@ -24,12 +23,12 @@ Vagrant.configure("2") do |config|
     nfs.vm.provider "virtualbox" do |vb|
       vb.name = "k8s-nfs"
       vb.cpus = 1
-      vb.memory = 1024
+      vb.memory = 800
       vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster"]
     end
     nfs.vm.host_name = "k8s-nfs"
     nfs.vm.network "private_network", ip: "192.168.1.100"
-    nfs.vm.network "forwarded_port", guest: 22, host: 10040, auto_correct: true, id: "ssh"
+    nfs.vm.network "forwarded_port", guest: 22, host: 10100, auto_correct: true, id: "ssh"
     nfs.vm.provision "shell", path: "./common/config.sh"
     nfs.vm.provision "shell", path: "./nfs/nfs_node.sh"
   end
@@ -49,29 +48,29 @@ Vagrant.configure("2") do |config|
     master.vm.network "forwarded_port", guest: 22, host: 10030, auto_correct: true, id: "ssh"
     master.vm.provision "shell", path: "./common/config.sh"
     master.vm.provision "shell", path: "./common/install.sh"
-    master.vm.provision "shell", path: "./master_node/master_node.sh"
-    master.vm.provision "shell", path: "./master_node/loadbalancer.sh"
-    master.vm.provision "shell", path: "./master_node/monitoring.sh"
-    master.vm.provision "shell", path: "./master_node/jenkins.sh", privileged: false ## installing jenkins with normal user
-    #master.vm.provision "shell", path: "./master_node/kubeflow.sh"
+    #master.vm.provision "shell", path: "./master_node/master_node.sh"
+    #master.vm.provision "shell", path: "./master_node/loadbalancer.sh"
+    #master.vm.provision "shell", path: "./master_node/monitoring.sh"
+    #master.vm.provision "shell", path: "./master_node/jenkins.sh", privileged: false ## installing jenkins with normal user
+    #master.vm.provision "shell", path: "./master_node/ansible.sh", privileged: false ## install pip, ansible by normal user
   end
 
   ### Worker node ###
-
-  config.vm.define "k8s-worker1" do |worker|
-    worker.vm.box = "centos/7"
-    worker.vm.provider "virtualbox" do |vb|
-      vb.name = "k8s-worker1"
-      vb.cpus = 2
-      vb.memory = 1900
-      vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster"]
+  (1..Node_Number).each do |num|
+    config.vm.define "k8s-worker#{num}" do |worker|
+      worker.vm.box = "centos/7"
+      worker.vm.provider "virtualbox" do |vb|
+        vb.name = "k8s-worker#{num}"
+        vb.cpus = 2
+        vb.memory = 1900
+        vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster"]
+      end
+      worker.vm.host_name = "k8s-worker#{num}"
+      worker.vm.network "private_network", ip: "192.168.1.2#{num}"
+      worker.vm.network "forwarded_port", guest: 22, host: "1004#{num}", auto_correct: true, id: "ssh"
+      worker.vm.provision "shell", path: "./common/config.sh"
+      worker.vm.provision "shell", path: "./common/install.sh"
+      #worker.vm.provision "shell", path: "./worker_node/worker_node.sh"
     end
-    worker.vm.host_name = "k8s-worker1"
-    worker.vm.network "private_network", ip: "192.168.1.11"
-    worker.vm.network "forwarded_port", guest: 22, host: "10031", auto_correct: true, id: "ssh"
-    worker.vm.provision "shell", path: "./common/config.sh"
-    worker.vm.provision "shell", path: "./common/install.sh"
-    worker.vm.provision "shell", path: "./worker_node/worker_node.sh"
   end
-  
 end
