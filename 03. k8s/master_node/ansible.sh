@@ -13,7 +13,7 @@ sudo yum install -y gcc gcc-c++ pcre-devel zlib-devel perl wget libffi-devel bzi
 
 # download and install openssl 1.1.1
 cd /usr/local/src
-sudo chown $(whoami):$(whoami) /usr/local/src
+sudo chown -R $(whoami):$(whoami) /usr/local/src
 wget https://www.openssl.org/source/openssl-1.1.1k.tar.gz
 tar xvfz openssl-1.1.1k.tar.gz
 cd openssl-1.1.1k
