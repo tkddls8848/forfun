@@ -46,13 +46,13 @@ Vagrant.configure("2") do |config|
     master.vm.host_name = "k8s-master"
     master.vm.network "private_network", ip: "192.168.1.10"
     master.vm.network "forwarded_port", guest: 22, host: 10030, auto_correct: true, id: "ssh"
+    master.vm.provision "shell", path: "./master_node/ansible.sh", privileged: false ## install pip, ansible by normal user
     master.vm.provision "shell", path: "./common/config.sh"
     master.vm.provision "shell", path: "./common/install.sh"
-    #master.vm.provision "shell", path: "./master_node/master_node.sh"
-    #master.vm.provision "shell", path: "./master_node/loadbalancer.sh"
-    #master.vm.provision "shell", path: "./master_node/monitoring.sh"
-    #master.vm.provision "shell", path: "./master_node/jenkins.sh", privileged: false ## installing jenkins with normal user
-    #master.vm.provision "shell", path: "./master_node/ansible.sh", privileged: false ## install pip, ansible by normal user
+    master.vm.provision "shell", path: "./master_node/master_node.sh"
+    master.vm.provision "shell", path: "./master_node/loadbalancer.sh"
+    master.vm.provision "shell", path: "./master_node/monitoring.sh"
+    master.vm.provision "shell", path: "./master_node/jenkins.sh", privileged: false ## installing jenkins with normal user
   end
 
   ### Worker node ###
@@ -70,7 +70,7 @@ Vagrant.configure("2") do |config|
       worker.vm.network "forwarded_port", guest: 22, host: "1004#{num}", auto_correct: true, id: "ssh"
       worker.vm.provision "shell", path: "./common/config.sh"
       worker.vm.provision "shell", path: "./common/install.sh"
-      #worker.vm.provision "shell", path: "./worker_node/worker_node.sh"
+      worker.vm.provision "shell", path: "./worker_node/worker_node.sh"
     end
   end
 end

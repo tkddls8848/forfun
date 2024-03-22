@@ -31,7 +31,7 @@ sudo ln -s /usr/local/ssl/lib/libssl.so.1.1 /usr/lib64/libssl.so.1.1
 sudo ln -s /usr/local/ssl/lib/libcrypto.so.1.1 /usr/lib64/libcrypto.so.1.1
 sudo ln -s /usr/local/ssl/bin/openssl /bin/openssl
 
-########### 2. install python by pyenv in root user ###########
+########### 2. install python ###########
 cd /opt
 sudo wget https://www.python.org/ftp/python/3.11.3/Python-3.11.3.tgz  --no-check-certificate
 sudo tar -zxvf Python-3.11.3.tgz
@@ -41,15 +41,22 @@ make
 sudo make install
 sudo chown $(whoami):$(whoami) /etc/profile
 echo 'alias python=/usr/local/bin/python3.11' >> /etc/profile
+echo 'alias python3=/usr/local/bin/python3.11' >> /etc/profile
 echo 'alias pip=/usr/local/bin/pip3.11' >> /etc/profile
+echo 'alias pip3=/usr/local/bin/pip3.11' >> /etc/profile
 source /etc/profile
-pip3 install --upgrade pip
 
-########### 3. install kubespray ansible by pip ###########
+########### 3. install kubespray in venv ###########
 cd ~
 git clone https://github.com/kubernetes-sigs/kubespray.git
 cd kubespray
-pip3 install -r requirements.txt
+python -m venv kubespray-venv
+source kubespray-venv/bin/activate
+pip install -r requirements.txt ## install in python virtual enviroment
 
+cp -rfp inventory/sample inventory/k8s-clusters
+declare -a IPS=(192.168.1.10 192.168.1.21 192.168.1.22 192.168.1.100)
+CONFIG_FILE=inventory/k8s-clusters/hosts.yaml python contrib/inventory_builder/inventory.py ${IPS[@]}
 
+#ansible-playbook -i inventory/k8s-clusters/inventory.ini -become --become-user=root cluster.yml 
 
