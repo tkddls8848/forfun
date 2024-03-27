@@ -39,9 +39,8 @@ sudo sysctl -p
 # add hosts
 sudo bash -c 'cat << EOF >> /etc/hosts
 192.168.1.10 k8s-master
+192.168.1.100 k8s-NFS
 192.168.1.21 k8s-worker1
-192.168.1.22 k8s-worker2
-192.168.1.100 k8s-nfs
 EOF'
 
 # config DNS
@@ -53,3 +52,7 @@ EOF'
 sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config_$time.backup
 sudo sed -i -e 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
 sudo systemctl restart sshd
+
+# root without password
+sudo su -
+echo "vagrant ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
