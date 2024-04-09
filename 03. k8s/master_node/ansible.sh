@@ -83,10 +83,10 @@ bash -c 'cat << EOF >> ssh_expect1.sh
     set prompt "#"
     spawn bash -c "ssh-copy-id vagrant@k8s-master"
     expect {
-      "yes/no" { send "yes\r"; exp_continue}
-      (yes/no) { send "yes\r"; exp_continue}
-      -nocase "password" {send "vagrant\r"; exp_continue }
-      $prompt
+      "yes/no" { send "yes\r"; exp_continue}
+      (yes/no) { send "yes\r"; exp_continue}
+      -nocase "password" {send "vagrant\r"; exp_continue }
+      $prompt
     }
     EOE
 EOF'
@@ -98,10 +98,10 @@ bash -c 'cat << EOF >> ssh_expect2.sh
     set prompt "#"
     spawn bash -c "ssh-copy-id vagrant@k8s-worker1"
     expect {
-      "yes/no" { send "yes\r"; exp_continue}
-      (yes/no) { send "yes\r"; exp_continue}
-      -nocase "password" {send "vagrant\r"; exp_continue }
-      $prompt
+      "yes/no" { send "yes\r"; exp_continue}
+      (yes/no) { send "yes\r"; exp_continue}
+      -nocase "password" {send "vagrant\r"; exp_continue }
+      $prompt
     }
     EOE
 EOF'

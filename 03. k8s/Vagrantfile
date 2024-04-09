@@ -65,8 +65,7 @@ Vagrant.configure("2") do |config|
     master.vm.provision "shell", inline: "sudo yum -y update"
     master.vm.provision "shell", path: "./common/config.sh"
     master.vm.provision "shell", path: "./master_node/ansible.sh", privileged: false ## install pip, ansible by normal user
-    master.vm.provision "shell", path: "./master_node/loadbalancer.sh"
-    master.vm.provision "shell", path: "./master_node/monitoring.sh"
+    master.vm.provision "shell", path: "./master_node/master_node.sh"
     master.vm.provision "shell", path: "./master_node/jenkins.sh", privileged: false ## installing jenkins with normal user
   end
 end
