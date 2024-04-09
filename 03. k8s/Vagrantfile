@@ -14,10 +14,8 @@
 
 
 Vagrant.configure("2") do |config|
-
   Node_Number = 1
-  ### NFS Server ###
-  
+  ### NFS Server ###  
   config.vm.define "k8s-NFS" do |nfs|
     nfs.vm.box = "centos/7"
     nfs.vm.provider "virtualbox" do |vb|
@@ -28,31 +26,10 @@ Vagrant.configure("2") do |config|
     end
     nfs.vm.host_name = "k8s-nfs"
     nfs.vm.network "private_network", ip: "192.168.1.100"
-    nfs.vm.network "forwarded_port", guest: 22, host: 10100, auto_correct: true, id: "ssh"
+    nfs.vm.network "forwarded_port", guest: 22, host: "10100", auto_correct: true, id: "ssh"
+    nfs.vm.provision "shell", inline: "sudo yum -y update"
     nfs.vm.provision "shell", path: "./common/config.sh"
     nfs.vm.provision "shell", path: "./nfs/nfs_node.sh"
-  end
-
-  ### Master Node ####
-
-  config.vm.define "k8s-master" do |master|
-    master.vm.box = "centos/7"
-    master.vm.provider "virtualbox" do |vb|
-      vb.name = "k8s-master"
-      vb.cpus = 3
-      vb.memory = 2048
-      vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster"]
-    end
-    master.vm.host_name = "k8s-master"
-    master.vm.network "private_network", ip: "192.168.1.10"
-    master.vm.network "forwarded_port", guest: 22, host: 10030, auto_correct: true, id: "ssh"
-    master.vm.provision "shell", path: "./master_node/ansible.sh", privileged: false ## install pip, ansible by normal user
-    master.vm.provision "shell", path: "./common/config.sh"
-    master.vm.provision "shell", path: "./common/install.sh"
-    master.vm.provision "shell", path: "./master_node/master_node.sh"
-    master.vm.provision "shell", path: "./master_node/loadbalancer.sh"
-    master.vm.provision "shell", path: "./master_node/monitoring.sh"
-    master.vm.provision "shell", path: "./master_node/jenkins.sh", privileged: false ## installing jenkins with normal user
   end
 
   ### Worker node ###
@@ -68,9 +45,28 @@ Vagrant.configure("2") do |config|
       worker.vm.host_name = "k8s-worker#{num}"
       worker.vm.network "private_network", ip: "192.168.1.2#{num}"
       worker.vm.network "forwarded_port", guest: 22, host: "1004#{num}", auto_correct: true, id: "ssh"
+      worker.vm.provision "shell", inline: "sudo yum -y update"
       worker.vm.provision "shell", path: "./common/config.sh"
-      worker.vm.provision "shell", path: "./common/install.sh"
-      worker.vm.provision "shell", path: "./worker_node/worker_node.sh"
     end
+  end
+
+  ### Master Node ####
+  config.vm.define "k8s-master" do |master|
+    master.vm.box = "centos/7"
+    master.vm.provider "virtualbox" do |vb|
+      vb.name = "k8s-master"
+      vb.cpus = 3
+      vb.memory = 2048
+      vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster"]
+    end
+    master.vm.host_name = "k8s-master"
+    master.vm.network "private_network", ip: "192.168.1.10"
+    master.vm.network "forwarded_port", guest: 22, host: "10030", auto_correct: true, id: "ssh"
+    master.vm.provision "shell", inline: "sudo yum -y update"
+    master.vm.provision "shell", path: "./common/config.sh"
+    master.vm.provision "shell", path: "./master_node/ansible.sh", privileged: false ## install pip, ansible by normal user
+    master.vm.provision "shell", path: "./master_node/loadbalancer.sh"
+    master.vm.provision "shell", path: "./master_node/monitoring.sh"
+    master.vm.provision "shell", path: "./master_node/jenkins.sh", privileged: false ## installing jenkins with normal user
   end
 end
