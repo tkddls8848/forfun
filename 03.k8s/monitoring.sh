@@ -1,34 +1,7 @@
 #!/usr/bin/bash
 
-# set bash-completion
-sudo yum install bash-completion -y
-echo 'source <(kubectl completion bash)' >>~/.bashrc
-echo 'alias k=kubectl' >>~/.bashrc
-echo 'complete -F __start_kubectl k' >>~/.bashrc
-
-# Install Metallb
-kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/namespace.yaml
-kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/metallb.yaml
-
-# Config Metallb L2 Layer Config
-sudo bash -c 'cat << EOF > metallb-config.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  namespace: metallb-system
-  name: config
-data:
-  config: |
-    address-pools:
-    - name: default
-      protocol: layer2
-      addresses:
-      - 192.168.1.50-192.168.1.100 # external-ip range
-EOF'
-kubectl apply -f metallb-config.yaml
-
 # install helm
-sudo yum install vim git -y
+sudo apt-get install vim git -y
 export PATH=$PATH:/usr/local/bin
 source ~/.bashrc
 sudo curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
@@ -63,8 +36,10 @@ helm upgrade --install grafana grafana/grafana \
 # Grafana admin password: initial password is 'password'
 
 # config Grafana service type to NodePort
+cd ~
 kubectl get svc -n monitoring -o yaml grafana > grafana.yaml
-sudo chmod  grafana.yaml
+sudo chmod +x grafana.yaml
 sudo sed -i 's/type: ClusterIP/type: NodePort/g' grafana.yaml
+kubectl delete -f grafana.yaml
 kubectl apply -f grafana.yaml
 
