@@ -11,4 +11,4 @@ kubectl create namespace devops-tools
 kubectl apply -f .
 
 # get initial admin password
-# kubectl exec -it (pod name) cat /var/jenkins_home/secrets/initialAdminPassword -n jenkins-tools
+# kubectl get secret --namespace monitoring grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
