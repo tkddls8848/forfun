@@ -2,9 +2,10 @@
 
 # time config
 sudo timedatectl set-timezone Asia/Seoul
-
-# allow ssh login with password
 time=$(date "+%Y%m%d.%H%M%S")
+
+# install net tools
+sudo apt install net-tools
 
 # swapoff -a to disable swapping 
 sudo swapoff -a
@@ -46,7 +47,7 @@ sudo echo "vagrant ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 # add host
 export WORKER_NODE_NUMBER=$1
 
-echo "192.168.1.10 k8s-master" | sudo tee -a /etc/hosts > /dev/null
+echo "192.168.11.10 k8s-master" | sudo tee -a /etc/hosts > /dev/null
 cat << EOF >> ssh_master.sh
 #!/usr/bin/expect -f
 spawn ssh-copy-id vagrant@k8s-master
@@ -63,7 +64,7 @@ sudo chmod +x ssh_master.sh
 
 for ((i=1; i<=WORKER_NODE_NUMBER; i++))
 do 
-echo "192.168.1.2$i" k8s-worker${i} | sudo tee -a /etc/hosts > /dev/null
+echo "192.168.11.2$i" k8s-worker${i} | sudo tee -a /etc/hosts > /dev/null
 cat << EOF >> ssh_worker${i}.sh
 #!/usr/bin/expect -f
 spawn ssh-copy-id vagrant@k8s-worker${i}
@@ -93,7 +94,7 @@ sudo apt-get install python3 python3-venv pip -y
 
 # install kubespray
 cd ~
-git clone https://github.com/kubernetes-sigs/kubespray.git
+git clone -b release-2.23 https://github.com/kubernetes-sigs/kubespray.git
 cd kubespray
 python3 -m venv ~/.venv/kubespray
 source ~/.venv/kubespray/bin/activate
@@ -104,9 +105,9 @@ cp -rfp ~/kubespray/inventory/sample ~/kubespray/inventory/k8s-clusters
 
 bash -c 'cat << EOF > ~/kubespray/inventory/k8s-clusters/inventory.ini
 [all]
-k8s-master ansible_host=192.168.1.10  ip=192.168.1.10  etcd_member_name=etcd1
-k8s-worker1 ansible_host=192.168.1.21  ip=192.168.1.21
-k8s-worker2 ansible_host=192.168.1.22  ip=192.168.1.22
+k8s-master ansible_host=192.168.11.10  ip=192.168.11.10  etcd_member_name=etcd1
+k8s-worker1 ansible_host=192.168.11.21  ip=192.168.11.21
+k8s-worker2 ansible_host=192.168.11.22  ip=192.168.11.22
 
 # ## configure a bastion host if your nodes are not directly reachable
 # [bastion]
@@ -162,7 +163,7 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-  - 192.168.1.101-192.168.1.200 # LoadBalancer Object ip range
+  - 192.168.11.101-192.168.11.150 # LoadBalancer Object ip range
 ---
 apiVersion: metallb.io/v1beta1
 kind: L2Advertisement

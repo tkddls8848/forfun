@@ -1,7 +1,6 @@
 #!/usr/bin/bash
 
 # install helm
-sudo apt-get install vim git -y
 export PATH=$PATH:/usr/local/bin
 source ~/.bashrc
 sudo curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
