@@ -102,7 +102,7 @@ pip3 install -r requirements.txt
 
 # generate ansible inventory yaml file
 cp -rfp ~/kubespray/inventory/sample ~/kubespray/inventory/k8s-clusters
-
+sed -i 's/kube_network_plugin: calico/kube_network_plugin: flannel/g' inventory/k8s-clusters/group_vars/k8s_cluster/k8s-cluster.yml
 bash -c 'cat << EOF > ~/kubespray/inventory/k8s-clusters/inventory.ini
 [all]
 k8s-master ansible_host=192.168.11.10  ip=192.168.11.10  etcd_member_name=etcd1
@@ -123,12 +123,10 @@ k8s-master
 k8s-worker1
 k8s-worker2
 
-[calico_rr]
-
 [k8s_cluster:children]
 kube_control_plane
 kube_node
-calico_rr
+
 EOF'
 
 # execute ansible-playbook cluster.yml file
