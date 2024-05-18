@@ -7,6 +7,10 @@ cd kubernetes-jenkins
 # create namespace
 kubectl create namespace devops-tools
 
+# change node name for pv, pvc
+export WORKER_NODE_NAME=$1
+sed -i 's/worker-node01/${WORKER_NODE_NAME}/g' volume.yaml
+
 # deploy jenkins service
 kubectl apply -f .
 
