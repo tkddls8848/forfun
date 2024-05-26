@@ -1,12 +1,13 @@
 # k8s cluster for vagrant
 
-I create the k8s cluster for vagrant.\
+This README.md file is created by `Vagrant init`.\
 I wrote scripts related to configuration, installation, master node, and worker node.
 
-VM : Virtualbox
-VM OS : Centos8
-Kubernetes version : v1.27.3
-docker version : Docker version 24.0.2, build cb74dfc
+VM Provision : Virtualbox
+VM OS : Ubuntu 22.04
+Kubernetes version : v1.29.5
+Kubernetes build tool : Kubespray release-2.23
+container runtime : Container.d version 1.6.6
 
 ### \# How to use
   1. Download Codes

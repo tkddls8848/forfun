@@ -46,13 +46,13 @@ sudo echo "vagrant ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # install nfs
 sudo apt-get install nfs-common -y
+echo "192.168.56.100" k8s-nfs | sudo tee -a /etc/hosts > /dev/null
 
-# add host
+# add host for ssh
 export WORKER_NODE_NUMBER=$1
-echo "192.168.56.10 k8s-master" | sudo tee -a /etc/hosts > /dev/null
 cat << EOF >> ssh_master.sh
 #!/usr/bin/expect -f
-spawn ssh-copy-id vagrant@k8s-master
+spawn ssh-copy-id vagrant@192.168.56.10
 expect {
     "Are you sure you want to continue connecting (yes/no" {
         send "yes\r"; exp_continue
@@ -66,10 +66,9 @@ sudo chmod +x ssh_master.sh
 
 for ((i=1; i<=WORKER_NODE_NUMBER; i++))
 do 
-echo "192.168.56.2$i" k8s-worker${i} | sudo tee -a /etc/hosts > /dev/null
 cat << EOF >> ssh_worker${i}.sh
 #!/usr/bin/expect -f
-spawn ssh-copy-id vagrant@k8s-worker${i}
+spawn ssh-copy-id vagrant@192.168.56.2$i
 expect {
     "Are you sure you want to continue connecting (yes/no" {
         send "yes\r"; exp_continue
@@ -113,7 +112,6 @@ bash -c 'cat << EOF > ~/kubespray/inventory/k8s-clusters/inventory.ini
 k8s-master ansible_host=192.168.56.10  ip=192.168.56.10  etcd_member_name=etcd1
 k8s-worker1 ansible_host=192.168.56.21  ip=192.168.56.21
 k8s-worker2 ansible_host=192.168.56.22  ip=192.168.56.22
-k8s-nfs ansible_host=192.168.56.100  ip=192.168.56.100
 
 # ## configure a bastion host if your nodes are not directly reachable
 # [bastion]
