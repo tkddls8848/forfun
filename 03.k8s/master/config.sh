@@ -18,7 +18,7 @@ sudo sed -i --follow-symlinks 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/sysc
 sestatus
 
 # enabling iptables kernel options
-cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
+cat << EOF | sudo tee /etc/modules-load.d/k8s.conf
 br_netfilter
 EOF
  
@@ -96,7 +96,7 @@ done
 sudo apt-get install python3 python3.10-venv pip -y
 
 # install kubespray
-export KUBESPRAY_VERSION='release-2.23'
+export KUBESPRAY_VERSION='release-2.24'
 cd ~
 git clone -b $KUBESPRAY_VERSION https://github.com/kubernetes-sigs/kubespray.git
 cd kubespray

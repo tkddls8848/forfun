@@ -9,14 +9,13 @@ helm repo update
 # create namespace for installing Prometheus and Grafana
 kubectl create namespace monitoring
 
+# install Prometheus by Helm
 helm inspect values prometheus-community/prometheus > values.yaml
 sed -i 's/# storageClass: "-"/storageClass: "nfs-client"/g' values.yaml
 helm install prometheus -f values.yaml prometheus-community/prometheus -n monitoring
 
-sudo mkdir /data
-touch ~/prometheus-server-vol.yaml
-sudo chown vagrant ~/prometheus-server-vol.yaml
-bash -c 'cat << EOF > ~/prometheus-server-vol.yaml
+# config persistent volume and service for custom prometheus server
+sudo bash -c 'cat << EOF > prometheus-server-vol.yaml
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -31,7 +30,6 @@ spec:
   resources:
     requests:
       storage: 5Gi
-  storageClassName: local-storage
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -46,16 +44,19 @@ spec:
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: local-storage
-  hostPath:
-    path: /data
+  nfs:
+    path: /mnt/share/prometheus-server
+    server: 192.168.56.100
 EOF
 '
+# apply pv, svc for prometheus-server
 kubectl apply -f prometheus-server-vol.yaml --force
+kubectl get svc -n monitoring prometheus-server -o yaml >> prometheus-server-svc.yaml
+sudo sed -i "s/type: ClusterIP/type: NodePort/g" prometheus-server-svc.yaml
+kubectl apply -f prometheus-server-svc.yaml --force
 
-touch ~/prometheus-alertmanager-vol.yaml
-sudo chown vagrant ~/prometheus-alertmanager-vol.yaml
-bash -c 'cat << EOF > ~/prometheus-alertmanager-vol.yaml
+# config persistent volume and service for custom prometheus-alertmanager
+sudo bash -c 'cat << EOF > prometheus-alertmanager-vol.yaml
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -70,15 +71,17 @@ spec:
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: local-storage
-  hostPath:
-    path: /alertmanager/data
+  nfs:
+    path: /mnt/share/prometheus-alertmanager
+    server: 192.168.56.100
 EOF
 '
-kubectl apply -f prometheus-alertmanager-vol.yaml --force
 
-# install Prometheus by Helm
-helm install prometheus prometheus-community/prometheus --namespace monitoring
+# apply pv, svc for prometheus-alertmanager
+kubectl apply -f prometheus-alertmanager-vol.yaml --force
+kubectl get svc -n monitoring prometheus-alertmanager -o yaml >> prometheus-alertmanager-svc.yaml
+sudo sed -i "s/type: ClusterIP/type: NodePort/g" prometheus-alertmanager-svc.yaml
+kubectl apply -f prometheus-alertmanager-svc.yaml --force
 
 # install Grafana by Helm
 helm upgrade --install grafana grafana/grafana \
