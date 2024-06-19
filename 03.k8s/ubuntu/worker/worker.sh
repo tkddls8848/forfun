@@ -1,3 +1,5 @@
+#!/usr/bin/bash
+
 sudo apt-get update -y
 sudo timedatectl set-timezone Asia/Seoul
 sudo apt-get install nfs-common -y

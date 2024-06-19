@@ -47,8 +47,8 @@ spec:
   nfs:
     path: /mnt/share/prometheus-server
     server: 192.168.56.100
-EOF
-'
+EOF'
+
 # apply pv, svc for prometheus-server
 kubectl apply -f prometheus-server-vol.yaml --force
 kubectl get svc -n monitoring prometheus-server -o yaml >> prometheus-server-svc.yaml
@@ -74,8 +74,7 @@ spec:
   nfs:
     path: /mnt/share/prometheus-alertmanager
     server: 192.168.56.100
-EOF
-'
+EOF'
 
 # apply pv, svc for prometheus-alertmanager
 kubectl apply -f prometheus-alertmanager-vol.yaml --force
