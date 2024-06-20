@@ -53,6 +53,7 @@ Vagrant.configure("2") do |config|
     master.vm.provision "shell", inline: "sudo yum -y update"
     master.vm.provision "shell", path: "./common/config.sh"
     master.vm.provision "shell", path: "./master_node/ansible.sh", privileged: false ## install pip, ansible by normal user
-    #master.vm.provision "shell", path: "./master_node/master_node.sh"
+    master.vm.provision "shell", path: "./master_node/ceph.sh"
+    master.vm.provision "shell", path: "./master_node/master_node.sh"
   end
 end

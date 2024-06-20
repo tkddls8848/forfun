@@ -29,11 +29,7 @@ kubectl apply -f metallb-config.yaml
 
 # install helm
 sudo yum install vim git -y
-export PATH=$PATH:/usr/local/bin
-source ~/.bashrc
-sudo curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-sudo chmod +x get_helm.sh
-./get_helm.sh
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
 # add helm repository
 helm repo add bitnami https://charts.bitnami.com/bitnami
