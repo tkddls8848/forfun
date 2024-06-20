@@ -60,9 +60,6 @@ k8s-master ansible_host=192.168.1.10  ip=192.168.1.10  etcd_member_name=etcd1
 k8s-worker1 ansible_host=192.168.1.21  ip=192.168.1.21
 k8s-worker2 ansible_host=192.168.1.22  ip=192.168.1.22
 k8s-worker3 ansible_host=192.168.1.23  ip=192.168.1.23
-k8s-worker4 ansible_host=192.168.1.24  ip=192.168.1.24
-k8s-worker5 ansible_host=192.168.1.25  ip=192.168.1.25
-k8s-worker6 ansible_host=192.168.1.26  ip=192.168.1.26
 # ## configure a bastion host if your nodes are not directly reachable
 # [bastion]
 # bastion ansible_host=x.x.x.x ansible_user=some_user
@@ -74,9 +71,6 @@ k8s-master
 k8s-worker1
 k8s-worker2
 k8s-worker3
-k8s-worker4
-k8s-worker5
-k8s-worker6
 [calico_rr]
 [k8s_cluster:children]
 kube_control_plane
@@ -147,51 +141,6 @@ bash -c 'cat << EOF >> ssh_expect4.sh
 EOF'
 sudo chmod +x ssh_expect4.sh
 ./ssh_expect4.sh
-
-bash -c 'cat << EOF >> ssh_expect5.sh
-    /usr/bin/expect <<EOE
-    set prompt "#"
-    spawn bash -c "ssh-copy-id vagrant@192.168.1.24"
-    expect {
-      "yes/no" { send "yes\r"; exp_continue}
-      (yes/no) { send "yes\r"; exp_continue}
-      -nocase "password" {send "vagrant\r"; exp_continue }
-      $prompt
-    }
-    EOE
-EOF'
-sudo chmod +x ssh_expect5.sh
-./ssh_expect5.sh
-
-bash -c 'cat << EOF >> ssh_expect6.sh
-    /usr/bin/expect <<EOE
-    set prompt "#"
-    spawn bash -c "ssh-copy-id vagrant@192.168.1.25"
-    expect {
-      "yes/no" { send "yes\r"; exp_continue}
-      (yes/no) { send "yes\r"; exp_continue}
-      -nocase "password" {send "vagrant\r"; exp_continue }
-      $prompt
-    }
-    EOE
-EOF'
-sudo chmod +x ssh_expect6.sh
-./ssh_expect6.sh
-
-bash -c 'cat << EOF >> ssh_expect7.sh
-    /usr/bin/expect <<EOE
-    set prompt "#"
-    spawn bash -c "ssh-copy-id vagrant@192.168.1.26"
-    expect {
-      "yes/no" { send "yes\r"; exp_continue}
-      (yes/no) { send "yes\r"; exp_continue}
-      -nocase "password" {send "vagrant\r"; exp_continue }
-      $prompt
-    }
-    EOE
-EOF'
-sudo chmod +x ssh_expect7.sh
-./ssh_expect7.sh
 
 ## run ansible-playbook
 cd ~/kubespray
