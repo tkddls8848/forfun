@@ -52,7 +52,7 @@ cd kubespray
 #source kubespray-venv/bin/activate
 pip3 install -r requirements.txt
 
-## copy kubespray k8s template
+## copy kubespray k8s template (manually)
 cp -rfp ~/kubespray/inventory/sample ~/kubespray/inventory/k8s-clusters
 bash -c 'cat << EOF > ~/kubespray/inventory/k8s-clusters/inventory.ini
 [all]
@@ -82,65 +82,41 @@ EOF'
 cd ~
 sudo yum install -y expect
 ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa
-bash -c 'cat << EOF >> ssh_expect1.sh
-    /usr/bin/expect <<EOE
-    set prompt "#"
-    spawn bash -c "ssh-copy-id vagrant@192.168.1.10"
-    expect {
-      "yes/no" { send "yes\r"; exp_continue}
-      (yes/no) { send "yes\r"; exp_continue}
-      -nocase "password" {send "vagrant\r"; exp_continue }
-      $prompt
-    }
-    EOE
-EOF'
-sudo chmod +x ssh_expect1.sh
-./ssh_expect1.sh
 
-bash -c 'cat << EOF >> ssh_expect2.sh
-    /usr/bin/expect <<EOE
-    set prompt "#"
-    spawn bash -c "ssh-copy-id vagrant@192.168.1.21"
-    expect {
-      "yes/no" { send "yes\r"; exp_continue}
-      (yes/no) { send "yes\r"; exp_continue}
-      -nocase "password" {send "vagrant\r"; exp_continue }
-      $prompt
+export WORKER_NODE_NUMBER=$1
+cat << EOF > ssh_master.sh
+#!/usr/bin/expect -f
+spawn ssh-copy-id vagrant@192.168.1.10
+expect {
+    "Are you sure you want to continue connecting (yes/no" {
+        send "yes\r"; exp_continue
     }
-    EOE
-EOF'
-sudo chmod +x ssh_expect2.sh
-./ssh_expect2.sh
+    "password:" {
+        send "vagrant\r"; exp_continue
+    }
+}
+EOF
+sudo chmod +x ssh_master.sh
+./ssh_master.sh
 
-bash -c 'cat << EOF >> ssh_expect3.sh
-    /usr/bin/expect <<EOE
-    set prompt "#"
-    spawn bash -c "ssh-copy-id vagrant@192.168.1.22"
-    expect {
-      "yes/no" { send "yes\r"; exp_continue}
-      (yes/no) { send "yes\r"; exp_continue}
-      -nocase "password" {send "vagrant\r"; exp_continue }
-      $prompt
+for ((i=1; i<=WORKER_NODE_NUMBER; i++))
+do 
+cat << EOF > ssh_worker${i}.sh
+#!/usr/bin/expect -f
+spawn ssh-copy-id vagrant@192.168.1.2$i
+expect {
+    "Are you sure you want to continue connecting (yes/no" {
+        send "yes\r"; exp_continue
     }
-    EOE
-EOF'
-sudo chmod +x ssh_expect3.sh
-./ssh_expect3.sh
+    "password:" {
+        send "vagrant\r"; exp_continue
+    }
+}
+EOF
+sudo chmod +x ssh_worker${i}.sh
+./ssh_worker${i}.sh
+done
 
-bash -c 'cat << EOF >> ssh_expect4.sh
-    /usr/bin/expect <<EOE
-    set prompt "#"
-    spawn bash -c "ssh-copy-id vagrant@192.168.1.23"
-    expect {
-      "yes/no" { send "yes\r"; exp_continue}
-      (yes/no) { send "yes\r"; exp_continue}
-      -nocase "password" {send "vagrant\r"; exp_continue }
-      $prompt
-    }
-    EOE
-EOF'
-sudo chmod +x ssh_expect4.sh
-./ssh_expect4.sh
 
 ## run ansible-playbook
 cd ~/kubespray

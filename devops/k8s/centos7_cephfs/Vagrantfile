@@ -1,5 +1,5 @@
 Vagrant.configure("2") do |config|
-  Node_Number = 3
+  NODE_NUMBER = 3
   DISK_PATH = "D:/VirtualBoxVMs/k8s-cluster-centos7/disk"
 #  ### NFS Server ###  
 #  config.vm.define "k8s-NFS" do |nfs|
@@ -18,13 +18,13 @@ Vagrant.configure("2") do |config|
 #    nfs.vm.provision "shell", path: "./nfs/nfs_node.sh"
 #  end
   ### Worker node ###
-  (1..Node_Number).each do |num|
+  (1..NODE_NUMBER).each do |num|
     config.vm.define "k8s-worker#{num}-centos7" do |worker|      
       worker.vm.box = "centos/7"
       worker.vm.provider "virtualbox" do |vb|
         vb.name = "k8s-worker#{num}-centos7"
         vb.cpus = 2
-        vb.memory = 2000
+        vb.memory = 2500
         vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster-centos7"]
         vb.customize ['createhd', '--filename', "#{DISK_PATH}#{num}.vdi", '--size', 1024 * 10] # 10GB
         vb.customize ['storageattach', :id, '--storagectl', 'IDE', '--port', 1, '--device', 0, '--type', 'hdd', '--medium', "#{DISK_PATH}#{num}.vdi"]
@@ -44,7 +44,7 @@ Vagrant.configure("2") do |config|
     master.vm.provider "virtualbox" do |vb|
       vb.name = "k8s-master-centos7"
       vb.cpus = 3
-      vb.memory = 2500
+      vb.memory = 2800
       vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster-centos7"]
     end
     master.vm.host_name = "k8s-master"
@@ -52,7 +52,7 @@ Vagrant.configure("2") do |config|
     master.vm.network "forwarded_port", guest: 22, host: "10030", auto_correct: true, id: "ssh"
     master.vm.provision "shell", inline: "sudo yum -y update"
     master.vm.provision "shell", path: "./common/config.sh"
-    master.vm.provision "shell", path: "./master_node/ansible.sh", privileged: false ## install pip, ansible by normal user
+    master.vm.provision "shell", path: "./master_node/ansible.sh", args: [NODE_NUMBER], privileged: false ## install pip, ansible by normal user
     master.vm.provision "shell", path: "./master_node/ceph.sh"
     master.vm.provision "shell", path: "./master_node/master_node.sh"
   end
