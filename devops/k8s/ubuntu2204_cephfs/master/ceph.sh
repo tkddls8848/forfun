@@ -1,8 +1,9 @@
 #!/usr/bin/bash
+sudo apt-get install ceph -y
 
-git clone --single-branch --branch release-1.11 https://github.com/rook/rook.git
+git clone --single-branch --branch release-1.14 https://github.com/rook/rook.git
 cd ~/rook/deploy/examples
-kubectl create -f crds.yaml -f common.yaml -f operator.yaml
+kubectl create -f crds.yaml -f common.yaml -f operator.yaml 
 kubectl create -f cluster.yaml -f toolbox.yaml -f filesystem.yaml
 kubectl -n rook-ceph logs -l app=rook-ceph-operator -f
 kubectl -n rook-ceph get pod

@@ -64,6 +64,7 @@ bash -c 'cat << EOF > ~/kubespray/inventory/k8s-clusters/inventory.ini
 k8s-master ansible_host=192.168.56.10  ip=192.168.56.10  etcd_member_name=etcd1
 k8s-worker1 ansible_host=192.168.56.21  ip=192.168.56.21
 k8s-worker2 ansible_host=192.168.56.22  ip=192.168.56.22
+k8s-worker3 ansible_host=192.168.56.23  ip=192.168.56.23
 
 # ## configure a bastion host if your nodes are not directly reachable
 # [bastion]
@@ -78,6 +79,7 @@ k8s-master
 [kube_node]
 k8s-worker1
 k8s-worker2
+k8s-worker3
 
 [k8s_cluster:children]
 kube_control_plane

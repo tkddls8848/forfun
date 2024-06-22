@@ -117,6 +117,8 @@ sudo chmod +x ssh_worker${i}.sh
 ./ssh_worker${i}.sh
 done
 
+# enable helm by kubespray template
+sudo sed -i 's/helm_enabled: false/helm_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
 
 ## run ansible-playbook
 cd ~/kubespray
@@ -131,3 +133,29 @@ sudo mkdir -p /home/vagrant/.kube
 sudo cp -i /etc/kubernetes/admin.conf /home/vagrant/.kube/config
 sudo chown vagrant:vagrant /home/vagrant/.kube/config
 
+# set bash-completion
+sudo yum install bash-completion -y
+echo 'source <(kubectl completion bash)' >>~/.bashrc
+echo 'alias k=kubectl' >>~/.bashrc
+echo 'complete -F __start_kubectl k' >>~/.bashrc
+
+# Install Metallb
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/namespace.yaml
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/metallb.yaml
+
+# Config Metallb L2 Layer Config
+sudo bash -c 'cat << EOF > metallb-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: metallb-system
+  name: config
+data:
+  config: |
+    address-pools:
+    - name: default
+      protocol: layer2
+      addresses:
+      - 192.168.1.50-192.168.1.100 # external-ip range
+EOF'
+kubectl apply -f metallb-config.yaml
