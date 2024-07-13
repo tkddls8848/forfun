@@ -56,13 +56,11 @@ pip3 install -r requirements.txt
 cp -rfp ~/kubespray/inventory/sample ~/kubespray/inventory/k8s-clusters
 bash -c 'cat << EOF > ~/kubespray/inventory/k8s-clusters/inventory.ini
 [all]
-k8s-master ansible_host=192.168.1.10  ip=192.168.1.10  etcd_member_name=etcd1
+k8s-master ansible_host=192.168.1.10  ip=192.168.1.10
 k8s-worker1 ansible_host=192.168.1.21  ip=192.168.1.21
 k8s-worker2 ansible_host=192.168.1.22  ip=192.168.1.22
 k8s-worker3 ansible_host=192.168.1.23  ip=192.168.1.23
-# ## configure a bastion host if your nodes are not directly reachable
-# [bastion]
-# bastion ansible_host=x.x.x.x ansible_user=some_user
+
 [kube_control_plane]
 k8s-master
 [etcd]
@@ -77,6 +75,9 @@ kube_control_plane
 kube_node
 calico_rr
 EOF'
+
+# cluster etcd variable modify
+sudo sed -i 's/etcd_deployment_type: host/etcd_deployment_type: kubeadm/g' ~/kubespray/inventory/clusters/group_vars/all/etcd.yml
 
 ## establish ssh connection
 cd ~
@@ -116,6 +117,12 @@ EOF
 sudo chmod +x ssh_worker${i}.sh
 ./ssh_worker${i}.sh
 done
+
+# enable metric server
+sudo sed -i 's/metrics_server_enabled: false/metrics_server_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
+
+# enable nginx ingress
+sudo sed -i 's/ingress_nginx_enabled: false/ingress_nginx_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
 
 # enable helm by kubespray template
 sudo sed -i 's/helm_enabled: false/helm_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml

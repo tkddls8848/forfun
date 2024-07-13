@@ -48,7 +48,7 @@ done
 sudo apt-get install python3 python3.10-venv pip -y
 
 # install kubespray
-export KUBESPRAY_VERSION='release-2.24'
+export KUBESPRAY_VERSION='release-2.25'
 cd ~
 git clone -b $KUBESPRAY_VERSION https://github.com/kubernetes-sigs/kubespray.git
 cd kubespray
@@ -61,14 +61,10 @@ cp -rfp ~/kubespray/inventory/sample ~/kubespray/inventory/k8s-clusters
 sed -i 's/kube_network_plugin: calico/kube_network_plugin: flannel/g' inventory/k8s-clusters/group_vars/k8s_cluster/k8s-cluster.yml
 bash -c 'cat << EOF > ~/kubespray/inventory/k8s-clusters/inventory.ini
 [all]
-k8s-master ansible_host=192.168.56.10  ip=192.168.56.10  etcd_member_name=etcd1
+k8s-master ansible_host=192.168.56.10  ip=192.168.56.10
 k8s-worker1 ansible_host=192.168.56.21  ip=192.168.56.21
 k8s-worker2 ansible_host=192.168.56.22  ip=192.168.56.22
 k8s-worker3 ansible_host=192.168.56.23  ip=192.168.56.23
-
-# ## configure a bastion host if your nodes are not directly reachable
-# [bastion]
-# bastion ansible_host=192.168.56.31 ansible_user=vagrant
 
 [kube_control_plane]
 k8s-master
@@ -86,6 +82,9 @@ kube_control_plane
 kube_node
 EOF'
 
+# cluster etcd variable modify
+sudo sed -i 's/etcd_deployment_type: host/etcd_deployment_type: kubeadm/g' ~/kubespray/inventory/clusters/group_vars/all/etcd.yml
+
 # enable Metallb by kubespray template
 sudo sed -i '/# MetalLB deployment/,+63d' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
 bash -c 'cat << EOF >> ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
@@ -98,6 +97,12 @@ metallb_protocol: "layer2"
 metallb_pool_name: "loadbalanced"
 EOF'
 sudo sed -i 's/kube_proxy_strict_arp: false/kube_proxy_strict_arp: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/k8s-cluster.yml
+
+# enable metric server
+sudo sed -i 's/metrics_server_enabled: false/metrics_server_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
+
+# enable nginx ingress
+sudo sed -i 's/ingress_nginx_enabled: false/ingress_nginx_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
 
 # enable helm by kubespray template
 sudo sed -i 's/helm_enabled: false/helm_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml

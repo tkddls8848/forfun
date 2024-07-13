@@ -9,7 +9,6 @@ k8s_cluster ={
 }
 NODE_NUMBER = 3
 DISK_PATH = "D:/VirtualBoxVMs/k8s-cluster-ubuntu2204/disk-"
-
 Vagrant.configure("2") do |config|
   k8s_cluster.each do |hostname, info|
     config.vm.define hostname do |cfg|
@@ -37,6 +36,6 @@ Vagrant.configure("2") do |config|
           override.vm.provision "shell", path: "./nfs/nfs.sh"
         end
       end  
-    end  
-  end  
+    end
+  end
 end
