@@ -11,9 +11,9 @@ sudo mkdir /mnt/share
 sudo mkdir /mnt/share/prometheus-server
 sudo mkdir /mnt/share/prometheus-alertmanager
 sudo chown -R nobody:nogroup /mnt/share
-sudo bash -c 'echo "/mnt/share  192.168.56.1/24(rw,sync,no_subtree_check)" >> /etc/exports'
-sudo bash -c 'echo "/mnt/share/prometheus-server  192.168.56.1/24(rw,sync,no_subtree_check)" >> /etc/exports'
-sudo bash -c 'echo "/mnt/share/prometheus-alertmanager  192.168.56.1/24(rw,sync,no_subtree_check)" >> /etc/exports'
+sudo bash -c 'echo "/mnt/share  192.168.56.10/24(rw,sync,no_subtree_check,no_root_squash)" >> /etc/exports'
+sudo bash -c 'echo "/mnt/share/prometheus-server  192.168.56.10/24(rw,sync,no_subtree_check,no_root_squash)" >> /etc/exports'
+sudo bash -c 'echo "/mnt/share/prometheus-alertmanager  192.168.56.10/24(rw,sync,no_subtree_check,no_root_squash)" >> /etc/exports'
 
 # restart nfs
 sudo exportfs -a

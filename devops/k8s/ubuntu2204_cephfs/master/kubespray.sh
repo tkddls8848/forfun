@@ -58,7 +58,6 @@ pip3 install -r requirements.txt
 
 # generate ansible inventory yaml file
 cp -rfp ~/kubespray/inventory/sample ~/kubespray/inventory/k8s-clusters
-sed -i 's/kube_network_plugin: calico/kube_network_plugin: flannel/g' inventory/k8s-clusters/group_vars/k8s_cluster/k8s-cluster.yml
 bash -c 'cat << EOF > ~/kubespray/inventory/k8s-clusters/inventory.ini
 [all]
 k8s-master ansible_host=192.168.56.10  ip=192.168.56.10
@@ -77,6 +76,8 @@ k8s-worker1
 k8s-worker2
 k8s-worker3
 
+[calico_rr]
+
 [k8s_cluster:children]
 kube_control_plane
 kube_node
@@ -85,24 +86,8 @@ EOF'
 # cluster etcd variable modify
 sudo sed -i 's/etcd_deployment_type: host/etcd_deployment_type: kubeadm/g' ~/kubespray/inventory/clusters/group_vars/all/etcd.yml
 
-# enable Metallb by kubespray template
-sudo sed -i '/# MetalLB deployment/,+63d' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
-bash -c 'cat << EOF >> ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
-metallb_enabled: true
-metallb_speaker_enabled: true
-metallb_namespace: "metallb-system"
-metallb_ip_range:
-  - "192.168.56.101-192.168.56.150"
-metallb_protocol: "layer2"
-metallb_pool_name: "loadbalanced"
-EOF'
-sudo sed -i 's/kube_proxy_strict_arp: false/kube_proxy_strict_arp: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/k8s-cluster.yml
-
 # enable metric server
 sudo sed -i 's/metrics_server_enabled: false/metrics_server_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
-
-# enable nginx ingress
-sudo sed -i 's/ingress_nginx_enabled: false/ingress_nginx_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
 
 # enable helm by kubespray template
 sudo sed -i 's/helm_enabled: false/helm_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
@@ -120,3 +105,24 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 # set bash-completion
 sudo apt-get install bash-completion -y
 echo 'source <(kubectl completion bash)' >> ~/.bashrc
+
+# Install Metallb
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/namespace.yaml
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/metallb.yaml
+
+# Config Metallb L2 Layer Config
+sudo bash -c 'cat << EOF > metallb-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: metallb-system
+  name: config
+data:
+  config: |
+    address-pools:
+    - name: default
+      protocol: layer2
+      addresses:
+      - 192.168.56.150-192.168.56.250 # external-ip range
+EOF'
+kubectl apply -f metallb-config.yaml

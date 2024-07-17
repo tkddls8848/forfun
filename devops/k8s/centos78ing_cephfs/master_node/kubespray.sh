@@ -121,9 +121,6 @@ done
 # enable metric server
 sudo sed -i 's/metrics_server_enabled: false/metrics_server_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
 
-# enable nginx ingress
-sudo sed -i 's/ingress_nginx_enabled: false/ingress_nginx_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
-
 # enable helm by kubespray template
 sudo sed -i 's/helm_enabled: false/helm_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
 
