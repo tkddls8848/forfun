@@ -2,9 +2,9 @@
 # vi: set ft=ruby :
 k8s_cluster ={
   #"k8s-nfs" => { :ip => "192.168.56.100", :cpus => 2, :memory => 800, :ssh => 22200 },
-  "k8s-worker1" => { :ip => "192.168.56.21", :cpus => 2, :memory => 2500, :ssh => 22001 },
-  "k8s-worker2" => { :ip => "192.168.56.22", :cpus => 2, :memory => 2500, :ssh => 22002 },
-  "k8s-worker3" => { :ip => "192.168.56.23", :cpus => 2, :memory => 2500, :ssh => 22002 },
+  "k8s-worker1" => { :ip => "192.168.56.21", :cpus => 2, :memory => 2000, :ssh => 22001 },
+  "k8s-worker2" => { :ip => "192.168.56.22", :cpus => 2, :memory => 2000, :ssh => 22002 },
+  "k8s-worker3" => { :ip => "192.168.56.23", :cpus => 2, :memory => 2000, :ssh => 22003 },
   "k8s-master" => { :ip => "192.168.56.10", :cpus => 3, :memory => 3000, :ssh => 22000 }
 }
 NODE_NUMBER = 3

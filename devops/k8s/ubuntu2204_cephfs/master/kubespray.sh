@@ -55,6 +55,7 @@ cd kubespray
 python3 -m venv ~/.venv/kubespray
 source ~/.venv/kubespray/bin/activate
 pip3 install -r requirements.txt
+deactivate
 
 # generate ansible inventory yaml file
 cp -rfp ~/kubespray/inventory/sample ~/kubespray/inventory/k8s-clusters
@@ -84,7 +85,7 @@ kube_node
 EOF'
 
 # cluster etcd variable modify
-sudo sed -i 's/etcd_deployment_type: host/etcd_deployment_type: kubeadm/g' ~/kubespray/inventory/clusters/group_vars/all/etcd.yml
+sudo sed -i 's/etcd_deployment_type: host/etcd_deployment_type: kubeadm/g' ~/kubespray/inventory/k8s-clusters/group_vars/etcd.yml
 
 # enable metric server
 sudo sed -i 's/metrics_server_enabled: false/metrics_server_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
@@ -107,22 +108,20 @@ sudo apt-get install bash-completion -y
 echo 'source <(kubectl completion bash)' >> ~/.bashrc
 
 # Install Metallb
-kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/namespace.yaml
-kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/metallb.yaml
+kubectl get configmap kube-proxy -n kube-system -o yaml | \
+sed -e "s/strictARP: false/strictARP: true/" | \
+kubectl diff -f - -n kube-system
 
-# Config Metallb L2 Layer Config
-sudo bash -c 'cat << EOF > metallb-config.yaml
-apiVersion: v1
-kind: ConfigMap
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.7/config/manifests/metallb-native.yaml
+
+sudo bash -c 'cat << EOF > metallb-pool.yaml
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
 metadata:
+  name: lb-pool
   namespace: metallb-system
-  name: config
-data:
-  config: |
-    address-pools:
-    - name: default
-      protocol: layer2
-      addresses:
-      - 192.168.56.150-192.168.56.250 # external-ip range
+spec:
+  addresses:
+  - 192.168.10.128/28
 EOF'
-kubectl apply -f metallb-config.yaml
+kubectl apply -f metallb-pool.yaml
