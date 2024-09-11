@@ -4,13 +4,6 @@
 sudo timedatectl set-timezone Asia/Seoul
 time=$(date "+%Y%m%d.%H%M%S")
 
-# install net tools
-sudo apt install net-tools
-
-# install nfs
-sudo apt-get install nfs-common -y
-echo "192.168.56.100" k8s-nfs | sudo tee -a /etc/hosts > /dev/null
-
 # swapoff -a to disable swapping 
 sudo swapoff -a
 sudo sed -e '/swap/s/^/#/' -i /etc/fstab

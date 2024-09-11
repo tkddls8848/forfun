@@ -88,7 +88,7 @@ calico_rr
 EOF'
 
 # cluster etcd variable modify
-sudo sed -i 's/etcd_deployment_type: host/etcd_deployment_type: kubeadm/g' ~/kubespray/inventory/k8s-clusters/group_vars/etcd.yml
+sudo sed -i 's/etcd_deployment_type: host/etcd_deployment_type: kubeadm/g' ~/kubespray/inventory/k8s-clusters/group_vars/all/etcd.yml
 
 # enable metric server
 sudo sed -i 's/metrics_server_enabled: false/metrics_server_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
@@ -99,6 +99,7 @@ sudo sed -i 's/helm_enabled: false/helm_enabled: true/g' ~/kubespray/inventory/k
 ## run ansible-playbook
 cd ~/kubespray
 ansible-playbook -i ~/kubespray/inventory/k8s-clusters/inventory.ini -become --become-user=root ~/kubespray/cluster.yml 
+deactivate
 
 ## configuration for authorization to use kubecli command (for root user)
 sudo mkdir -p /.kube
@@ -115,7 +116,9 @@ echo 'source <(kubectl completion bash)' >>~/.bashrc
 echo 'alias k=kubectl' >>~/.bashrc
 echo 'complete -F __start_kubectl k' >>~/.bashrc
 
-# Install Metallb
+## Install Metallb
+cd ~
+
 kubectl get configmap kube-proxy -n kube-system -o yaml | \
 sed -e "s/strictARP: false/strictARP: true/" | \
 kubectl diff -f - -n kube-system
@@ -130,6 +133,26 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-  - 192.168.10.128/28
+  - 192.168.1.128/28
 EOF'
 kubectl apply -f metallb-pool.yaml
+
+#kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/namespace.yaml
+#kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/metallb.yaml
+
+# Config Metallb L2 Layer Config
+#sudo bash -c 'cat << EOF > metallb-config.yaml
+#apiVersion: v1
+#kind: ConfigMap
+#metadata:
+#  namespace: metallb-system
+#  name: config
+#data:
+#  config: |
+#    address-pools:
+#    - name: default
+#      protocol: layer2
+#      addresses:
+#      - 192.168.1.50-192.168.1.100 # external-ip range
+#EOF'
+#kubectl apply -f metallb-config.yaml

@@ -1,4 +1,5 @@
 #!/usr/bin/bash
+
 git clone https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner
 cd ~/nfs-subdir-external-provisioner/deploy/
 sudo rm deployment.yaml
@@ -33,13 +34,13 @@ spec:
             - name: PROVISIONER_NAME
               value: k8s-sigs.io/nfs-subdir-external-provisioner
             - name: NFS_SERVER
-              value: 192.168.55.100
+              value: 192.168.56.100
             - name: NFS_PATH
               value: /srv/nfs-volume
       volumes:
         - name: nfs-client-root
           nfs:
-            server: 192.168.55.100
+            server: 192.168.56.100
             path: /srv/nfs-volume
 EOF'
 kubectl apply -f .
@@ -51,3 +52,4 @@ sudo mv kustomize /usr/local/bin
 git clone https://github.com/kubeflow/manifests.git
 cd manifests
 while ! kustomize build example | kubectl apply -f -; do echo "Retrying to apply resources"; sleep 10; done
+kustomize edit fix

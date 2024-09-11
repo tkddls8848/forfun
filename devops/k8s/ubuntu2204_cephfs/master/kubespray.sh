@@ -45,17 +45,16 @@ sudo rm -f ssh_worker${i}.sh
 done
 
 # install python
-sudo apt-get install python3 python3.10-venv pip -y
+sudo apt-get install python3.11 python3.11-venv pip -y
 
 # install kubespray
-export KUBESPRAY_VERSION='release-2.25'
+export KUBESPRAY_VERSION='release-2.26'
 cd ~
 git clone -b $KUBESPRAY_VERSION https://github.com/kubernetes-sigs/kubespray.git
 cd kubespray
-python3 -m venv ~/.venv/kubespray
+python3.11 -m venv ~/.venv/kubespray
 source ~/.venv/kubespray/bin/activate
 pip3 install -r requirements.txt
-deactivate
 
 # generate ansible inventory yaml file
 cp -rfp ~/kubespray/inventory/sample ~/kubespray/inventory/k8s-clusters
@@ -85,13 +84,16 @@ kube_node
 EOF'
 
 # cluster etcd variable modify
-sudo sed -i 's/etcd_deployment_type: host/etcd_deployment_type: kubeadm/g' ~/kubespray/inventory/k8s-clusters/group_vars/etcd.yml
+sed -i 's/etcd_deployment_type: host/etcd_deployment_type: kubeadm/g' ~/kubespray/inventory/k8s-clusters/group_vars/all/etcd.yml
+bash -c 'cat << EOF > ~/kubespray/inventory/k8s-clusters/group_vars/all/etcd.yml
+etcd_kubeadm_enabled: true
+EOF'
 
 # enable metric server
-sudo sed -i 's/metrics_server_enabled: false/metrics_server_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
+sed -i 's/metrics_server_enabled: false/metrics_server_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
 
 # enable helm by kubespray template
-sudo sed -i 's/helm_enabled: false/helm_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
+sed -i 's/helm_enabled: false/helm_enabled: true/g' ~/kubespray/inventory/k8s-clusters/group_vars/k8s_cluster/addons.yml
 
 # execute ansible-playbook cluster.yml file
 cd ~/kubespray
@@ -107,7 +109,9 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 sudo apt-get install bash-completion -y
 echo 'source <(kubectl completion bash)' >> ~/.bashrc
 
-# Install Metallb
+## Install Metallb
+cd ~
+
 kubectl get configmap kube-proxy -n kube-system -o yaml | \
 sed -e "s/strictARP: false/strictARP: true/" | \
 kubectl diff -f - -n kube-system
@@ -122,6 +126,6 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-  - 192.168.10.128/28
+  - 192.168.56.128/28
 EOF'
 kubectl apply -f metallb-pool.yaml
