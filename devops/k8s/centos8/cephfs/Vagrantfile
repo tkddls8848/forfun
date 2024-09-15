@@ -1,0 +1,46 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+Vagrant.configure("2") do |config|
+  NODE_NUMBER = 3
+  DISK_PATH = "D:/VirtualBoxVMs/k8s-cluster-centos8/disk-"
+  ### Worker node ###
+  (1..NODE_NUMBER).each do |num|
+    config.vm.define "k8s-worker#{num}-centos8" do |worker|      
+      worker.vm.box = "generic/centos8"
+      worker.vm.provider "virtualbox" do |vb|
+        vb.name = "k8s-worker#{num}-centos8"
+        vb.cpus = 2
+        vb.memory = 3000
+        vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster-centos8"]
+        vb.customize ['createhd', '--filename', "#{DISK_PATH}#{num}.vdi", '--size', 1024 * 10] # 10GB
+        vb.customize ['storageattach', :id, '--storagectl', 'SATA Controller', '--port', 1, '--device', 0, '--type', 'hdd', '--medium', "#{DISK_PATH}#{num}.vdi"]
+        vb.customize ['setextradata', :id, "VBoxInternal/Devices/ahci/0/Config/Port1/NonRotational", "1"]
+      end
+      worker.vm.host_name = "k8s-worker#{num}"
+      worker.vm.network "private_network", ip: "192.168.1.2#{num}"
+      worker.vm.network "forwarded_port", guest: 22, host: "1004#{num}", auto_correct: true, id: "ssh"
+      worker.vm.provision "shell", inline: "sudo yum -y update"   
+      worker.vm.provision "shell", path: "./common/config.sh"   
+    end
+  end
+
+  ### Master Node ####
+  config.vm.define "k8s-master-centos8" do |master|
+    master.vm.box = "generic/centos8"
+    master.vm.provider "virtualbox" do |vb|
+      vb.name = "k8s-master-centos8"
+      vb.cpus = 3
+      vb.memory = 3500
+      vb.customize ["modifyvm", :id, "--groups", "/k8s-cluster-centos8"]
+    end
+    master.vm.host_name = "k8s-master"
+    master.vm.network "private_network", ip: "192.168.1.10"
+    master.vm.network "forwarded_port", guest: 22, host: "10030", auto_correct: true, id: "ssh"
+    master.vm.provision "shell", inline: "sudo yum -y update"
+    master.vm.provision "shell", path: "./common/config.sh"
+    master.vm.provision "shell", path: "./master_node/kubespray.sh", args: [NODE_NUMBER], privileged: false ## install pip, ansible by normal user
+    master.vm.provision "shell", path: "./master_node/ceph.sh", privileged: false
+    #master.vm.provision "shell", path: "./master_node/jenkins.sh"
+    #master.vm.provision "shell", path: "./master_node/monitoring.sh"
+  end
+end
