@@ -3,6 +3,7 @@
 go
 local
 test
+lectures
 *.pdf
 *.vdi
 *.gguf
