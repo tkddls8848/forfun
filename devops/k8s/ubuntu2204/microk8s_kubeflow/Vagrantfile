@@ -2,6 +2,7 @@
 # vi: set ft=ruby :
 
 Vagrant.configure("2") do |config|
+  GUEST_IP = "10.64.140.43" ## manually port-forwarding
   config.vm.define "microk8s-master" do |master|
     master.vm.box = "bento/ubuntu-22.04"
     master.vm.provider "virtualbox" do |vb|
@@ -11,8 +12,10 @@ Vagrant.configure("2") do |config|
     end
     master.vm.hostname = "microk8s-master"
     master.vm.network "private_network", ip: "192.168.10.10"
-    master.vm.network "forwarded_port", guest: 22, host: "10030", auto_correct: true, id: "ssh"
+    master.vm.network "forwarded_port", guest: 22, host: 10030, auto_correct: true, id: "ssh"
+    master.vm.network "forwarded_port", guest: 80, host: 1234, guest_ip: GUEST_IP, id: "dashboard"
     master.vm.provision "shell", inline: "sudo apt-get update -y"
     master.vm.provision "shell", path: "./microk8s.sh", privileged: false
+    master.vm.provision "shell", path: "./juju.sh", privileged: false
   end
 end
