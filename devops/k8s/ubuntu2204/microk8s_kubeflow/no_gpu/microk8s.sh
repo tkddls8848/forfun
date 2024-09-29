@@ -19,15 +19,14 @@ sudo resize2fs /dev/ubuntu-vg/ubuntu-lv
 #nvidia-smi ##verify install
 
 ## install microk8s
-sudo snap install microk8s --classic --channel=1.29/stable
-#sudo snap install microk8s --channel=1.29-strict/stable ## no nvidia gpu
+sudo snap install microk8s --channel=1.29-strict/stable ## no nvidia gpu
 
 ## add user group for use microk8s
 mkdir -p ~/.kube
-sudo usermod -a -G microk8s $USER
-sudo chown -f -R $USER ~/.kube
-newgrp microk8s ## restart session required
+sudo usermod -a -G snap_microk8s $USER ## no nvidia gpu
+sudo chown -f -R $USER ~/.kube ## no nvidia gpu
+newgrp snap_microk8s ## restart session required
 
 ## install addons
 #microk8s status --wait-ready
-microk8s enable dns hostpath-storage metallb:10.64.140.43-10.64.140.49 rbac nvidia
+sudo microk8s enable dns hostpath-storage metallb:10.64.140.43-10.64.140.49 rbac
