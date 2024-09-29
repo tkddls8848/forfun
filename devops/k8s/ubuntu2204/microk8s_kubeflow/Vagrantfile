@@ -1,21 +1,26 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+## prepare for libvirt in windows 11
+#MSYS2
+#pacman -S mingw-w64-x86_64-qemu mingw-w64-x86_64-libvirt base-devel
+#https://rubyinstaller.org/downloads/
+#vagrant plugin install vagrant-libvirt
 Vagrant.configure("2") do |config|
   GUEST_IP = "10.64.140.43" ## manually port-forwarding
-  config.vm.define "microk8s-master" do |master|
-    master.vm.box = "bento/ubuntu-22.04"
-    master.vm.provider "virtualbox" do |vb|
-      vb.name = "microk8s-master"
-      vb.cpus = 8
-      vb.memory = 14000
-    end
-    master.vm.hostname = "microk8s-master"
-    master.vm.network "private_network", ip: "192.168.10.10"
-    master.vm.network "forwarded_port", guest: 22, host: 10030, auto_correct: true, id: "ssh"
-    master.vm.network "forwarded_port", guest: 80, host: 1234, guest_ip: GUEST_IP, id: "dashboard"
-    master.vm.provision "shell", inline: "sudo apt-get update -y"
-    master.vm.provision "shell", path: "./microk8s.sh", privileged: false
-    master.vm.provision "shell", path: "./juju.sh", privileged: false
+  ## libvirt provider for gpu passthrough
+  config.vm.box = "bento/ubuntu-22.04"
+  config.vm.box_version = "202309.08.0"
+  config.vm.provider "libvirt" do |libvirt|
+    libvirt.memory = 14000
+    libvirt.cpus = 8
+    libvirt.disk_bus = "virtio"
   end
+  config.vm.hostname = "microk8s-master"
+  config.vm.network "private_network", ip: "192.168.10.10"
+  config.vm.network "forwarded_port", guest: 22, host: 10030, auto_correct: true, id: "ssh"
+  config.vm.network "forwarded_port", guest: 80, host: 1234, guest_ip: GUEST_IP, id: "dashboard"
+  config.vm.provision "shell", inline: "sudo apt-get update -y"
+  #config.vm.provision "shell", path: "./microk8s.sh", privileged: false
+  #config.vm.provision "shell", path: "./juju.sh", privileged: false
 end

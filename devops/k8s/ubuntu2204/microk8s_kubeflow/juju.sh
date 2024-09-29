@@ -1,15 +1,8 @@
 #!/usr/bin/bash
 
-## install addons
-## microk8s status --wait-ready
-newgrp snap_microk8s ## restart session required
-sudo microk8s enable dns
-sudo microk8s enable hostpath-storage
-sudo microk8s enable metallb:10.64.140.43-10.64.140.49
-sudo microk8s enable rbac
-
 ## install juju
-sudo snap install juju --channel=3.4/stable
+sudo snap install juju  --classic --channel=3.4/stable
+#sudo snap install juju --channel=3.4/stable ## no nvidia gpu
 mkdir -p ~/.local/share
 sudo microk8s config | juju add-k8s my-k8s --client ## naming my-k8s
 
@@ -17,7 +10,7 @@ sudo microk8s config | juju add-k8s my-k8s --client ## naming my-k8s
 juju bootstrap my-k8s
 juju add-model kubeflow
 
-## config gpu
+## config filesystem
 sudo sysctl fs.inotify.max_user_instances=1280
 sudo sysctl fs.inotify.max_user_watches=655360
 
