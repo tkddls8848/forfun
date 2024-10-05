@@ -6,7 +6,7 @@ sudo swapoff -a
 sudo sed -e '/swap/s/^/#/' -i /etc/fstab
 
 ## install microk8s
-sudo snap install microk8s --classic --channel=1.29/stable
+sudo snap install microk8s --classic --channel=1.30/stable
 
 ## add user group for use microk8s
 mkdir -p ~/.kube
@@ -15,6 +15,7 @@ sudo chown -f -R $USER ~/.kube
 
 ## install addons
 #microk8s status --wait-ready
+sudo microk8s enable nvidia
 sudo microk8s enable dns hostpath-storage metallb:10.64.140.43-10.64.140.49 rbac
 
 ## sesstion restart
