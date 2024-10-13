@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-git clone --single-branch --branch v1.14.8 https://github.com/rook/rook.git
+git clone --single-branch --branch v1.14.5 https://github.com/rook/rook.git
 cd ~/rook/deploy/examples
 
 kubectl create -f crds.yaml -f common.yaml -f operator.yaml
