@@ -8,7 +8,7 @@ k8s_cluster ={
   "k8s-master" => { :ip => "192.168.56.10", :cpus => 4, :memory => 3500, :ssh => 22000 }
 }
 NODE_NUMBER = 3
-DISK_PATH = "D:/VirtualBoxVMs/k8s-cluster-ubuntu2204/disk-"
+DISK_PATH = "~/VirtualBox VMs/k8s-cluster-ubuntu2204/disk-"
 Vagrant.configure("2") do |config|
   k8s_cluster.each do |hostname, info|
     config.vm.define hostname do |cfg|
