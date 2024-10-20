@@ -27,5 +27,5 @@ sudo sysctl fs.inotify.max_user_watches=655360
 ## Get the IP address of Istio ingress gateway load balancer
 IP=$(microk8s kubectl -n kubeflow get svc istio-ingressgateway-workload -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
+## port-forward Istio ingress gateway load balancer
 #microk8s kubectl port-forward -n kubeflow svc/istio-ingressgateway-workload 1234:80
-microk8s kubectl apply -f ./gpu-pod.yaml
