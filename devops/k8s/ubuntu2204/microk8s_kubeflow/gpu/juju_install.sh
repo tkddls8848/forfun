@@ -4,7 +4,7 @@
 ## install juju
 sudo snap install juju  --classic --channel=3.4/stable
 mkdir -p ~/.local/share
-sudo microk8s config | juju add-k8s my-k8s --client ## naming my-k8s
+microk8s config | juju add-k8s my-k8s --client ## naming my-k8s
 
 ## bootstraping juju and microk8s
 juju bootstrap my-k8s
