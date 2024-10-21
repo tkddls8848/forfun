@@ -2,7 +2,7 @@
 #run script in ubuntu OS
 
 ## install juju
-sudo snap install juju  --classic --channel=3.4/stable
+sudo snap install juju --channel=3.4/stable
 mkdir -p ~/.local/share
 microk8s config | juju add-k8s my-k8s --client ## naming my-k8s
 

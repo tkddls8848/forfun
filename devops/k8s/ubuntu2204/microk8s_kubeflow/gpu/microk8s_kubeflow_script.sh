@@ -13,23 +13,23 @@ mkdir -p ~/.kube
 sudo usermod -a -G microk8s $USER
 sudo chown -f -R $USER ~/.kube
 
-## session restart
-newgrp microk8s ## restart session required
-
 ## install addons
 #microk8s status --wait-ready 
-microk8s enable dns hostpath-storage metallb:10.64.140.43-10.64.140.49 rbac
+sudo microk8s enable dns hostpath-storage metallb:10.64.140.43-10.64.140.49 rbac
 
 ## install nvidia operator helm chart
 #show error by install microk8s enable nvidia (search for why in future)
 #symlink issue: symlink.txt
-microk8s helm install gpu-operator nvidia/gpu-operator --namespace gpu-operator-resources --create-namespace \
+sudo microk8s helm repo add nvidia https://helm.ngc.nvidia.com/nvidia \
+    && sudo microk8s helm repo update
+
+sudo microk8s helm install gpu-operator nvidia/gpu-operator --namespace gpu-operator-resources --create-namespace \
     --set devicePlugin.enabled=true \
     --set toolkit.enabled=true  \
     --set driver.enabled=true
 
 # configuring microk8s containerd runtime toml file
-bash -c 'cat << EOF >> /var/snap/microk8s/current/args/containerd-template.toml
+sudo bash -c 'cat << EOF >> /var/snap/microk8s/current/args/containerd-template.toml
       [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
         privileged_without_host_devices = false
         runtime_engine = ""
@@ -48,12 +48,15 @@ bash -c 'cat << EOF >> /var/snap/microk8s/current/args/containerd-template.toml
         [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia-experimental.options]
           BinaryName = "/usr/local/nvidia/toolkit/nvidia-container-runtime-experimental"
 EOF'
-microk8s stop
-microk8s start
+sudo microk8s stop
+sudo microk8s start
+
+## session restart
+newgrp microk8s ## restart session required
 
 ## Verify installation
 # expect return: all validations are successful
-microk8s kubectl logs -n gpu-operator-resources -lapp=nvidia-operator-validator -c nvidia-operator-validator
+sudo microk8s kubectl logs -n gpu-operator-resources -lapp=nvidia-operator-validator -c nvidia-operator-validator
 
 
 
