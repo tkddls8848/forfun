@@ -16,9 +16,6 @@ sudo apt-get --purge -y remove 'nvidia*'
 # Installing nvidia driver
 sudo ubuntu-drivers autoinstall
 
-sudo apt-get update
-sudo apt-get install nvidia-headless-550 nvidia-utils-550
-
 # Installing nvidia-container-toolkit to host
 sudo apt-get install curl -y
 curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
@@ -37,12 +34,6 @@ curl -s -L https://nvidia.github.io/nvidia-container-runtime/$distribution/nvidi
 sudo apt-get update
 sudo apt-get install nvidia-container-runtime
 
-#labels??
-Labels:            
-nvidia.com/gpu.deploy.container-toolkit=true
-microk8s kubectl label nodes ubuntu nvidia.com/gpu.deploy.container-toolkit=true
-
-microk8s kubectl label nodes ubuntu nvidia.com/gpu.present=true
 
 
 
