@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
 ## ceph filesystem
-## get filesystem info by toolbox container inside bash 'ceph fs ls'
+## get filesystem info by toolbox container command 'ceph fs ls'
 ## name: myfs, metadata pool: myfs-metadata, data pools: [myfs-replicated]
 cd ~/rook/deploy/examples/
 kubectl create -f filesystem.yaml
