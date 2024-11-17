@@ -15,7 +15,11 @@ sudo chown -f -R $USER ~/.kube
 
 ## install addons
 #microk8s status --wait-ready 
-sudo microk8s enable dns hostpath-storage metallb:10.64.140.43-10.64.140.49 rbac
+addons=(dns hostpath-storage metallb:10.64.140.43-10.64.140.49 rbac)
+for addon in "${addons[@]}" 
+do
+    sudo microk8s enable $addon
+done
 
 ## install nvidia operator helm chart
 #show error by install microk8s enable nvidia (search for why in future)
@@ -48,8 +52,7 @@ sudo bash -c 'cat << EOF >> /var/snap/microk8s/current/args/containerd-template.
         [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia-experimental.options]
           BinaryName = "/usr/local/nvidia/toolkit/nvidia-container-runtime-experimental"
 EOF'
-sudo microk8s stop
-sudo microk8s start
+sudo snap restart microk8s
 
 ## session restart
 newgrp microk8s ## restart session required
