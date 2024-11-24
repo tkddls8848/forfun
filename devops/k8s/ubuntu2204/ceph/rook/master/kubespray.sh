@@ -2,6 +2,8 @@
 
 # add host for ssh
 export WORKER_NODE_NUMBER=$1
+sudo apt-get install -y expect
+
 cat << EOF >> ssh_master.sh
 #!/usr/bin/expect -f
 spawn ssh-copy-id vagrant@192.168.56.10
@@ -15,6 +17,8 @@ expect {
 }
 EOF
 sudo chmod +x ssh_master.sh
+./ssh_master.sh
+sudo rm ssh_master.sh
 
 for ((i=1; i<=WORKER_NODE_NUMBER; i++))
 do 
@@ -31,17 +35,8 @@ expect {
 }
 EOF
 sudo chmod +x ssh_worker${i}.sh
-done
-
-# run ssh public key copy script
-sudo apt-get install -y expect
-ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa
-./ssh_master.sh
-sudo rm -f ssh_master.sh
-for ((i=1; i<=WORKER_NODE_NUMBER; i++))
-do
 ./ssh_worker${i}.sh
-sudo rm -f ssh_worker${i}.sh
+sudo rm ssh_worker${i}.sh
 done
 
 # install python
