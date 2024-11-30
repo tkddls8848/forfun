@@ -5,9 +5,9 @@ sudo apt-get -y install chrony
 
 # config DNS
 sudo bash -c 'cat << EOF >> /etc/hosts
-10.0.1.11  ceph1
-10.0.1.12  ceph2
-10.0.1.13  ceph3
+10.0.1.21  ceph1
+10.0.1.22  ceph2
+10.0.1.23  ceph3
 EOF'
 
 # install cephadm ceph-common
@@ -27,4 +27,4 @@ EOF'
 sudo systemctl restart docker
 
 # pull ceph image from local ceph node
-#docker pull ceph1:5000/ceph:v17
+#sudo docker pull ceph1:5000/ceph:v17
