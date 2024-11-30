@@ -15,7 +15,7 @@ sudo apt-get install cephadm -y
 sudo cephadm install ceph-common
 
 # run registry container
-sudo docker run --privileged -d --name registry -p 5000:5000 -v /var/lib/registry:/var/lib/registry --restart=always registry:2
+sudo docker run --privileged -d --name registry -p 5001:5000 -v /var/lib/registry:/var/lib/registry --restart=always registry:2
 
 # import container images for ceph
 sudo docker pull quay.io/ceph/ceph:v17
@@ -25,23 +25,23 @@ sudo docker pull quay.io/ceph/ceph:v17
 #docker pull quay.io/ceph/grafana:10.4.0
 
 # tag container images for ceph
-sudo docker tag quay.io/ceph/ceph:v17 $(hostname):5000/ceph:v17
+sudo docker tag quay.io/ceph/ceph:v17 $(hostname):5001/ceph:v17
 
 # push container images to registry container
-sudo docker push $(hostname):5000/ceph:v17
+sudo docker push $(hostname):5001/ceph:v17
 
 # config ceph container images
 sudo bash -c 'cat << EOF >> initial-ceph.conf
 [mgr]
-mgr/cephadm/container_image_ceph = $(hostname):5000/ceph:v17
-mgr/cephadm/container_image_prometheus = $(hostname):5000/prometheus
-mgr/cephadm/container_image_node_exporter = $(hostname):5000/node_exporter
-mgr/cephadm/container_image_grafana = $(hostname):5000/grafana
-mgr/cephadm/container_image_alertmanager = $(hostname):5000/alertmanager
+mgr/cephadm/container_image_ceph = $(hostname):5001/ceph:v17
+mgr/cephadm/container_image_prometheus = $(hostname):5001/prometheus
+mgr/cephadm/container_image_node_exporter = $(hostname):5001/node_exporter
+mgr/cephadm/container_image_grafana = $(hostname):5001/grafana
+mgr/cephadm/container_image_alertmanager = $(hostname):5001/alertmanager
 EOF'
 
 # Running the bootstrap by local ceph image
-sudo cephadm --image $(hostname):5000/ceph:v17 \
+sudo cephadm --image $(hostname):5001/ceph:v17 \
      bootstrap \
         --mon-ip 10.0.1.21 \
         --cluster-network 10.0.1.0/24 \

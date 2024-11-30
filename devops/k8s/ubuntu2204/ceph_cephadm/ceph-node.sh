@@ -21,7 +21,7 @@ newgrp docker
 # external regitry connection config
 sudo bash -c 'cat << EOF >> /etc/docker/daemon.json
 {
-    "insecure-registries" : ["ceph1:5000"]
+    "insecure-registries" : ["ceph1:5001"]
 }
 EOF'
 sudo systemctl restart docker
