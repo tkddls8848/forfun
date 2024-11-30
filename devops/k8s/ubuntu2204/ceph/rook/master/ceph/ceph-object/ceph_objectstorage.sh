@@ -6,15 +6,34 @@ kubectl create -f object.yaml ## "my-store" object store 생성
 kubectl create -f object-user.yaml ## gateway 접근 권한 유저 생성
 
 ## gateway 접근 권한 유저 key 정보
-access_key=$(kubectl -n rook-ceph get secret rook-ceph-object-user-my-store-my-user -o jsonpath='{.data.AccessKey}' | base64 --decode)
-secret_key=$(kubectl -n rook-ceph get secret rook-ceph-object-user-my-store-my-user -o jsonpath='{.data.SecretKey}' | base64 --decode)
-echo $access_key
-echo $secret_key
-Z3HGT4CVXTTVUFK5AU33
-uNSeDALs9jCTDC4h24VIVaDoWSvkQKUuMwHoXAnG
+ACCESS_KEY=$(kubectl -n rook-ceph get secret rook-ceph-object-user-my-store-my-user -o jsonpath='{.data.AccessKey}' | base64 --decode)
+SECRET_KEY=$(kubectl -n rook-ceph get secret rook-ceph-object-user-my-store-my-user -o jsonpath='{.data.SecretKey}' | base64 --decode)
+
 ## install gateway S3 API AWS-CLI
 sudo apt-get install -y awscli
-aws configure
+
+# configure awscli user
+cat << EOF >> aws.sh
+#!/usr/bin/expect -f
+spawn aws configure
+expect {
+    "AWS Access Key ID" {
+        send "$ACCESS_KEY\r"; exp_continue
+    }
+    "AWS Secret Access Key" {
+        send "$SECRET_KEY\r"; exp_continue
+    }
+    "Default region name" {
+        send "\r"; exp_continue
+    }
+    "Default output format" {
+        send "\r"; exp_continue
+    }
+}
+EOF
+sudo chmod +x aws.sh
+./aws.sh
+sudo rm aws.sh
 
 ## make bucket, copy file, listing file in my-test-bucket
 endpoint_ip=$(kubectl -n rook-ceph get svc rook-ceph-rgw-my-store -o jsonpath='{.spec.clusterIP}')
