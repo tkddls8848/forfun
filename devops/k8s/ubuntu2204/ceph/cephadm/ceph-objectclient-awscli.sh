@@ -52,4 +52,4 @@ aws --endpoint-url http://ceph2 s3 ls s3://my-bucket
 aws --endpoint-url http://ceph2 s3 rm s3://my-bucket/userdata.json
 
 # delete S3 bucket
-aws --endpoint-url http://ceph2 s3 rb s3://my-bucket/userdata.json
+aws --endpoint-url http://ceph2 s3 rb s3://my-bucket
