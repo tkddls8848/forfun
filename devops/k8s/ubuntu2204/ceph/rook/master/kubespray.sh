@@ -3,6 +3,7 @@
 # add host for ssh
 export WORKER_NODE_NUMBER=$1
 sudo apt-get install -y expect
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
 
 cat << EOF >> ssh_master.sh
 #!/usr/bin/expect -f
@@ -26,7 +27,7 @@ cat << EOF >> ssh_worker${i}.sh
 #!/usr/bin/expect -f
 spawn ssh-copy-id vagrant@192.168.56.2$i
 expect {
-    "Are you sure you want to continue connecting (yes/no" {
+    "Are you sure you want to continue connecting" {
         send "yes\r"; exp_continue
     }
     "password:" {
