@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
 # add host for ssh
-export WORKER_NODE_NUMBER=3
+export WORKER_NODE_NUMBER=$1
 sudo apt-get install -y expect
 ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
 

@@ -1,0 +1,34 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+k8s_cluster ={
+  #"k8s-nfs" => { :ip => "192.168.70.100", :cpus => 2, :memory => 1000, :ssh => 22200 },
+  "k8s-worker1" => { :ip => "192.168.70.21", :cpus => 2, :memory => 3000, :ssh => 22001 },
+  "k8s-worker2" => { :ip => "192.168.70.22", :cpus => 2, :memory => 3000, :ssh => 22002 },
+  #"k8s-worker3" => { :ip => "192.168.70.23", :cpus => 2, :memory => 3000, :ssh => 22003 },
+  "k8s-master" => { :ip => "192.168.70.10", :cpus => 4, :memory => 3500, :ssh => 22000 }
+}
+NODE_NUMBER = 2
+CLUSTER_NAME = "k8s-cluster-ubuntu2204"
+
+Vagrant.configure("2") do |config|
+  k8s_cluster.each do |hostname, info|
+    config.vm.define hostname do |cfg|
+      cfg.vm.provider "virtualbox" do |vb,override|
+        config.vm.box = "bento/ubuntu-22.04"
+        override.vm.provision "shell", inline: "sudo apt-get update -y"
+        override.vm.provision "shell", path: "./config.sh"
+        override.vm.network "private_network", ip: "#{info[:ip]}"
+        override.vm.network "forwarded_port", guest: 22, host: "#{info[:ssh]}", auto_correct: true, id: "ssh"
+        override.vm.host_name = hostname
+        vb.name = hostname
+				vb.gui = false
+        vb.customize ["modifyvm", :id, "--memory", info[:memory], "--cpus", info[:cpus], "--groups", "/k8s-cluster-ubuntu2204"]
+        if "#{hostname}" == "k8s-master" then ## master node
+          #override.vm.provision "shell", path: "./kubeadm_master.sh", privileged: false
+        else
+          override.vm.provision "shell", path: "./kubeadm_worker.sh", privileged: false
+        end
+      end  
+    end
+  end
+end
