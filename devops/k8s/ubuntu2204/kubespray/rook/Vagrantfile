@@ -23,7 +23,7 @@ Vagrant.configure("2") do |config|
         override.vm.host_name = hostname
         vb.name = hostname
 				vb.gui = false
-        vb.customize ["modifyvm", :id, "--memory", info[:memory], "--cpus", info[:cpus], "--groups", "/k8s-cluster-ubuntu2204"]
+        vb.customize ["modifyvm", :id, "--memory", info[:memory], "--cpus", info[:cpus], "--groups", "/#{CLUSTER_NAME}"]
         if "#{hostname}" == "k8s-master" then ## master node
           override.vm.provision "shell", path: "./master/kubespray.sh", args: [NODE_NUMBER], privileged: false
           override.vm.provision "shell", path: "./master/ceph/ceph-rook.sh", privileged: false
