@@ -6,7 +6,7 @@ ceph_cluster ={
   "ceph3" => { :internal_ip => "10.0.1.23", :cpus => 4, :memory => 8000, :ssh => 22203 },
   "ceph1" => { :internal_ip => "10.0.1.21", :cpus => 4, :memory => 8000, :ssh => 22201 }
 }
-CLUSTER_NAME = "cephadm-ubuntu2204"
+CLUSTER_NAME = "k8s-ubuntu2204-cephadm"
 DISK_PATH = "C:/VirtualBox VMs/#{CLUSTER_NAME}/disk-"
 OSD_NUM = 2
 

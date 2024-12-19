@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-# swapoff -a to disable swapping
+## swapoff -a to disable swapping
 sudo swapoff -a
 sudo sed -e '/swap/s/^/#/' -i /etc/fstab
 
@@ -16,16 +16,19 @@ sudo resize2fs /dev/ubuntu-vg/ubuntu-lv
 ##ubuntu-drivers devices
 #sudo apt install nvidia-driver-560 -y
 #sudo reboot
-#nvidia-smi ##verify install
+#nvidia-smi #verify install
 
 ## install microk8s
-sudo snap install microk8s --channel=1.29-strict/stable ## no nvidia gpu
+sudo snap install microk8s --channel=1.29-strict/stable # no nvidia gpu
 
 ## add user group for use microk8s
 mkdir -p ~/.kube
-sudo usermod -a -G snap_microk8s $USER ## no nvidia gpu
-sudo chown -f -R $USER ~/.kube ## no nvidia gpu
-newgrp snap_microk8s ## restart session required
+sudo usermod -a -G snap_microk8s $USER # no nvidia gpu
+sudo chown -f -R $USER ~/.kube # no nvidia gpu
+newgrp snap_microk8s ### restart session required
+
+## microk8s kubectl alias
+echo 'alias kubectl=microk8s kubectl' >>~/.bashrc
 
 ## install addons
 #microk8s status --wait-ready

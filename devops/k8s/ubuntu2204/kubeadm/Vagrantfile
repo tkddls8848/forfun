@@ -2,13 +2,13 @@
 # vi: set ft=ruby :
 k8s_cluster ={
   #"k8s-nfs" => { :ip => "172.16.10.100", :cpus => 2, :memory => 1000, :ssh => 22200 },
-  "k8s-master" => { :ip => "172.16.10.10", :cpus => 4, :memory => 3500, :ssh => 22000 },
-  "k8s-worker1" => { :ip => "172.16.10.21", :cpus => 2, :memory => 3000, :ssh => 22001 },
-  "k8s-worker2" => { :ip => "172.16.10.22", :cpus => 2, :memory => 3000, :ssh => 22002 }
-  #"k8s-worker3" => { :ip => "172.16.10.23", :cpus => 2, :memory => 3000, :ssh => 22003 }
+  "k8s-master" => { :ip => "172.16.10.10", :cpus => 4, :memory => 4000, :ssh => 22000 },
+  "k8s-worker1" => { :ip => "172.16.10.21", :cpus => 2, :memory => 3500, :ssh => 22001 },
+  "k8s-worker2" => { :ip => "172.16.10.22", :cpus => 2, :memory => 3500, :ssh => 22002 }
+  #"k8s-worker3" => { :ip => "172.16.10.23", :cpus => 2, :memory => 3500, :ssh => 22003 }
 }
 NODE_NUMBER = 2
-CLUSTER_NAME = "k8s-cluster-ubuntu2204"
+CLUSTER_NAME = "k8s-ubuntu2204-kubeadm"
 
 Vagrant.configure("2") do |config|
   k8s_cluster.each do |hostname, info|
@@ -26,6 +26,7 @@ Vagrant.configure("2") do |config|
         vb.customize ["modifyvm", :id, "--memory", info[:memory], "--cpus", info[:cpus], "--groups", "/#{CLUSTER_NAME}"]
         if "#{hostname}" == "k8s-master" then ## master node
           override.vm.provision "shell", path: "./kubeadm_master.sh", privileged: false
+          override.vm.provision "shell", path: "./kubevirt/kubevirt.sh", privileged: false
         else
           override.vm.provision "shell", path: "./kubeadm_worker.sh", privileged: false
         end

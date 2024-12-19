@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-#run script in ubuntu OS
+## run script in ubuntu OS
 
 ## install juju
 sudo snap install juju --channel=3.4/stable

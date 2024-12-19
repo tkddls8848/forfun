@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-#run script in ubuntu OS
+## run script in ubuntu OS
 
 juju destroy-model controller
 juju destroy-model kubeflow

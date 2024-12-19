@@ -1,9 +1,9 @@
 #!/usr/bin/bash
 
-# ceph objectstorage
+## ceph objectstorage
 cd ~/rook/deploy/examples/
-kubectl create -f object.yaml ## "my-store" object store 생성
-kubectl create -f object-user.yaml ## gateway 접근 권한 유저 생성
+kubectl create -f object.yaml # "my-store" object store 생성
+kubectl create -f object-user.yaml # gateway 접근 권한 유저 생성
 
 ## gateway 접근 권한 유저 key 정보
 ACCESS_KEY=$(kubectl -n rook-ceph get secret rook-ceph-object-user-my-store-my-user -o jsonpath='{.data.AccessKey}' | base64 --decode)
@@ -12,9 +12,9 @@ SECRET_KEY=$(kubectl -n rook-ceph get secret rook-ceph-object-user-my-store-my-u
 ## install gateway S3 API AWS-CLI
 sudo apt-get install -y awscli
 
-# configure awscli user
+## configure awscli user
 cat << EOF >> aws.sh
-#!/usr/bin/expect -f
+##!/usr/bin/expect -f
 spawn aws configure
 expect {
     "AWS Access Key ID" {

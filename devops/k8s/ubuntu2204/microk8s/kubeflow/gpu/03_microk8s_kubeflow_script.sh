@@ -1,7 +1,7 @@
 #!/usr/bin/bash
-#run script in ubuntu OS
+## run script in ubuntu OS
 
-# swapoff -a to disable swapping
+## swapoff -a to disable swapping
 sudo swapoff -a
 sudo sed -e '/swap/s/^/#/' -i /etc/fstab
 
@@ -32,7 +32,7 @@ sudo microk8s helm install gpu-operator nvidia/gpu-operator --namespace gpu-oper
     --set toolkit.enabled=true  \
     --set driver.enabled=true
 
-# configuring microk8s containerd runtime toml file
+## configuring microk8s containerd runtime toml file
 sudo bash -c 'cat << EOF >> /var/snap/microk8s/current/args/containerd-template.toml
       [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
         privileged_without_host_devices = false
@@ -55,10 +55,10 @@ EOF'
 sudo snap restart microk8s
 
 ## session restart
-newgrp microk8s ## restart session required
+newgrp microk8s ### restart session required
 
 ## Verify installation
-# expect return: all validations are successful
+## expect return: all validations are successful
 sudo microk8s kubectl logs -n gpu-operator-resources -lapp=nvidia-operator-validator -c nvidia-operator-validator
 
 

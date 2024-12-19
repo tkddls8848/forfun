@@ -6,7 +6,7 @@
 cd ~/rook/deploy/examples/
 kubectl create -f filesystem.yaml
 
-# test ceph filesystem shared directory /mnt/cephfs
+## test ceph filesystem shared directory /mnt/cephfs
 cat << EOF >> sc.yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass

@@ -1,10 +1,10 @@
 #!/usr/bin/bash
 
 
-# disable firewall
+## disable firewall
 sudo ufw disable
 
-# create object gateway server
+## create object gateway server
 ### Keystone 설치
 ### Keystone 및 관련 패키지 설치
 sudo apt-get upgrade -y
@@ -41,7 +41,7 @@ openstack project create --domain default --description "My New openstackProject
 openstack user create --domain default --password $OPENSTACK_PASSWORD --email $OPENSTACK_EMAIL --project $OPENSTACK_PROJECT $OPENSTACK_USER
 openstack role add --project $OPENSTACK_PROJECT --user $OPENSTACK_USER admin
 
-# create object gateway server
+## create object gateway server
 sudo ceph orch apply rgw test
 
 sudo radosgw-admin realm create --rgw-realm=testrealm --default
@@ -77,7 +77,7 @@ sudo ceph orch restart rgw.test
 5. **OpenStack Swift와의 연동 확인**
 
 RGW가 Swift API 지원을 위해 설정되었는지 테스트합니다. Swift API 클라이언트(예: `swift` CLI)를 사용하여 RGW에 요청을 보내고 응답을 확인하십시오.
-# disable firewall
+## disable firewall
 sudo ufw disable
 #sudo apt-get install python3-openstackclient -y
 sudo apt-get install python3-swiftclient -y
@@ -137,20 +137,20 @@ EOF
 
 
 
-# install swift client
+## install swift client
 sudo apt install -y python3-swiftclient
 
-# create object gateway server
+## create object gateway server
 sudo ceph orch apply rgw ceph1
 
 sudo apt-get install python3-swiftclient -y
 swift -A http://ceph1:7480/auth -U $OPENSTACK_PROJECT:$OPENSTACK_USER -K $OPENSTACK_PASSWORD list
 
 
-# install swift client
+## install swift client
 sudo apt-get install python3-swiftclient -y 
 
-# create object gateway server
+## create object gateway server
 sudo ceph orch apply rgw ceph1
 sudo radosgw-admin user create --uid="swiftuser" --display-name="Swift User" --caps="buckets=*; users=*" > userinfo.txt
 
