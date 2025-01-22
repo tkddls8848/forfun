@@ -55,7 +55,7 @@ EOF'
 sudo snap restart microk8s
 
 ## session restart
-newgrp microk8s ### restart session required
+newgrp microk8s ### restart session for sudo microk8s
 
 ## Verify installation
 ## expect return: all validations are successful

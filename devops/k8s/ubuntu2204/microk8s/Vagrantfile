@@ -5,21 +5,21 @@ CLUSTER_NAME = "k8s-ubuntu2204-microk8s"
 
 Vagrant.configure("2") do |config|
   config.vm.define "microk8s-master" do |node|
-    GUEST_IP = "10.64.140.43" ## manually port-forwarding
+    #GUEST_IP = "10.64.140.43" ## manually port-forwarding
     node.vm.box = "bento/ubuntu-22.04"
     node.vm.provider "virtualbox" do |vb|
       vb.name = "microk8s-master"
-      vb.memory = 16000
-      vb.cpus = 8
+      vb.memory = 10000
+      vb.cpus = 4
       vb.customize ["modifyvm", :id, "--groups", "/#{CLUSTER_NAME}"]
     end
     node.vm.hostname = "microk8s-master"
     node.vm.network "private_network", ip: "192.168.10.10"
     node.vm.network "forwarded_port", guest: 22, host: 10030, auto_correct: true, id: "ssh"
-    node.vm.network "forwarded_port", guest: 80, host: 1234, guest_ip: GUEST_IP, id: "dashboard"
+    #node.vm.network "forwarded_port", guest: 80, host: 1234, guest_ip: GUEST_IP, id: "dashboard"
     node.vm.provision "shell", inline: "sudo apt-get update -y"
     ## no gpu passthrough
     node.vm.provision "shell", path: "./microk8s.sh", privileged: false
-    node.vm.provision "shell", path: "./kubeflow/no_gpu/juju.sh", privileged: false
+    node.vm.provision "shell", path: "./kubeflow_no_gpu/juju_install.sh", privileged: false
   end
 end

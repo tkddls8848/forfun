@@ -12,4 +12,5 @@ sudo init 6
 sudo apt-get --purge -y remove 'nvidia*'
 
 ## Installing nvidia driver
+sudo apt install ubuntu-drivers-common -y
 sudo ubuntu-drivers autoinstall

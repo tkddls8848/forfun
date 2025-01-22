@@ -4,8 +4,8 @@
 sudo swapoff -a
 sudo sed -e '/swap/s/^/#/' -i /etc/fstab
 
-## expand logical volume and ext4 filesystem to 100% phsical disk
-sudo lvextend -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
+## expand logical volume and ext4 filesystem to 30GB phsical disk
+sudo lvextend -L +30G /dev/ubuntu-vg/ubuntu-lv
 sudo resize2fs /dev/ubuntu-vg/ubuntu-lv
 
 ### enable nvidia GPU
@@ -19,17 +19,21 @@ sudo resize2fs /dev/ubuntu-vg/ubuntu-lv
 #nvidia-smi #verify install
 
 ## install microk8s
-sudo snap install microk8s --channel=1.29-strict/stable # no nvidia gpu
+#sudo snap install microk8s --channel=1.29-strict/stable # no nvidia gpu
+sudo snap install microk8s --classic --channel=1.30/stable # nvidia gpu
 
 ## add user group for use microk8s
 mkdir -p ~/.kube
-sudo usermod -a -G snap_microk8s $USER # no nvidia gpu
-sudo chown -f -R $USER ~/.kube # no nvidia gpu
-newgrp snap_microk8s ### restart session required
+sudo usermod -a -G microk8s $USER
+sudo chown -f -R $USER ~/.kube
+
+## install addons
+#Sequential addon addition recommended
+addons=(dns hostpath-storage metallb:10.64.140.43-10.64.140.60 rbac)
+for addon in "${addons[@]}" 
+do
+    sudo microk8s enable $addon
+done
 
 ## microk8s kubectl alias
 echo 'alias kubectl=microk8s kubectl' >>~/.bashrc
-
-## install addons
-#microk8s status --wait-ready
-sudo microk8s enable dns hostpath-storage metallb:10.64.140.43-10.64.140.49 rbac
