@@ -24,10 +24,13 @@ Vagrant.configure("2") do |config|
         vb.name = hostname
 				vb.gui = false
         vb.customize ["modifyvm", :id, "--memory", info[:memory], "--cpus", info[:cpus], "--groups", "/#{CLUSTER_NAME}"]
+        ## shut down antivirus program
+        ## vagrant plugin install vagrant-libvirt
         vb.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
+        override.vm.provision "shell", path: "./kubevirt/kubevirt_kvm.sh", privileged: false
         if "#{hostname}" == "k8s-master" then ## master node
           override.vm.provision "shell", path: "./kubeadm_master.sh", privileged: false
-          #override.vm.provision "shell", path: "./kubevirt/kubevirt.sh", privileged: false
+          #override.vm.provision "shell", path: "./kubevirt/kubevirt_install.sh", privileged: false
         else
           override.vm.provision "shell", path: "./kubeadm_worker.sh", privileged: false
         end
