@@ -1,0 +1,12 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/ubuntu-22.04"
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "8192"  # 가상 머신에 8GB 메모리 할당
+    vb.cpus = 4         # 가상 머신에 4개 CPU 할당
+  end
+  config.vm.provision "shell", inline: "sudo apt-get update -y"
+  config.vm.network "private_network", ip: "172.168.100.100"
+end
