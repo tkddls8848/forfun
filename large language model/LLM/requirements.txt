@@ -1,6 +1,0 @@
-fastapi
-uvicorn
-PyMuPDF
-transformers
-python-multipart
-tensorflow

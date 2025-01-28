@@ -1,0 +1,14 @@
+FROM ggml-model-Q5_K_M.gguf
+
+TEMPLATE """{{- if .System }}
+<s>{{ .System }}</s>
+{{- end }}
+<s>Human:
+{{ .Prompt }}</s>
+<s>Assistant:
+"""
+
+SYSTEM """"""
+
+PARAMETER stop <s>
+PARAMETER stop </s>
