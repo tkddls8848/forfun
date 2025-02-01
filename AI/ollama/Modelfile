@@ -1,4 +1,5 @@
-## huggingface-cli download bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF DeepSeek-R1-Distill-Qwen-32B-Q5_K_L.gguf --local-dir D:\forfun\LLM\ollama --local-dir-use-symlinks False
+## install huggingface_hub in python venv
+## huggingface-cli download bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF DeepSeek-R1-Distill-Qwen-32B-Q5_K_L.gguf --local-dir ./ --local-dir-use-symlinks False
 
 FROM DeepSeek-R1-Distill-Qwen-32B-Q5_K_L.gguf
 
