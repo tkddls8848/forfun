@@ -1,3 +1,5 @@
 selenium
 Pillow
 requests
+webdriver-manager
+beautifulsoup4

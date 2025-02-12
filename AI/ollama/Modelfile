@@ -1,5 +1,5 @@
 ## install huggingface_hub in python venv
-## huggingface_hub download unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF DeepSeek-R1-Distill-Llama-8B-Q5_K_M.gguf --local-dir ./ --local-dir-use-symlinks False
+## huggingface-cli download unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF DeepSeek-R1-Distill-Llama-8B-Q5_K_M.gguf --local-dir ./ --local-dir-use-symlinks False
 
 FROM DeepSeek-R1-Distill-Llama-8B-Q5_K_M.gguf
 

@@ -18,11 +18,11 @@ service = Service(chrome_driver_path)
 driver = webdriver.Chrome(service=service, options=chrome_options)
 
 # 사이트 열기
-url = "https://www.google.com/"
+url = "https://www.coupang.com/vp/products/1357034912?itemId=24341584512&vendorItemId=91357072725&sourceType=cmgoms&omsPageId=138722&omsPageUrl=138722&isAddedCart="
 driver.get(url)
 
 # 페이지 로딩 대기
-time.sleep(3)
+time.sleep(10)
 
 # 이미지 크롤링 (이미지 URL 찾기)
 image_urls = []
@@ -33,7 +33,7 @@ for img in images:
     if img_url:
         image_urls.append(img_url)
 
-# 이미지 저장폴더더
+# 이미지 저장폴더
 if not os.path.exists('images'):
     os.makedirs('images')
 
@@ -42,10 +42,11 @@ for index, img_url in enumerate(image_urls):
     try:
         response = requests.get(img_url)
         img = Image.open(BytesIO(response.content))
+        file_name = url.split(".")[1] + "." + url.split(".")[2] + "_image"
         if img.mode == "RGBA":
-            img.save(f"./images/image_{index + 1}.png")
+            img.save(f"./images/{file_name}_{index + 1}.png")
         elif img.mode == "RGB":
-            img.save(f"./images/image_{index + 1}.jpg")
+            img.save(f"./images/{file_name}_{index + 1}.jpg")
     except Exception as e:
         print(f"Error downloading image {img_url}: {e}")
 
