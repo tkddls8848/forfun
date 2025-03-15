@@ -478,6 +478,7 @@ celerybeat.pid
 
 # Environments
 .env
+!forfun/AI/n8n/.env
 .venv
 env/
 venv/
