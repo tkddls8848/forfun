@@ -1,0 +1,23 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+CLUSTER_NAME = "k8s-centos8-minikube"
+
+Vagrant.configure("2") do |config|
+  config.vm.define "minikube-master" do |node|
+    node.vm.box = "generic/centos8"
+    node.vm.provider "virtualbox" do |vb|
+      vb.name = "minikube-master"
+      vb.memory = 16000
+      vb.cpus = 4
+      vb.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
+      vb.customize ["modifyvm", :id, "--groups", "/#{CLUSTER_NAME}"]
+    end
+    node.vm.hostname = "minikube-master"
+    node.vm.network "private_network", ip: "192.168.81.10"
+    node.vm.network "forwarded_port", guest: 22, host: 22222, auto_correct: true, id: "ssh"
+    node.vm.provision "shell", inline: "sudo dnf update -y"
+    node.vm.provision "shell", path: "./minikube.sh", privileged: false
+    #node.vm.provision "shell", path: "./kubevirt/kubevirt.sh", privileged: false
+  end
+end
