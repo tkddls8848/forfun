@@ -1,44 +1,44 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
-k8s_cluster ={
+
+# 노드 설정
+K8S_CLUSTER = {
   #"k8s-nfs" => { :ip => "192.168.56.100", :cpus => 2, :memory => 1000, :ssh => 22200 },
   "k8s-worker1" => { :ip => "192.168.56.21", :cpus => 2, :memory => 3000, :ssh => 22001 },
   "k8s-worker2" => { :ip => "192.168.56.22", :cpus => 2, :memory => 3000, :ssh => 22002 },
   "k8s-worker3" => { :ip => "192.168.56.23", :cpus => 2, :memory => 3000, :ssh => 22003 },
-  "k8s-master" => { :ip => "192.168.56.10", :cpus => 4, :memory => 3500, :ssh => 22000 }
+  "k8s-master" => { :ip => "192.168.56.10", :cpus => 4, :memory => 4000, :ssh => 22000, :provision => ["./kubespray.sh", "./jenkins.sh", "./monitoring.sh", "./ceph-rook.sh"] }
 }
-NODE_NUMBER = 3
+
+# 환경 설정
 CLUSTER_NAME = "k8s-ubuntu2204-kubespray"
-DISK_PATH = "C:/VirtualBox VMs/#{CLUSTER_NAME}/disk-"
-OSD_NUM = 3
+NODE_NUMBER = K8S_CLUSTER.size()
 
 Vagrant.configure("2") do |config|
-  k8s_cluster.each do |hostname, info|
+  K8S_CLUSTER.each do |hostname, info|
     config.vm.define hostname do |cfg|
-      cfg.vm.provider "virtualbox" do |vb,override|
-        config.vm.box = "bento/ubuntu-22.04"
-        override.vm.provision "shell", inline: "sudo apt-get update -y"
-        override.vm.network "private_network", ip: "#{info[:ip]}"
-        override.vm.network "forwarded_port", guest: 22, host: "#{info[:ssh]}", auto_correct: true, id: "ssh"
-        override.vm.host_name = hostname
+      cfg.vm.box = "bento/ubuntu-22.04"
+      cfg.vm.host_name = hostname
+      
+      # 네트워크 설정
+      cfg.vm.network "private_network", ip: info[:ip]
+      cfg.vm.network "forwarded_port", guest: 22, host: info[:ssh], auto_correct: true, id: "ssh"
+      
+      # VirtualBox 설정
+      cfg.vm.provider "virtualbox" do |vb|
         vb.name = hostname
-				vb.gui = false
-        vb.customize ["modifyvm", :id, "--memory", info[:memory], "--cpus", info[:cpus], "--groups", "/#{CLUSTER_NAME}"]
-        if "#{hostname}" == "k8s-master" then ## master node
-          override.vm.provision "shell", path: "./kubespray.sh", args: [NODE_NUMBER], privileged: false
-          override.vm.provision "shell", path: "./ceph-rook/ceph-rook.sh", privileged: false
-          #override.vm.provision "shell", path: "./jenkins.sh", args: ["k8s-worker1"], privileged: false ## installing jenkins normal user
-          #override.vm.provision "shell", path: "./monitoring.sh"
-        elsif "#{hostname}" == "k8s-nfs" then ## nfs node
-          override.vm.provision "shell", path: "./nfs.sh", privileged: false
-        else ## worker node
-          OSD_NUM.times do |i|
-            vb.customize ['createhd', '--filename', "#{DISK_PATH}#{hostname}-#{i+1}.vdi", '--size', 1024 * 1] # 1GB
-            vb.customize ['storageattach', :id, '--storagectl', 'SATA Controller', '--port', i+1, '--device', 0, '--type', 'hdd', '--medium', "#{DISK_PATH}#{hostname}-#{i+1}.vdi"]
-            vb.customize ['setextradata', :id, "VBoxInternal/Devices/ahci/0/Config/Port#{i+1}/Ssd", "1"]
-          end
+        vb.gui = false
+        vb.memory = info[:memory]
+        vb.cpus = info[:cpus]
+        vb.customize ["modifyvm", :id, "--groups", "/#{CLUSTER_NAME}"]
+      end
+      
+      # 프로비저닝 스크립트 실행
+      if info[:provision]
+        info[:provision].each do |script|
+          cfg.vm.provision "shell", path: script, args: [NODE_NUMBER], privileged: false
         end
-      end  
+      end
     end
   end
 end

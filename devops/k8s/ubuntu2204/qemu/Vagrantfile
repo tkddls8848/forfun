@@ -1,0 +1,19 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+#vagrant plugin install vagrant-qemu
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "generic/ubuntu2204"
+  config.vm.provider :qemu do |qemu|
+    qemu.memory = "2048"
+    qemu.cpu = "2"
+    qemu.arch = "x86_64"
+    qemu.machine = "q35"
+    qemu.cpu = "host"
+    # qemu.net_device = "virtio-net-pci"
+    qemu.qemu_dir = "C:/Program Files/qemu" # QEMU 설치 경로에 맞게 수정
+    qemu.display = "none" # 헤드리스 모드로 실행
+    # GUI가 필요하면 아래 줄의 주석을 제거
+    # qemu.display = "sdl"
+  end
+end
