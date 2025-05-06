@@ -229,8 +229,8 @@ parameters:
   #monitors: "$CEPH_MONITOR_IPS"
   mounter: "fuse"
   # DNS SRV 검색 관련 파라미터
-  dnsResolveSrvRecord: false
-  disableDnsSrvLookup: true
+  dnsResolveSrvRecord: "false"
+  disableDnsSrvLookup: "true"
   # CSI Secret 이름을 지정하여 인증 정보를 참조
   csi.storage.k8s.io/provisioner-secret-name: "$K8S_SECRET_NAME"
   csi.storage.k8s.io/provisioner-secret-namespace: "$K8S_CSI_NAMESPACE"
