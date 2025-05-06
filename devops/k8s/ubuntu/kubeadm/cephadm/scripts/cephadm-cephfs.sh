@@ -226,7 +226,7 @@ parameters:
   fsName: "$FS_NAME" # 사용할 CephFS 파일 시스템 이름
   pool: "$DATA_POOL" # 데이터 풀 지정
   # 모니터 주소 직접 지정
-  #monitors: "$CEPH_MONITOR_IPS"
+  monitors: "$CEPH_MONITOR_IPS"
   mounter: "fuse"
   # DNS SRV 검색 관련 파라미터
   dnsResolveSrvRecord: "false"
