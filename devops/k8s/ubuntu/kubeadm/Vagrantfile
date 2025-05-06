@@ -1,0 +1,49 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# 네트워크 및 K8s 설정
+NETWORK_CONFIG = {
+  :pod_cidr => "10.244.0.0/16",  # Calico CNI용 Pod 네트워크 CIDR
+  :master_ip => "192.168.56.10", 
+  :network_prefix => "192.168.56"
+}
+
+# 노드 설정 - 워커 노드를 먼저, 마스터 노드를 마지막에 정의
+K8S_CLUSTER = {
+  "k8s-worker-1" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.11", :cpus => 2, :memory => 2048, :ssh_port => 22001 },
+  "k8s-worker-2" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.12", :cpus => 2, :memory => 2048, :ssh_port => 22002 },
+  "k8s-master" => { :ip => "#{NETWORK_CONFIG[:master_ip]}", :cpus => 4, :memory => 4096, :ssh_port => 22000 }
+}
+
+Vagrant.configure("2") do |config|
+  
+  # 각 노드 구성 (워커 노드가 먼저, 마스터 노드가 마지막에 프로비저닝됨)
+  K8S_CLUSTER.each do |hostname, info|
+    config.vm.define hostname do |cfg|
+      # 기본 설정
+      cfg.vm.box = "bento/ubuntu-22.04"
+      cfg.vm.host_name = hostname
+      
+      # 네트워크 설정
+      cfg.vm.network "private_network", ip: info[:ip]
+      cfg.vm.network "forwarded_port", guest: 22, host: info[:ssh_port], id: "ssh", auto_correct: true
+      
+      # VirtualBox 설정
+      cfg.vm.provider "virtualbox" do |vb|
+        vb.name = hostname
+        vb.memory = info[:memory]
+        vb.cpus = info[:cpus]
+        vb.customize ["modifyvm", :id, "--groups", "/k8s-1.31-test"]
+      end
+      
+      # 공통 K8s 설정 스크립트 실행 (네트워크 프리픽스 전달)
+      cfg.vm.provision "shell", path: "./provision/kubeadm-common.sh", args: ["#{NETWORK_CONFIG[:master_ip]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{NETWORK_CONFIG[:pod_cidr]}", "#{K8S_WORKER_NODES}"]
+
+      # 노드별 설정
+      if hostname == "k8s-master"
+        cfg.vm.provision "shell", path: "./provision/kubeadm-master.sh", 
+        args: ["#{NETWORK_CONFIG[:master_ip]}", "#{NETWORK_CONFIG[:pod_cidr]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{K8S_CLUSTER.length - 1}"]
+      end
+    end
+  end
+end

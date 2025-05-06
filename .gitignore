@@ -1,5 +1,8 @@
-# Created by https://www.toptal.com/developers/gitignore/api/jupyternotebooks,python,vagrant
-# Edit at https://www.toptal.com/developers/gitignore?templates=jupyternotebooks,python,vagrant
+# Created by https://www.toptal.com/developers/gitignore/api/vagrant,python,nextjs,jupyternotebooks
+# Edit at https://www.toptal.com/developers/gitignore?templates=vagrant,python,nextjs,jupyternotebooks
+password.rb
+*.png
+*.svg
 
 ### JupyterNotebooks ###
 # gitignore template for Jupyter Notebooks
@@ -14,6 +17,42 @@ ipython_config.py
 
 # Remove previous ipynb_checkpoints
 #   git rm -r .ipynb_checkpoints/
+
+### NextJS ###
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# local env files
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
@@ -142,7 +181,6 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-Scripts/
 
 # Spyder project settings
 .spyderproject
@@ -195,4 +233,4 @@ pyrightconfig.json
 ### Vagrant Patch ###
 *.box
 
-# End of https://www.toptal.com/developers/gitignore/api/jupyternotebooks,python,vagrant
+# End of https://www.toptal.com/developers/gitignore/api/vagrant,python,nextjs,jupyternotebooks
