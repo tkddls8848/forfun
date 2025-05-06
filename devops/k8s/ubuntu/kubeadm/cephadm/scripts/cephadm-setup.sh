@@ -90,17 +90,15 @@ for host in "${WORKER_NODES[@]}"; do
   
   # podman 설치 (또는 Docker를 선호한다면 docker.io 패키지로 변경 가능)
   ssh -o StrictHostKeyChecking=no root@$ip "apt-get update && apt-get install -y podman"
+  ssh -o StrictHostKeyChecking=no root@$ip "sudo systemctl restart podman"
   
   echo "컨테이너 엔진 설치 완료: $host"
 done
 
 # SSH 연결 테스트 후 Ceph 호스트 추가
 ceph orch host add k8s-worker-1 192.168.56.11
-sleep 3
 ceph orch host add k8s-worker-2 192.168.56.12
-sleep 3
 ceph orch host add k8s-worker-3 192.168.56.13
-sleep 3
 
 # 추가 모니터 배포 (총 3개)
 echo "모니터 배포 중..."

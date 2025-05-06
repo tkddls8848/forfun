@@ -58,6 +58,7 @@ Vagrant.configure("2") do |config|
         cfg.vm.provision "shell", path: "../provision/kubeadm-master.sh", args: ["#{NETWORK_CONFIG[:master_ip]}", "#{NETWORK_CONFIG[:pod_cidr]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{K8S_CLUSTER.length - 1}"]
         cfg.vm.provision "shell", path: "./scripts/cephadm-osd-prepare.sh", name: "cephadm-osd-prepare", args: ["#{CEPH_OSD[:count]}", "#{K8S_WORKER_NODES}", "#{VAGRANT_PASSWORD}"], privileged: true
         cfg.vm.provision "shell", path: "./scripts/cephadm-setup.sh", name: "cephadm", args: ["#{CEPH_OSD[:count]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{K8S_WORKER_NODES}"], privileged: true
+        #cfg.vm.provision "shell", path: "./scripts/cephadm-cephfs", name: "s3cmd"
         #cfg.vm.provision "shell", path: "./scripts/cephadm-obj-s3cmd.sh", name: "s3cmd"
       end
     end

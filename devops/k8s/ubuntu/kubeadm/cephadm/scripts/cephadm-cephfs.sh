@@ -10,21 +10,22 @@ set -e  # 오류 발생 시 스크립트 중단
 # 1. 설정 변수
 #-------------------------------------------------------------------------
 # CephFS 기본 설정
-FS_NAME="mycephfs"                 # 생성할 파일 시스템 이름
-METADATA_POOL="${FS_NAME}_metadata"  # 메타데이터 저장 풀 이름
-DATA_POOL="${FS_NAME}_data"        # 데이터 저장 풀 이름
-MDS_COUNT=2
+# 환경 변수 설정 파일 생성
+export FS_NAME="mycephfs"
+export METADATA_POOL="mycephfs_metadata"
+export DATA_POOL="mycephfs_data"
+export MDS_COUNT=2
 
 # Ceph 클라이언트 사용자 설정
-CEPH_CSI_USER="ceph-csi-user"      # CSI 드라이버용 사용자 ID
+export CEPH_CSI_USER="ceph-csi-user"
 
 # Kubernetes 설정
-K8S_CSI_NAMESPACE="ceph-csi-cephfs"     # CSI 드라이버 배포 네임스페이스
-K8S_CSI_RELEASE_NAME="ceph-csi-cephfs-release"  # Helm 릴리스 이름
-K8S_SECRET_NAME="ceph-csi-cephfs-keyring"  # Ceph 키링 저장 Secret
-K8S_STORAGE_CLASS_NAME="cephfs-sc"      # StorageClass 이름
-K8S_PVC_NAME="my-cephfs-pvc"           # 테스트용 PVC 이름
-K8S_TEST_POD_NAME="cephfs-test-pod"     # 테스트용 Pod 이름
+export K8S_CSI_NAMESPACE="ceph-csi-cephfs"
+export K8S_CSI_RELEASE_NAME="ceph-csi-cephfs-release"
+export K8S_SECRET_NAME="ceph-csi-cephfs-keyring"
+export K8S_STORAGE_CLASS_NAME="cephfs-sc"
+export K8S_PVC_NAME="my-cephfs-pvc"
+export K8S_TEST_POD_NAME="cephfs-test-pod"
 
 #=========================================================================
 # 2. CephFS 설치
@@ -49,6 +50,7 @@ echo ">> 파일 시스템 생성 완료"
 
 #-------------------------------------------------------------------------
 # 2.3 MDS 서비스 배포
+# ceph orch apply mds "$FS_NAME" --placement="$MDS_COUNT" mds 생성이 안되면 수동으로 입력 필요
 #-------------------------------------------------------------------------
 echo ">> MDS 서비스 배포 중..."
 ceph orch apply mds "$FS_NAME" --placement="$MDS_COUNT"
@@ -64,18 +66,24 @@ ceph fs status "$FS_NAME"
 echo "-- MDS 데몬 프로세스 상태:"
 ceph orch apply mds "$FS_NAME" --placement="$MDS_COUNT"
 ceph orch ps --daemon_type=mds
-echo "[단계 1/7] CephFS 파일 시스템 설치 완료"
 
-# MDS 데몬 시작 대기
-WAIT_TIME=120
-echo ">> MDS 데몬  배포 대기 (${WAIT_TIME}초)..."
-counter=0
-while [ $counter -lt $WAIT_TIME ]; do
-  echo -ne "   MDS 데몬  배포 진행 중... (경과: ${counter}초/${WAIT_TIME}초)\r"
-  sleep 1
-  counter=$((counter + 1))
+# MDS 서비스 시작 대기
+echo ">> MDS 서비스 배포 대기 중..."
+MAX_RETRIES=20
+RETRY_INTERVAL=10
+count=0
+
+while [ $count -lt $MAX_RETRIES ]; do
+  if ceph fs status "$FS_NAME" | grep -q "active"; then
+    echo ">> MDS 서비스 성공적으로 배포됨"
+    break
+  fi
+  echo "   MDS 배포 대기 중... ($((count+1))/$MAX_RETRIES)"
+  sleep $RETRY_INTERVAL
+  count=$((count+1))
 done
-echo -e "\n>> MDS 데몬  배포 대기 완료"
+
+echo "[단계 1/7] CephFS 파일 시스템 설치 완료"
 
 #=========================================================================
 # 3. CSI 사용자 생성 및 클러스터 정보 수집
@@ -173,10 +181,6 @@ csiConfig:
   - clusterID: "$CEPH_CLUSTER_ID" # Ceph 클러스터의 고유 ID
     monitors: # Ceph 모니터 주소 목록
 $(echo "$CEPH_MONITOR_IPS" | tr ',' '\n' | sed 's/^/    - /') # 문자열을 YAML 목록 형식으로 변환
-nodePluginV2:
-  # FUSE 마운터 사용
-  mountOptions:
-    mounter: "fuse"
 secrets:
   - name: "$K8S_SECRET_NAME" # Kubernetes Secret 이름
 provisioner:
@@ -213,6 +217,15 @@ echo "[단계 4/7] Ceph CSI 드라이버 설치 완료"
 #=========================================================================
 echo -e "\n[단계 5/7] Kubernetes StorageClass 생성을 시작합니다..."
 
+WORKER_NODES=("k8s-worker-1" "k8s-worker-2" "k8s-worker-3")
+
+echo "========== 1. 모든 워커 노드에 ceph-common 및 ceph-fuse 패키지 설치 =========="
+for node in "${WORKER_NODES[@]}"; do
+  echo "노드 $node에 ceph-common 및 ceph-fuse 패키지 설치 중..."
+  ssh root@$node "apt-get update && apt-get install -y ceph-common ceph-fuse"
+  echo "노드 $node에 ceph-common ceph-fuse 패키지 설치 완료"
+done
+
 # StorageClass YAML 파일 생성
 echo ">> StorageClass YAML 파일 생성 중..."
 cat << EOF > cephfs-storageclass.yaml
@@ -225,9 +238,8 @@ parameters:
   clusterID: "$CEPH_CLUSTER_ID" # CSI 드라이버의 clusterID와 일치해야 함
   fsName: "$FS_NAME" # 사용할 CephFS 파일 시스템 이름
   pool: "$DATA_POOL" # 데이터 풀 지정
-  # 모니터 주소 직접 지정
-  monitors: "$CEPH_MONITOR_IPS"
   mounter: "fuse"
+  monitors: "$CEPH_MONITOR_IPS"
   # DNS SRV 검색 관련 파라미터
   dnsResolveSrvRecord: "false"
   disableDnsSrvLookup: "true"
@@ -283,7 +295,8 @@ kubectl apply -f cephfs-pvc.yaml
 echo ">> PVC 생성 완료"
 
 # PVC 상태 확인
-echo ">> PVC 상태 확인:"
+echo ">> PVC 상태 확인 (40초 대기)"
+sleep 40
 kubectl get pvc "$K8S_PVC_NAME"
 echo "[단계 6/7] PersistentVolumeClaim 생성 완료"
 
@@ -298,20 +311,20 @@ cat << EOF > cephfs-test-pod.yaml
 apiVersion: v1
 kind: Pod
 metadata:
-  name: $K8S_TEST_POD_NAME
+  name: nginx-cephfs
 spec:
   containers:
-  - name: test-container
-    image: busybox
-    command: ['sh', '-c', 'echo "hello, cephfs" > /mnt/cephfs/hello.txt && cat /mnt/cephfs/hello.txt && sleep 3600']
+  - name: nginx
+    image: nginx
+    ports:
+    - containerPort: 80
     volumeMounts:
-    - name: cephfs-storage # Pod 내부 볼륨 마운트 이름
-      mountPath: /mnt/cephfs # 볼륨을 마운트할 경로
+    - name: cephfs-data
+      mountPath: /usr/share/nginx/html
   volumes:
-  - name: cephfs-storage # Pod 내부 볼륨 이름
+  - name: cephfs-data
     persistentVolumeClaim:
-      claimName: "$K8S_PVC_NAME" # 사용할 PVC 이름
-      readOnly: false # 읽기/쓰기 가능 설정
+      claimName: "$K8S_PVC_NAME"
 EOF
 echo ">> 테스트 Pod YAML 파일 생성 완료: cephfs-test-pod.yaml"
 kubectl apply -f cephfs-test-pod.yaml
