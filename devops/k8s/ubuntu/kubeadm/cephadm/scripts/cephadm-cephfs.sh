@@ -173,6 +173,10 @@ csiConfig:
   - clusterID: "$CEPH_CLUSTER_ID" # Ceph 클러스터의 고유 ID
     monitors: # Ceph 모니터 주소 목록
 $(echo "$CEPH_MONITOR_IPS" | tr ',' '\n' | sed 's/^/    - /') # 문자열을 YAML 목록 형식으로 변환
+nodePluginV2:
+  # FUSE 마운터 사용
+  mountOptions:
+    mounter: "fuse"
 secrets:
   - name: "$K8S_SECRET_NAME" # Kubernetes Secret 이름
 provisioner:
@@ -222,11 +226,11 @@ parameters:
   fsName: "$FS_NAME" # 사용할 CephFS 파일 시스템 이름
   pool: "$DATA_POOL" # 데이터 풀 지정
   # 모니터 주소 직접 지정
-  monitors: "$CEPH_MONITOR_IPS"
-  mounter: kernel
+  #monitors: "$CEPH_MONITOR_IPS"
+  mounter: "fuse"
   # DNS SRV 검색 관련 파라미터
-  dnsResolveSrvRecord: "false"
-  disableDnsSrvLookup: "true"
+  dnsResolveSrvRecord: false
+  disableDnsSrvLookup: true
   # CSI Secret 이름을 지정하여 인증 정보를 참조
   csi.storage.k8s.io/provisioner-secret-name: "$K8S_SECRET_NAME"
   csi.storage.k8s.io/provisioner-secret-namespace: "$K8S_CSI_NAMESPACE"
@@ -299,7 +303,7 @@ spec:
   containers:
   - name: test-container
     image: busybox
-    command: ['sh', '-c', 'ls -la /mnt/cephfs && echo "CephFS PVC 연결 확인 완료" && sleep 3600']
+    command: ['sh', '-c', 'echo "hello, cephfs" > /mnt/cephfs/hello.txt && cat /mnt/cephfs/hello.txt && sleep 3600']
     volumeMounts:
     - name: cephfs-storage # Pod 내부 볼륨 마운트 이름
       mountPath: /mnt/cephfs # 볼륨을 마운트할 경로
@@ -348,8 +352,8 @@ echo "   ceph auth del client.$CEPH_CSI_USER"
 echo ""
 echo "4. CephFS 제거 (주의: 모든 데이터가 삭제됩니다):"
 echo "   ceph fs rm $FS_NAME --yes-i-really-mean-it"
-echo "   ceph osd pool rm $DATA_POOL $DATA_POOL --yes-i-really-really-mean-it"
-echo "   ceph osd pool rm $METADATA_POOL $METADATA_POOL --yes-i-really-really-mean-it"
+echo "   ceph osd pool rm $DATA_POOL --yes-i-really-really-mean-it"
+echo "   ceph osd pool rm $METADATA_POOL --yes-i-really-really-mean-it"
 echo ""
 echo "설치 및 검증 결과에 문제가 있는 경우 로그를 확인하세요."
 echo "CephFS 관련 이슈: ceph fs status $FS_NAME"
