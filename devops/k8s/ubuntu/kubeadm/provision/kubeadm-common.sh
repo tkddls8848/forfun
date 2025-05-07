@@ -63,7 +63,3 @@ echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y kubelet kubeadm kubectl
 apt-mark hold kubelet kubeadm kubectl
-
-# python 설치 및 설정
-apt-get update
-apt-get install -y python3

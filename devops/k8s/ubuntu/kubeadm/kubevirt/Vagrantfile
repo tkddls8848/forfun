@@ -1,62 +1,51 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-# 네트워크 설정 변수 - 사용자 정의 가능
+# 네트워크 및 K8s 설정
 NETWORK_CONFIG = {
-  :pod_cidr => "192.168.0.0/16",      # Pod 네트워크 CIDR (Calico 기본값)
-  :master_ip => "172.168.11.10",      # 마스터 노드 IP
-  :network_prefix => "172.168.11"     # 네트워크 프리픽스
+  :pod_cidr => "10.244.0.0/16",  # Calico CNI용 Pod 네트워크 CIDR
+  :master_ip => "192.168.60.10", 
+  :network_prefix => "192.168.60"
 }
 
-# 노드 설정
+# 노드 설정 - 워커 노드를 먼저, 마스터 노드를 마지막에 정의
 K8S_CLUSTER = {
-  "k8s-master" => { :ip => "#{NETWORK_CONFIG[:master_ip]}", :cpus => 4, :memory => 3072, :ssh => 22000 },
-  "k8s-worker1" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.21", :cpus => 2, :memory => 2048, :ssh => 22001 },
-  "k8s-worker2" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.22", :cpus => 2, :memory => 2048, :ssh => 22002 }
+  "k8s-worker-1" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.11", :cpus => 2, :memory => 2048, :ssh_port => 22001 },
+  "k8s-worker-2" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.12", :cpus => 2, :memory => 2048, :ssh_port => 22002 },
+  "k8s-master" => { :ip => "#{NETWORK_CONFIG[:master_ip]}", :cpus => 4, :memory => 4096, :ssh_port => 22000 }
 }
-
-# 환경 설정
-CLUSTER_NAME = "k8s-cluster-kubeadm"
-NODE_NUMBER = K8S_CLUSTER.size()
-K8S_VERSION = "1.31"  # Kubernetes 버전
+K8S_WORKER_NODES = K8S_CLUSTER.length - 1
 
 Vagrant.configure("2") do |config|
+  
+  # 각 노드 구성 (워커 노드가 먼저, 마스터 노드가 마지막에 프로비저닝됨)
   K8S_CLUSTER.each do |hostname, info|
     config.vm.define hostname do |cfg|
+      # 기본 설정
       cfg.vm.box = "bento/ubuntu-22.04"
       cfg.vm.host_name = hostname
       
       # 네트워크 설정
       cfg.vm.network "private_network", ip: info[:ip]
-      cfg.vm.network "forwarded_port", guest: 22, host: info[:ssh], auto_correct: true, id: "ssh"
-
+      cfg.vm.network "forwarded_port", guest: 22, host: info[:ssh_port], id: "ssh", auto_correct: true
+      
       # VirtualBox 설정
       cfg.vm.provider "virtualbox" do |vb|
         vb.name = hostname
-        vb.gui = false
         vb.memory = info[:memory]
         vb.cpus = info[:cpus]
-        vb.customize ["modifyvm", :id, "--groups", "/#{CLUSTER_NAME}"]
+        vb.customize ["modifyvm", :id, "--groups", "/k8s-kubevirt"]
       end
       
-      # 환경 변수 설정
-      cfg.vm.provision "shell", inline: <<-SHELL
-        echo "export MASTER_IP=#{NETWORK_CONFIG[:master_ip]}" > /etc/profile.d/k8s-env.sh
-        echo "export POD_CIDR=#{NETWORK_CONFIG[:pod_cidr]}" >> /etc/profile.d/k8s-env.sh
-        echo "export NETWORK_PREFIX=#{NETWORK_CONFIG[:network_prefix]}" >> /etc/profile.d/k8s-env.sh
-        echo "export K8S_VERSION=#{K8S_VERSION}" >> /etc/profile.d/k8s-env.sh
-        chmod +x /etc/profile.d/k8s-env.sh
-      SHELL
-      
-      # 공통 설정 스크립트 실행
-      cfg.vm.provision "shell", path: "../provision/kubeadm-common.sh", privileged: false
-      
-      # 마스터 노드 설정 스크립트 실행
+      # 공통 K8s 설정 스크립트 실행
+      cfg.vm.provision "shell", path: "../provision/kubeadm-common.sh", 
+        args: ["#{NETWORK_CONFIG[:master_ip]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{K8S_WORKER_NODES}"]
+
+      # 노드별 설정
       if hostname == "k8s-master"
-        cfg.vm.provision "shell", path: "../provision/kubeadm-master.sh", privileged: false
-        cfg.vm.provision "shell", path: "../provision/kubevirt-setup.sh", privileged: false
-      elsif hostname.include? "worker"
-        cfg.vm.provision "shell", path: "../provision/kubeadm-worker.sh", privileged: false
+        cfg.vm.provision "shell", path: "../provision/kubeadm-master.sh", 
+          args: ["#{NETWORK_CONFIG[:master_ip]}", "#{NETWORK_CONFIG[:pod_cidr]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{K8S_WORKER_NODES}"]
+        cfg.vm.provision "shell", path: "./scripts/kubevirt-setup.sh"
       end
     end
   end

@@ -20,7 +20,7 @@ K8S_CLUSTER = {
   "k8s-master" => { :ip => "#{NETWORK_CONFIG[:master_ip]}", :cpus => 4, :memory => 3500, :ssh_port => 22000 }
 }
 # K8S_CLUSTER 해시에서 워커 노드 수를 동적으로 계산
-K8S_WORKER_NODES = 3
+K8S_WORKER_NODES = K8S_CLUSTER.length - 1
 # OSD 디스크 기본 경로 설정
 OSD_DISK_BASE_PATH = "C:/VirtualBox VMs/ubuntu-ceph"
 
@@ -39,7 +39,7 @@ Vagrant.configure("2") do |config|
         vb.cpus = info[:cpus]
         vb.customize ["modifyvm", :id, "--groups", "/ubuntu-ceph"]
         
-        # 워커 노드일 경우 OSD 디스크 추가 - vb 블록 내부로 이동
+        # 워커 노드일 경우 OSD 디스크 추가
         if hostname.include? "worker"
           CEPH_OSD[:count].times do |i|
             osd_disk = "#{OSD_DISK_BASE_PATH}/#{hostname}-osd-#{i}.vdi"
@@ -50,16 +50,28 @@ Vagrant.configure("2") do |config|
           end
         end
       end
+      
       # 노드 공통 설정
-      cfg.vm.provision "shell", path: "../provision/kubeadm-common.sh", args: ["#{NETWORK_CONFIG[:master_ip]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{K8S_WORKER_NODES}"]
+      cfg.vm.provision "shell", path: "../provision/kubeadm-common.sh", 
+        args: ["#{NETWORK_CONFIG[:master_ip]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{K8S_WORKER_NODES}"]
       
       # 마스터 노드 설정
       if hostname == "k8s-master"
-        cfg.vm.provision "shell", path: "../provision/kubeadm-master.sh", args: ["#{NETWORK_CONFIG[:master_ip]}", "#{NETWORK_CONFIG[:pod_cidr]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{K8S_CLUSTER.length - 1}"]
-        cfg.vm.provision "shell", path: "./scripts/cephadm-osd-prepare.sh", name: "cephadm-osd-prepare", args: ["#{CEPH_OSD[:count]}", "#{K8S_WORKER_NODES}", "#{VAGRANT_PASSWORD}"], privileged: true
-        cfg.vm.provision "shell", path: "./scripts/cephadm-setup.sh", name: "cephadm", args: ["#{CEPH_OSD[:count]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{K8S_WORKER_NODES}"], privileged: true
-        #cfg.vm.provision "shell", path: "./scripts/cephadm-cephfs", name: "s3cmd"
-        #cfg.vm.provision "shell", path: "./scripts/cephadm-obj-s3cmd.sh", name: "s3cmd"
+        cfg.vm.provision "shell", path: "../provision/kubeadm-master.sh", 
+          args: ["#{NETWORK_CONFIG[:master_ip]}", "#{NETWORK_CONFIG[:pod_cidr]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{K8S_WORKER_NODES}"]
+        # Ceph 설치 및 설정 (OSD 준비 통합)
+        cfg.vm.provision "shell", path: "./scripts/cephadm-setup.sh", name: "cephadm", 
+          args: ["#{CEPH_OSD[:count]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{K8S_WORKER_NODES}", "#{VAGRANT_PASSWORD}"], 
+          privileged: true
+        # Filesystem Storage 설치
+        cfg.vm.provision "shell", path: "./scripts/cephadm-cephfs.sh", name: "cephfs", privileged: true
+        # block Storage 설치
+        cfg.vm.provision "shell", path: "./scripts/cephadm-rbd.sh", name: "cephrbd", privileged: true
+        # Object Storage 설치 (옵션 3 (s3cmd, awscli 모두) 선택)
+        cfg.vm.provision "shell", path: "./scripts/cephadm-object-storage.sh", 
+          name: "cephobject", 
+          env: {"S3_CLIENT_CHOICE" => "3"},
+          privileged: true
       end
     end
   end
