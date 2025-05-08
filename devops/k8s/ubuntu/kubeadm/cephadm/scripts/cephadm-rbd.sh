@@ -212,9 +212,7 @@ echo ">> values.yaml 파일 생성 완료: rbd-csi-values.yaml"
 # 5.4 Helm으로 Ceph CSI RBD 드라이버 설치
 #-------------------------------------------------------------------------
 echo ">> Helm을 사용하여 Ceph CSI RBD 드라이버 설치 중..."
-# 기존 ConfigMap 삭제
-kubectl delete configmap ceph-csi-config -n "$K8S_CSI_NAMESPACE"
-kubectl delete configmap ceph-csi-kms-config -n "$K8S_CSI_NAMESPACE" --ignore-not-found=true
+# 기존 ConfigMap 삭제 - 제거됨
 
 helm upgrade --install "$K8S_CSI_RELEASE_NAME" ceph-csi/ceph-csi-rbd \
   --namespace "$K8S_CSI_NAMESPACE" \
@@ -239,31 +237,6 @@ echo -e "\n[단계 5/7] Kubernetes StorageClass 생성을 시작합니다..."
 # StorageClass YAML 파일 생성
 echo ">> StorageClass YAML 파일 생성 중..."
 cat << EOF > rbd-storageclass.yaml
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: $K8S_STORAGE_CLASS_NAME
-  annotations:
-    storageclass.kubernetes.io/is-default-class: "true"
-provisioner: rbd.csi.ceph.com
-parameters:
-  clusterID: "$CEPH_CLUSTER_ID"
-  pool: "$CEPH_POOL_NAME"
-  imageFormat: "2"
-  imageFeatures: layering
-  csi.storage.k8s.io/provisioner-secret-name: "$K8S_SECRET_NAME"
-  csi.storage.k8s.io/provisioner-secret-namespace: "$K8S_CSI_NAMESPACE"
-  csi.storage.k8s.io/controller-expand-secret-name: "$K8S_SECRET_NAME"
-  csi.storage.k8s.io/controller-expand-secret-namespace: "$K8S_CSI_NAMESPACE"
-  csi.storage.k8s.io/node-stage-secret-name: "$K8S_SECRET_NAME"
-  csi.storage.k8s.io/node-stage-secret-namespace: "$K8S_CSI_NAMESPACE"
-reclaimPolicy: Delete
-allowVolumeExpansion: true
-mountOptions:
-  - discard
-EOF
-
-cat << EOF | kubectl apply -f -
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
