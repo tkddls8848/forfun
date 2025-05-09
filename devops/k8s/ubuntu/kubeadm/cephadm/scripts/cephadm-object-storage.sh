@@ -1,18 +1,20 @@
 #!/bin/bash
 #=========================================================================
 # Ceph Object Storage (RGW) 설치 및 테스트 스크립트
-# S3/Swift API 호환 Object Storage 구성
 #=========================================================================
 
-set -e
+set -e  # 오류 발생 시 스크립트 중단
+
+# 네트워크 인자 받기
+NETWORK_PREFIX=$1
+MASTER_IP=$2
 
 # Object Storage 설정
-export RGW_PORT=8080
+export RGW_PORT=7480
 export RGW_USER="s3user"
 export RGW_DISPLAY_NAME="S3 Test User"
 export RGW_BUCKET="testbucket"
-export MASTER_HOSTNAME="k8s-master"
-export MASTER_IP="192.168.56.10"
+export MASTER_HOSTNAME=$(hostname)  # kubeadm 설치 시 지정한 hostname
 
 # Swift 사용자 설정
 export SWIFT_SUBUSER="test"  # subuser 이름만
@@ -49,19 +51,13 @@ while [ $count -lt $MAX_RETRIES ]; do
   count=$((count+1))
 done
 
-
 #=========================================================================
 # 2. S3 사용자 생성
 #=========================================================================
 echo "[2/4] S3 사용자 생성 중..."
 radosgw-admin user create --uid=$RGW_USER --display-name="$RGW_DISPLAY_NAME"
 
-# jq 설치 확인 (JSON 파싱용)
-if ! command -v jq &> /dev/null; then
-    echo "jq 설치 중..."
-    apt-get update
-    apt-get install -y -q jq
-fi
+# jq는 이미 설치되어 있음 (cephadm-setup.sh에서)
 
 # 액세스 키 확인
 ACCESS_KEY=$(radosgw-admin user info --uid=$RGW_USER | jq -r '.keys[0].access_key')
@@ -112,10 +108,14 @@ echo "선택된 옵션: $CLIENT_CHOICE"
 
 case $CLIENT_CHOICE in
   1|3)
-    echo "=== s3cmd 테스트 ==="
+    echo ">> s3cmd 테스트 중..."
     if ! command -v s3cmd &> /dev/null; then
         echo "s3cmd 설치 중..."
-        apt-get update
+        # APT 업데이트가 필요한 경우만 실행
+        if [ ! -f /var/tmp/apt_updated ] || [ "$(find /var/tmp/apt_updated -mmin +60)" ]; then
+            apt-get update
+            date "+%Y-%m-%d %H:%M:%S" > /var/tmp/apt_updated
+        fi
         apt-get install -y -q s3cmd
     fi
     
@@ -147,10 +147,14 @@ esac
 
 case $CLIENT_CHOICE in
   2|3)
-    echo "=== OpenStack Swift 테스트 ==="
+    echo ">> OpenStack Swift 테스트 중..."
     if ! command -v swift &> /dev/null; then
         echo "Swift 클라이언트 설치 중..."
-        apt-get update
+        # APT 업데이트가 필요한 경우만 실행
+        if [ ! -f /var/tmp/apt_updated ] || [ "$(find /var/tmp/apt_updated -mmin +60)" ]; then
+            apt-get update
+            date "+%Y-%m-%d %H:%M:%S" > /var/tmp/apt_updated
+        fi
         apt-get install -y -q python3-swiftclient
     fi
     

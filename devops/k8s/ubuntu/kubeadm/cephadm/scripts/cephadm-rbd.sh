@@ -1,10 +1,15 @@
 #!/bin/bash
 #=========================================================================
 # Ceph RBD 설치 및 Kubernetes CSI 연동 통합 스크립트
-# 목적: Ceph RBD 블록 스토리지 설치 및 Kubernetes CSI 드라이버 연동
 #=========================================================================
 
 set -e  # 오류 발생 시 스크립트 중단
+
+# 네트워크 인자 받기
+NETWORK_PREFIX=$1
+MASTER_IP=$2
+CSI_VERSION=$3
+echo "네트워크 설정: NETWORK_PREFIX=$NETWORK_PREFIX, CSI_VERSION=$CSI_VERSION, MASTER_IP=$MASTER_IP"
 
 #-------------------------------------------------------------------------
 # 1. 설정 변수
@@ -79,52 +84,15 @@ echo "   - User Keyring (client.$CEPH_CSI_USER): *****" # 보안상 키링 값�
 echo "[단계 2/7] CSI 사용자 생성 및 클러스터 정보 수집 완료"
 
 #=========================================================================
-# 4. Kubernetes ConfigMap 및 Secret 생성
+# 4. Kubernetes Secret 생성
 #=========================================================================
-echo -e "\n[단계 3/7] Kubernetes ConfigMap 및 Secret 생성을 시작합니다..."
+echo -e "\n[단계 3/7] Kubernetes Secret 생성을 시작합니다..."
 
 # 네임스페이스 생성
 echo ">> Kubernetes 네임스페이스 생성 중..."
 kubectl create namespace $K8S_CSI_NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
 
-# ConfigMap 생성 (CSI 설정)
-echo ">> ConfigMap 'ceph-csi-config' 생성 중..."
-
-# 모니터 주소를 JSON 배열 형식으로 변환
-MONITOR_JSON_ARRAY=$(echo "$CEPH_MONITOR_IPS" | tr ',' '\n' | sed 's/^/          "/; s/$/",/' | sed '$ s/,$//')
-
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ceph-csi-config
-  namespace: $K8S_CSI_NAMESPACE
-data:
-  config.json: |-
-    [
-      {
-        "clusterID": "$CEPH_CLUSTER_ID",
-        "monitors": [
-${MONITOR_JSON_ARRAY}
-        ]
-      }
-    ]
-EOF
-
-# KMS ConfigMap 생성 (최신 CSI 버전에서 필요)
-echo ">> ConfigMap 'ceph-csi-kms-config' 생성 중..."
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ceph-csi-kms-config
-  namespace: $K8S_CSI_NAMESPACE
-data:
-  config.json: |-
-    {}
-EOF
-
-# Secret 생성
+# Secret 생성 (ConfigMap은 Helm이 관리)
 echo ">> Kubernetes Secret 생성 중..."
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
@@ -137,7 +105,7 @@ stringData:
   userID: $CEPH_CSI_USER
   userKey: $CEPH_USER_KEYRING
 EOF
-echo "[단계 3/7] Kubernetes ConfigMap 및 Secret 생성 완료"
+echo "[단계 3/7] Kubernetes Secret 생성 완료"
 
 #=========================================================================
 # 5. Ceph CSI 드라이버 설치 (Helm 사용)
@@ -145,26 +113,9 @@ echo "[단계 3/7] Kubernetes ConfigMap 및 Secret 생성 완료"
 echo -e "\n[단계 4/7] Ceph CSI 드라이버 설치를 시작합니다..."
 
 #-------------------------------------------------------------------------
-# 5.1 Helm 설치 (없는 경우)
+# 5.2 Ceph CSI Helm 저장소 추가 - 이미 추가되어 있으므로 제거
 #-------------------------------------------------------------------------
-echo ">> Helm 설치 여부 확인 및 필요시 설치 중..."
-if ! command -v helm &> /dev/null; then
-  echo "   Helm이 설치되어 있지 않습니다. 설치를 진행합니다..."
-  curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-  chmod 700 get_helm.sh
-  ./get_helm.sh
-  echo "   Helm 설치 완료"
-else
-  echo "   Helm이 이미 설치되어 있습니다."
-fi
-
-#-------------------------------------------------------------------------
-# 5.2 Ceph CSI Helm 저장소 추가
-#-------------------------------------------------------------------------
-echo ">> Ceph CSI Helm 저장소 추가 및 업데이트 중..."
-helm repo add ceph-csi https://ceph.github.io/csi-charts
-helm repo update
-echo ">> Helm 저장소 업데이트 완료"
+# Helm 저장소는 이미 cephadm-setup.sh에서 추가됨
 
 #-------------------------------------------------------------------------
 # 5.3 Ceph CSI RBD values.yaml 생성
@@ -217,7 +168,7 @@ echo ">> Helm을 사용하여 Ceph CSI RBD 드라이버 설치 중..."
 helm upgrade --install "$K8S_CSI_RELEASE_NAME" ceph-csi/ceph-csi-rbd \
   --namespace "$K8S_CSI_NAMESPACE" \
   --values rbd-csi-values.yaml \
-  --version 3.9.0
+  --version $CSI_VERSION
 echo ">> Ceph CSI 드라이버 설치 명령 실행 완료"
 
 # CSI 드라이버 배포 대기

@@ -1,10 +1,15 @@
 #!/bin/bash
 #=========================================================================
 # CephFS 설치 및 Kubernetes 연동 통합 스크립트
-# 목적: CephFS 파일 시스템 설치 및 Kubernetes CSI 드라이버 연동
 #=========================================================================
 
 set -e  # 오류 발생 시 스크립트 중단
+
+# 네트워크 인자 받기
+NETWORK_PREFIX=$1
+MASTER_IP=$2
+CSI_VERSION=$3
+echo "네트워크 설정: NETWORK_PREFIX=$NETWORK_PREFIX, CSI_VERSION=$CSI_VERSION, MASTER_IP=$MASTER_IP"
 
 # CephFS 기본 설정
 export FS_NAME="mycephfs"
@@ -107,17 +112,7 @@ kubectl apply -f ceph-secret.yaml -n $K8S_CSI_NAMESPACE
 #=========================================================================
 echo -e "\n[단계 4/7] Ceph CSI 드라이버 설치를 시작합니다..."
 
-# Helm 설치 확인
-if ! command -v helm &> /dev/null; then
-  echo "   Helm이 설치되어 있지 않습니다. 설치를 진행합니다..."
-  curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-  chmod 700 get_helm.sh
-  ./get_helm.sh
-fi
-
-# Ceph CSI Helm 저장소 추가
-helm repo add ceph-csi https://ceph.github.io/csi-charts
-helm repo update
+# Helm 저장소는 이미 추가되어 있음 (cephadm-setup.sh에서)
 
 # Ceph CSI 설치를 위한 values.yaml 생성
 cat << EOF > cephfs-csi-values.yaml
@@ -132,7 +127,7 @@ provisioner:
 EOF
 
 # Helm으로 Ceph CSI 드라이버 설치
-helm install --namespace "$K8S_CSI_NAMESPACE" "$K8S_CSI_RELEASE_NAME" ceph-csi/ceph-csi-cephfs -f cephfs-csi-values.yaml --version 3.9.0
+helm install --namespace "$K8S_CSI_NAMESPACE" "$K8S_CSI_RELEASE_NAME" ceph-csi/ceph-csi-cephfs -f cephfs-csi-values.yaml --version $CSI_VERSION
 
 # CSI 드라이버 배포 대기
 echo ">> CSI 드라이버 배포 120초 대기..."
@@ -143,13 +138,6 @@ kubectl get pods -n "$K8S_CSI_NAMESPACE"
 # 5. Kubernetes StorageClass 생성
 #=========================================================================
 echo -e "\n[단계 5/7] Kubernetes StorageClass 생성을 시작합니다..."
-
-# 워커 노드에 CephFS 마운트를 위한 패키지 설치
-for host in "${WORKER_NODES[@]}"; do
-  echo "노드 $host에 ceph-fuse 패키지 설치 중..."
-  ssh root@$host "command -v ceph || apt-get update && apt-get install -y ceph-common"
-  ssh root@$host "apt-get install -y ceph-fuse"
-done
 
 # StorageClass YAML 파일 생성
 cat << EOF > cephfs-storageclass.yaml
@@ -215,7 +203,7 @@ cat << EOF > cephfs-test-pod.yaml
 apiVersion: v1
 kind: Pod
 metadata:
-  name: nginx-cephfs
+  name: $K8S_TEST_POD_NAME
 spec:
   containers:
   - name: nginx
@@ -232,7 +220,7 @@ spec:
 EOF
 
 kubectl apply -f cephfs-test-pod.yaml
-kubectl get pod nginx-cephfs
+kubectl get pod "$K8S_TEST_POD_NAME"
 
 #=========================================================================
 # 8. 설치 완료 및 검증 안내
