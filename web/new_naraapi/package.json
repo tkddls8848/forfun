@@ -1,0 +1,17 @@
+{
+  "name": "nextjs-fastapi",
+  "version": "1.0.0",
+  "description": "Next.js and FastAPI project",
+  "scripts": {
+    "install:backend": "cd naraapi_backend && pip install -r requirements.txt",
+    "install:frontend": "cd naraapi_frontend && npm install",
+    "install:all": "npm run install:backend && npm run install:frontend",
+    "dev:backend": "cd naraapi_backend && python main.py",
+    "dev:frontend": "cd naraapi_frontend && npm run dev",
+    "web": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "start": "npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}

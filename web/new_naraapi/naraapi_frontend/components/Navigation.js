@@ -8,9 +8,9 @@ export default function Navigation() {
   
   const navItems = [
     { name: '홈', path: '/' },
-    { name: '데이터 탐색', path: '/explore' },
     { name: '통계 분석', path: '/statistics' },
-    { name: '공공 API', path: '/api-docs' }
+    { name: '데이터 탐색', path: '/datasets' },
+    { name: '공공 API 문서', path: '/publicapis' }
   ];
   
   return (

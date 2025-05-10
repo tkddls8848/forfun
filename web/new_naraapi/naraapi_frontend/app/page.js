@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import StatCard from '../components/StatCard';
+import SearchBar from '../components/SearchBar';
 
 // Example data - in a real app, this would come from an API
 const featuredStats = [
@@ -57,23 +58,22 @@ export default function Home() {
   return (
     <div>
       {/* Hero Section */}
-      <section className="bg-primary-color text-white py-16">
+      <section className="bg-primary-color text-black py-16">
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-4xl font-bold mb-4">공공데이터 포털</h1>
           <p className="text-xl mb-8">한국 정부의 OpenAPI 기반 공공데이터를 쉽게 탐색하고 활용하세요.</p>
-          <div className="flex justify-center space-x-4">
-            <Link href="/explore" className="btn bg-white text-primary-color hover:bg-gray-100">
-              데이터 탐색하기
-            </Link>
-            <Link href="/api-docs" className="btn bg-transparent border border-white hover:bg-white hover:text-primary-color">
-              API 문서 보기
-            </Link>
-          </div>
         </div>
       </section>
-      
+      {/* Search bar */}
+      <section className="py-6 bg-secondary-color">
+      <div className="container mx-auto px-4 text-center">
+      <div className="flex justify-between items-center mb-8">
+        <SearchBar />
+        </div>
+      </div>
+      </section>
       {/* Featured Statistics */}
-      <section className="py-12 bg-secondary-color">
+      <section className="py-6 bg-secondary-color">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-2xl font-bold">주요 통계</h2>
@@ -98,7 +98,7 @@ export default function Home() {
       </section>
       
       {/* Featured Datasets */}
-      <section className="py-12">
+      <section className="py-6">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-2xl font-bold">주요 데이터셋</h2>
@@ -125,9 +125,38 @@ export default function Home() {
           </div>
         </div>
       </section>
-      
+
+      {/* Featured publicapis */}
+      <section className="py-6">
+        <div className="container mx-auto px-4">
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-2xl font-bold">공공 API 문서</h2>
+            <Link href="/publicapis" className="text-primary-color hover:underline">
+              모든 문서 보기 →
+            </Link>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {featuredDatasets.map((dataset) => (
+              <div key={dataset.id} className="card">
+                <div className="mb-2">
+                  <span className="inline-block bg-primary-color bg-opacity-10 text-primary-color text-xs px-2 py-1 rounded-full">
+                    {dataset.category}
+                  </span>
+                </div>
+                <h3 className="text-lg font-medium mb-2">{dataset.title}</h3>
+                <p className="text-sm text-gray-600 mb-4">{dataset.description}</p>
+                <Link href={dataset.url} className="text-primary-color hover:underline text-sm">
+                  자세히 보기 →
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Call to Action */}
-      <section className="py-12 bg-light-gray">
+      <section className="py-6 bg-light-gray">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-2xl font-bold mb-4">공공데이터로 새로운 가치를 창출하세요</h2>
           <p className="text-lg mb-8 max-w-3xl mx-auto">

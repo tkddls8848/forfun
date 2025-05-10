@@ -68,7 +68,7 @@ const datasets = {
 // This is a simple API handler function that responds to GET requests
 export async function GET(request) {
   // Get the dataset type from the query parameters
-  const { searchParams } = new URL(request.url);
+  const searchParams = request.nextUrl.searchParams;
   const type = searchParams.get('type') || 'population';
   const limit = parseInt(searchParams.get('limit') || '100');
   const from = searchParams.get('from');

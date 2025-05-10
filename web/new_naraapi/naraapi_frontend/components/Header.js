@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import SearchBar from './SearchBar';
 
 export default function Header() {
   return (
@@ -8,10 +7,6 @@ export default function Header() {
         <Link href="/" className="flex items-center">
           <span className="text-2xl font-bold text-primary-color">공공데이터 포털</span>
         </Link>
-      </div>
-      
-      <div className="w-1/2">
-        <SearchBar />
       </div>
       
       <div className="flex items-center space-x-4">
