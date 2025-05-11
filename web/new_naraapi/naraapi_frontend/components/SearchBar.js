@@ -3,28 +3,33 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function SearchBar() {
+export default function QueryBar() {
   const [query, setQuery] = useState('');
   const [provider, setProvider] = useState('claude'); // 기본값은 'claude'
   const router = useRouter();
   
-  const handleSearch = (e) => {
+  const handleQuery = (e) => {
     e.preventDefault();
     
     if (query.trim()) {
-      // provider를 쿼리스트링으로 포함하여 /search 페이지로 이동
-      router.push(`/search?q=${encodeURIComponent(query)}&provider=${provider}`);
+      // sessionStorage에 검색 데이터 저장
+      sessionStorage.setItem('queryData', JSON.stringify({
+        query: query,
+        provider: provider
+      }));
+      
+      // 검색 페이지로 이동
+      router.push('/query');
     }
   };
   
   return (
-    <form onSubmit={handleSearch} className="relative w-full">
+    <form onSubmit={handleQuery} className="relative w-full">
       <div className="flex items-center">
         {/* AI 제공자 선택 드롭다운 */}
-                <select
+        <select
           value={provider}
           onChange={(e) => setProvider(e.target.value)}
-          // rounded-l-full -> rounded-l-md 로 변경
           className="px-3 py-2 border border-light-gray rounded-l-md bg-white focus:outline-none focus:ring-2 focus:ring-primary-color"
         >
           <option value="claude">Claude</option>
@@ -38,7 +43,6 @@ export default function SearchBar() {
             placeholder="데이터 또는 통계 검색..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            // rounded-r-full -> rounded-r-md 로 변경
             className="w-full px-4 py-2 border-l-0 border border-light-gray rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-color"
           />
           <button

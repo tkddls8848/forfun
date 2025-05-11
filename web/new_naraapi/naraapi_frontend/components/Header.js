@@ -10,13 +10,13 @@ export default function Header() {
       </div>
       
       <div className="flex items-center space-x-4">
-        <Link href="/about" className="text-sm hover:text-primary-color">
+        <Link href="/dev/about" className="text-sm hover:text-primary-color">
           소개
         </Link>
-        <Link href="/contact" className="text-sm hover:text-primary-color">
+        <Link href="/dev/contact" className="text-sm hover:text-primary-color">
           문의하기
         </Link>
-        <Link href="/login" className="btn btn-primary text-sm">
+        <Link href="/dev/login" className="btn btn-primary text-sm">
           로그인
         </Link>
       </div>

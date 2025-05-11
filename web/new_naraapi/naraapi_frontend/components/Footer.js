@@ -11,23 +11,23 @@ export default function Footer() {
               한국 정부의 OpenAPI 기반으로 공공데이터를 제공하는 플랫폼입니다. 다양한 통계 자료와 데이터셋을 탐색하고 활용하세요.
             </p>
           </div>
-          
+
           <div>
             <h3 className="text-lg font-semibold mb-4">둘러보기</h3>
             <ul className="space-y-2">
               <li>
-                <Link href="/explore" className="text-sm text-gray-600 hover:text-primary-color">
-                  데이터 탐색
-                </Link>
-              </li>
-              <li>
-                <Link href="/statistics" className="text-sm text-gray-600 hover:text-primary-color">
+                <Link href="/dev/statistics" className="text-sm text-gray-600 hover:text-primary-color">
                   통계 분석
                 </Link>
               </li>
               <li>
-                <Link href="/api-docs" className="text-sm text-gray-600 hover:text-primary-color">
-                  공공 API
+                <Link href="/dev/datasets" className="text-sm text-gray-600 hover:text-primary-color">
+                  데이터 탐색
+                </Link>
+              </li>
+              <li>
+                <Link href="/dev/publicapis" className="text-sm text-gray-600 hover:text-primary-color">
+                  공공 API 문서
                 </Link>
               </li>
             </ul>
@@ -37,17 +37,17 @@ export default function Footer() {
             <h3 className="text-lg font-semibold mb-4">지원</h3>
             <ul className="space-y-2">
               <li>
-                <Link href="/help" className="text-sm text-gray-600 hover:text-primary-color">
+                <Link href="/dev/help" className="text-sm text-gray-600 hover:text-primary-color">
                   도움말
                 </Link>
               </li>
               <li>
-                <Link href="/faq" className="text-sm text-gray-600 hover:text-primary-color">
+                <Link href="/dev/faq" className="text-sm text-gray-600 hover:text-primary-color">
                   자주 묻는 질문
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="text-sm text-gray-600 hover:text-primary-color">
+                <Link href="/dev/contact" className="text-sm text-gray-600 hover:text-primary-color">
                   문의하기
                 </Link>
               </li>

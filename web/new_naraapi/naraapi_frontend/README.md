@@ -1,36 +1,11 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+사이트에서 자연어를 받고 API서비스되는 LLM으로 넘긴다 => 미리 작성된 프롬프트 룰에 따라 어떤 분류를 한다 => 분류를 통해 보유 데이터 셋이나 리스트를 추린다 => 해당 자료에서 답변을 위한 정보를 추리고 취합한다 =>이를 사용자에게 가장 효과적으로 전달할 수단 (글, 차트, 도형, 매핑 등등)을 조합하여 결과를 뿌린다
 
-## Getting Started
+데이터의 확보가 중요하다
 
-First, run the development server:
+우선적으로 나라장터의 공고정보는 구하기 쉬우니 이를 대상으로 만들어본다
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+나중에 취합 데이터 영역을 확장한다
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+표현 방법(글, 차트, 도형, 매핑 등등등)을 확장한다
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+사용 LLM툴을 확장한다
