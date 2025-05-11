@@ -4,7 +4,6 @@
 import { useState } from 'react';
 import { filterData, paginate, formatCurrency, debounce } from '@/utils/utils';
 import { publicBiddingList } from '@/utils/data';
-import Link from 'next/link';
 
 export default function PublicBiddingPage() {
   const [searchTerm, setSearchTerm] = useState('');

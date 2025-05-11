@@ -2,9 +2,8 @@
 'use client';
 
 import { useState } from 'react';
-import { filterData, paginate, fetchData, debounce } from '@/utils/utils';
+import { filterData, paginate, debounce } from '@/utils/utils';
 import { publicApiList } from '@/utils/data';
-import Link from 'next/link';
 
 export default function PublicApisPage() {
   const [searchTerm, setSearchTerm] = useState('');
