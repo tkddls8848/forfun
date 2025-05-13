@@ -9,7 +9,7 @@ VERSION_CONFIG = {
   :ubuntu_box => "bento/ubuntu-22.04",
   :kubernetes => "v1.31.0",
   :calico => "v3.27.0",
-  :ceph => "quincy",
+  :ceph => "squid",
   :ceph_csi => "3.9.0"
 }
 
@@ -17,18 +17,18 @@ VERSION_CONFIG = {
 NETWORK_CONFIG = { :pod_cidr => "10.244.0.0/16", :master_ip => "192.168.57.10", :network_prefix => "192.168.57" }
 
 # K8S 클러스터 설정
-CLUSTER_NAME = "ubuntu-ceph-1"
+CLUSTER_NAME = "ubuntu-ceph"
 K8S_CLUSTER = {
-  "k8s-worker-1" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.11", :cpus => 3, :memory => 2000, :ssh_port => 22001 },
-  "k8s-worker-2" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.12", :cpus => 3, :memory => 2000, :ssh_port => 22002 },
-  "k8s-worker-3" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.13", :cpus => 3, :memory => 2000, :ssh_port => 22003 },
+  "k8s-worker-1" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.11", :cpus => 2, :memory => 2500, :ssh_port => 22001 },
+  "k8s-worker-2" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.12", :cpus => 2, :memory => 2500, :ssh_port => 22002 },
+  "k8s-worker-3" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.13", :cpus => 2, :memory => 2500, :ssh_port => 22003 },
   "k8s-master" => { :ip => "#{NETWORK_CONFIG[:master_ip]}", :cpus => 4, :memory => 3500, :ssh_port => 22000 }
 }
 K8S_WORKER_NODES = K8S_CLUSTER.length - 1
 
 # Ceph OSD 설정
-CEPH_OSD = { :count => 2, :disk_size => 1024*8 }
-OSD_DISK_BASE_PATH = "C:/VirtualBox VMs/#{CLUSTER_NAME}"
+CEPH_OSD = { :count => 2, :disk_size => 1024*6 }
+OSD_DISK_BASE_PATH = "./OSD"
 
 Vagrant.configure("2") do |config|  
   K8S_CLUSTER.each do |hostname, info|
