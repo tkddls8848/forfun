@@ -1,8 +1,11 @@
 # Created by https://www.toptal.com/developers/gitignore/api/vagrant,python,nextjs,jupyternotebooks
 # Edit at https://www.toptal.com/developers/gitignore?templates=vagrant,python,nextjs,jupyternotebooks
+# custom
 password.rb
+OSD
 *.png
 *.svg
+data
 
 # dependencies
 node_modules
