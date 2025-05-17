@@ -66,19 +66,21 @@ class ApiProcessor:
             print(f"API ID {api_id}에 대한 swagger JSON 추출 실패.")
             return False
         
-        # 1. 요약 정보 추출 및 summary.txt에 저장
+        # 1. 요약 정보 추출
         summary_info = self.extractor.extract_summary_info(swagger_json)
-        self.file_handler.append_to_summary_file(summary_info, self.output_dir, api_id)
         
         # 호스트 값 추출 (파일명 생성용)
         host = swagger_json.get('host', '')
         service_name = self.get_service_name_from_host(host)
         
-        # 2. 경로 정보 추출 및 개별 파일로 저장
+        # 2. 경로 정보 추출
         path_info = self.extractor.extract_path_info(swagger_json)
-        if path_info:
-            output_file_path = os.path.join(self.output_dir, f"{service_name}.txt")
-            self.file_handler.save_extracted_info(path_info, output_file_path)
+        
+        # 3. 요약 정보와 경로 정보를 합쳐서 하나의 파일로 저장
+        combined_info = [f"=== API ID: {api_id} ==="] + summary_info + ["", "=== API 경로 정보 ==="] + path_info
+        
+        output_file_path = os.path.join(self.output_dir, f"{service_name}.txt")
+        self.file_handler.save_extracted_info(combined_info, output_file_path)
         
         return True
     
@@ -135,12 +137,6 @@ def main():
     # 디렉토리 생성
     os.makedirs(output_dir, exist_ok=True)
     
-    # summary.txt 파일이 있으면 초기화 (매번 새로 시작)
-    summary_file_path = os.path.join(output_dir, "summary.txt")
-    if os.path.exists(summary_file_path):
-        with open(summary_file_path, 'w', encoding='utf-8') as f:
-            f.write("")
-    
     # 파일에서 API ID 목록 읽기
     file_handler = FileHandler()
     api_ids = file_handler.read_api_ids(api_ids_file)
@@ -161,7 +157,6 @@ def main():
     print(f"성공: {success}")
     print(f"실패: {failed}")
     print(f"출력 디렉토리: {os.path.abspath(output_dir)}")
-    print(f"요약 정보: {os.path.abspath(summary_file_path)}")
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ password.rb
 OSD
 *.png
 *.svg
-data
+**/data/
 
 # dependencies
 node_modules

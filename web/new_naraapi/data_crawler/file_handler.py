@@ -52,27 +52,3 @@ class FileHandler:
             file.write('\n'.join(extracted_info))
         
         print(f"추출 완료. 결과가 {output_file_path}에 저장되었습니다.")
-    
-    @staticmethod
-    def append_to_summary_file(extracted_info, output_dir, api_id):
-        """
-        요약 정보를 summary.txt 파일에 추가합니다.
-        
-        Args:
-            extracted_info (list): 추출된 요약 정보 문자열 목록
-            output_dir (str): 출력 디렉토리
-            api_id (str): API ID (구분용)
-        """
-        summary_file_path = os.path.join(output_dir, "summary.txt")
-        
-        # 디렉토리가 없으면 생성
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # 요약 정보 형식 지정
-        formatted_info = [f"=== API ID: {api_id} ==="] + extracted_info + ["", ""]
-        
-        # 파일에 추가 (없으면 생성)
-        with open(summary_file_path, 'a', encoding='utf-8') as file:
-            file.write('\n'.join(formatted_info))
-        
-        print(f"요약 정보가 {summary_file_path}에 추가되었습니다.")
