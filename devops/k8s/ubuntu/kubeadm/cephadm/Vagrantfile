@@ -19,10 +19,9 @@ NETWORK_CONFIG = { :pod_cidr => "10.244.0.0/16", :master_ip => "192.168.57.10", 
 # K8S 클러스터 설정
 CLUSTER_NAME = "ubuntu-ceph"
 K8S_CLUSTER = {
-  "k8s-worker-1" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.11", :cpus => 2, :memory => 2500, :ssh_port => 22001 },
-  "k8s-worker-2" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.12", :cpus => 2, :memory => 2500, :ssh_port => 22002 },
-  "k8s-worker-3" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.13", :cpus => 2, :memory => 2500, :ssh_port => 22003 },
-  "k8s-master" => { :ip => "#{NETWORK_CONFIG[:master_ip]}", :cpus => 4, :memory => 3500, :ssh_port => 22000 }
+  "k8s-worker-1" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.11", :cpus => 2, :memory => 2560, :ssh_port => 22001 },
+  "k8s-worker-2" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.12", :cpus => 2, :memory => 2560, :ssh_port => 22002 },
+  "k8s-master" => { :ip => "#{NETWORK_CONFIG[:master_ip]}", :cpus => 4, :memory => 4096, :ssh_port => 22000 }
 }
 K8S_WORKER_NODES = K8S_CLUSTER.length - 1
 
@@ -67,17 +66,20 @@ Vagrant.configure("2") do |config|
           args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{K8S_WORKER_NODES}", "#{VAGRANT_PASSWORD}", "#{VERSION_CONFIG[:ceph]}"], 
           privileged: true
         # Filesystem Storage 설치
-        cfg.vm.provision "shell", path: "./scripts/cephadm-cephfs.sh", name: "cephfs", 
-          args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{NETWORK_CONFIG[:master_ip]}", "#{VERSION_CONFIG[:ceph_csi]}"], 
-          privileged: true
+        #cfg.vm.provision "shell", path: "./scripts/cephadm-cephfs.sh", name: "cephfs", 
+        #  args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{NETWORK_CONFIG[:master_ip]}", "#{VERSION_CONFIG[:ceph_csi]}"], 
+        #  privileged: true
         # block Storage 설치  
         cfg.vm.provision "shell", path: "./scripts/cephadm-rbd.sh", name: "cephrbd", 
           args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{NETWORK_CONFIG[:master_ip]}", "#{VERSION_CONFIG[:ceph_csi]}"], 
           privileged: true
-        # Object Storage 설치 (옵션 3 (s3cmd, openstack 모두) 선택)
+        # Grafana, prometheus 설치 (Ceph RBD 선행 필수)
+        cfg.vm.provision "shell", path: "./scripts/monitoring-setup.sh", name: "monitoring",
+          privileged: true
+        # Object Storage 설치 (옵션 1 s3cmd 선택)
         cfg.vm.provision "shell", path: "./scripts/cephadm-object-storage.sh", name: "cephobject", 
           args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{NETWORK_CONFIG[:master_ip]}"], 
-          env: {"S3_CLIENT_CHOICE" => "3"},
+          env: {"S3_CLIENT_CHOICE" => "1"},
           privileged: true
       end
     end

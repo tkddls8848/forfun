@@ -38,12 +38,12 @@ Vagrant.configure("2") do |config|
       end
       
       # 공통 K8s 설정 스크립트 실행 (네트워크 프리픽스 전달)
-      cfg.vm.provision "shell", path: "./provision/kubeadm-common.sh", 
+      cfg.vm.provision "shell", path: "./kubeadm-common.sh", 
         args: ["#{NETWORK_CONFIG[:master_ip]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{K8S_WORKER_NODES}"]
 
       # 노드별 설정
       if hostname == "k8s-master"
-        cfg.vm.provision "shell", path: "./provision/kubeadm-master.sh", 
+        cfg.vm.provision "shell", path: "./kubeadm-master.sh", 
           args: ["#{NETWORK_CONFIG[:master_ip]}", "#{NETWORK_CONFIG[:pod_cidr]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{K8S_WORKER_NODES}"]
       end
     end

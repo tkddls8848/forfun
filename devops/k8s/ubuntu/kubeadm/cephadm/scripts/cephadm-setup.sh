@@ -10,7 +10,7 @@ NETWORK_PREFIX=$1
 WORKER_LENGTH=$2
 SSH_PASSWORD=$3
 CEPH_VERSION=$4
-NUM_MON=3 # 소규모 클러스터 권장 수량
+NUM_MON=1 # 테스트 환경용 설정
 NUM_MGR=2 # 소규모 클러스터 권장 수량
 
 echo "Ceph 버전: $CEPH_VERSION, 네트워크: $NETWORK_PREFIX 워커 노드 수: $WORKER_LENGTH"
@@ -184,6 +184,10 @@ ceph orch apply mon --placement=$NUM_MON
 
 echo ">> 매니저 배포 중..."
 ceph orch apply mgr --placement=$NUM_MGR
+
+# 클러스터 기본 복제 계수를 2로 설정
+echo ">> 클러스터 기본 복제 계수를 2로 설정 중..."
+ceph config set global osd_pool_default_size 2
 
 #=========================================================================
 # 6. OSD 디스크 준비 및 배포
