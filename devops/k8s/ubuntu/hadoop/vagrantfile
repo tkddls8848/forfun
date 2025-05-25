@@ -1,0 +1,225 @@
+Vagrant.configure("2") do |config|
+  # Ubuntu 20.04 LTS 이미지 사용
+  config.vm.box = "ubuntu/focal64"
+  
+  # 하둡 마스터 노드 설정
+  config.vm.define "hadoop-master" do |master|
+    master.vm.hostname = "hadoop-master"
+    master.vm.network "private_network", ip: "192.168.70.10"
+    
+    # VirtualBox 설정
+    master.vm.provider "virtualbox" do |vb|
+      vb.name = "hadoop-master"
+      vb.memory = 4096  # 4GB 메모리 할당
+      vb.cpus = 4       # 4코어 할당
+    end
+    
+    # 하둡 설치 및 구성 스크립트
+    master.vm.provision "shell", inline: <<-SHELL
+      apt-get update
+      apt-get install -y openjdk-8-jdk
+      apt-get install -y ssh pdsh
+      
+      # 하둡 다운로드 및 설치
+      wget https://downloads.apache.org/hadoop/common/hadoop-3.3.4/hadoop-3.3.4.tar.gz
+      tar -xzf hadoop-3.3.4.tar.gz -C /opt/
+      mv /opt/hadoop-3.3.4 /opt/hadoop
+      
+      # 환경 변수 설정
+      echo 'export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64' >> /etc/profile.d/hadoop.sh
+      echo 'export HADOOP_HOME=/opt/hadoop' >> /etc/profile.d/hadoop.sh
+      echo 'export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin' >> /etc/profile.d/hadoop.sh
+      echo 'export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop' >> /etc/profile.d/hadoop.sh
+      
+      source /etc/profile.d/hadoop.sh
+      
+      # SSH 키 생성 및 설정
+      sudo -u vagrant ssh-keygen -t rsa -P '' -f /home/vagrant/.ssh/id_rsa
+      cat /home/vagrant/.ssh/id_rsa.pub >> /home/vagrant/.ssh/authorized_keys
+      chmod 0600 /home/vagrant/.ssh/authorized_keys
+      
+      # 하둡 설정 파일 업데이트
+      cat > /opt/hadoop/etc/hadoop/core-site.xml << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>fs.defaultFS</name>
+    <value>hdfs://hadoop-master:9000</value>
+  </property>
+</configuration>
+EOF
+      
+      cat > /opt/hadoop/etc/hadoop/hdfs-site.xml << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>dfs.replication</name>
+    <value>2</value>
+  </property>
+  <property>
+    <name>dfs.namenode.name.dir</name>
+    <value>/opt/hadoop/data/nameNode</value>
+  </property>
+  <property>
+    <name>dfs.datanode.data.dir</name>
+    <value>/opt/hadoop/data/dataNode</value>
+  </property>
+</configuration>
+EOF
+      
+      cat > /opt/hadoop/etc/hadoop/mapred-site.xml << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>mapreduce.framework.name</name>
+    <value>yarn</value>
+  </property>
+  <property>
+    <name>mapreduce.application.classpath</name>
+    <value>$HADOOP_HOME/share/hadoop/mapreduce/*:$HADOOP_HOME/share/hadoop/mapreduce/lib/*</value>
+  </property>
+</configuration>
+EOF
+      
+      cat > /opt/hadoop/etc/hadoop/yarn-site.xml << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>yarn.nodemanager.aux-services</name>
+    <value>mapreduce_shuffle</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.hostname</name>
+    <value>hadoop-master</value>
+  </property>
+</configuration>
+EOF
+      
+      # 데이터 디렉토리 생성
+      mkdir -p /opt/hadoop/data/nameNode /opt/hadoop/data/dataNode
+      chown -R vagrant:vagrant /opt/hadoop
+      
+      # 하둡 파일시스템 포맷
+      sudo -u vagrant /opt/hadoop/bin/hdfs namenode -format
+    SHELL
+  end
+  
+  # 하둡 워커 노드 설정
+  (1..2).each do |i|
+    config.vm.define "hadoop-worker-#{i}" do |worker|
+      worker.vm.hostname = "hadoop-worker-#{i}"
+      worker.vm.network "private_network", ip: "192.168.70.#{i+10}"
+      
+      # VirtualBox 설정
+      worker.vm.provider "virtualbox" do |vb|
+        vb.name = "hadoop-worker-#{i}"
+        vb.memory = 2048  # 2GB 메모리 할당
+        vb.cpus = 2       # 2코어 할당
+      end
+      
+      # 워커 노드 설정 스크립트
+      worker.vm.provision "shell", inline: <<-SHELL
+        apt-get update
+        apt-get install -y openjdk-8-jdk
+        apt-get install -y ssh pdsh
+        
+        # 하둡 다운로드 및 설치
+        wget https://downloads.apache.org/hadoop/common/hadoop-3.3.4/hadoop-3.3.4.tar.gz
+        tar -xzf hadoop-3.3.4.tar.gz -C /opt/
+        mv /opt/hadoop-3.3.4 /opt/hadoop
+        
+        # 환경 변수 설정
+        echo 'export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64' >> /etc/profile.d/hadoop.sh
+        echo 'export HADOOP_HOME=/opt/hadoop' >> /etc/profile.d/hadoop.sh
+        echo 'export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin' >> /etc/profile.d/hadoop.sh
+        echo 'export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop' >> /etc/profile.d/hadoop.sh
+        
+        source /etc/profile.d/hadoop.sh
+        
+        # SSH 키 생성 및 설정
+        sudo -u vagrant ssh-keygen -t rsa -P '' -f /home/vagrant/.ssh/id_rsa
+        cat /home/vagrant/.ssh/id_rsa.pub >> /home/vagrant/.ssh/authorized_keys
+        chmod 0600 /home/vagrant/.ssh/authorized_keys
+        
+        # 하둡 설정 파일 업데이트
+        cat > /opt/hadoop/etc/hadoop/core-site.xml << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>fs.defaultFS</name>
+    <value>hdfs://hadoop-master:9000</value>
+  </property>
+</configuration>
+EOF
+        
+        cat > /opt/hadoop/etc/hadoop/hdfs-site.xml << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>dfs.replication</name>
+    <value>2</value>
+  </property>
+  <property>
+    <name>dfs.namenode.name.dir</name>
+    <value>/opt/hadoop/data/nameNode</value>
+  </property>
+  <property>
+    <name>dfs.datanode.data.dir</name>
+    <value>/opt/hadoop/data/dataNode</value>
+  </property>
+</configuration>
+EOF
+        
+        cat > /opt/hadoop/etc/hadoop/mapred-site.xml << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>mapreduce.framework.name</name>
+    <value>yarn</value>
+  </property>
+  <property>
+    <name>mapreduce.application.classpath</name>
+    <value>$HADOOP_HOME/share/hadoop/mapreduce/*:$HADOOP_HOME/share/hadoop/mapreduce/lib/*</value>
+  </property>
+</configuration>
+EOF
+        
+        cat > /opt/hadoop/etc/hadoop/yarn-site.xml << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>yarn.nodemanager.aux-services</name>
+    <value>mapreduce_shuffle</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.hostname</name>
+    <value>hadoop-master</value>
+  </property>
+</configuration>
+EOF
+        
+        # 데이터 디렉토리 생성
+        mkdir -p /opt/hadoop/data/dataNode
+        chown -R vagrant:vagrant /opt/hadoop
+      SHELL
+    end
+  end
+  
+  # 마스터 노드에서 클러스터 시작을 위한 추가 스크립트
+  config.vm.define "hadoop-master" do |master|
+    master.vm.provision "shell", run: "always", inline: <<-SHELL
+      echo "클러스터 시작을 위해 다음 명령어를 실행하세요:"
+      echo "vagrant ssh hadoop-master"
+      echo "cd /opt/hadoop/sbin && ./start-dfs.sh && ./start-yarn.sh"
+      echo "웹 인터페이스: http://192.168.70.10:9870/ (HDFS), http://192.168.70.10:8088/ (YARN)"
+    SHELL
+  end
+end
