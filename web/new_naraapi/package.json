@@ -1,17 +1,14 @@
 {
-  "name": "new_naraapi",
+  "name": "naraapi",
   "version": "1.0.0",
-  "description": "Next.js and FastAPI project",
+  "description": "Nara API with Next.js and FastAPI",
   "scripts": {
-    "install:backend": "cd naraapi_backend && pip install -r requirements.txt",
-    "install:frontend": "cd naraapi_frontend && npm install",
-    "install:all": "npm run install:backend && npm run install:frontend",
-    "dev:backend": "cd naraapi_backend && python main.py",
-    "dev:frontend": "cd naraapi_frontend && npm run dev",
-    "web": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "start": "npm run dev"
+    "frontend": "cd frontend && npm run dev",
+    "backend": "cd backend && .\\venv\\Scripts\\activate && python main.py",
+    "web": "concurrently --names \"frontend,backend\" --prefix-colors \"blue,green\" \"npm run frontend\" \"npm run backend\"",
+    "start": "npm run web"
   },
   "devDependencies": {
-    "concurrently": "^8.2.0"
+    "concurrently": "^8.2.2"
   }
 }

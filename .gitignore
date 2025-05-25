@@ -5,7 +5,10 @@ password.rb
 OSD
 *.png
 *.svg
-**/data/
+**/data
+**/api_data
+**/api_docs
+**/embeddings
 
 # dependencies
 node_modules
