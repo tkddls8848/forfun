@@ -1,8 +1,8 @@
 import './globals.css';
-import Header from './components/Header';
-import Navigation from './components/Navigation';
-import Footer from './components/Footer';
-import Providers from './components/Providers';
+import Header from '../components/Header';
+import Navigation from '../components/Navigation';
+import Footer from '../components/Footer';
+import Providers from '../components/Providers';
 
 export const metadata = {
   title: '공공데이터 포털',

@@ -15,3 +15,62 @@
 ## 코딩 스타일
 - 함수형 프로그래밍 스타일 선호
 - 디버깅을 위한 로그 처리 선호
+
+{
+    "project": {
+        "name": "vibe_components",
+        "description": "NextJS와 FastAPI 기반의 공공데이터 RAG 웹 애플리케이션"
+    },
+    "components": {
+        "crawler": {
+            "type": "python",
+            "path": "crawler",
+            "main_file": "main.py",
+            "dependencies": "requirements.txt",
+            "description": "공공데이터 크롤링 컴포넌트"
+        },
+        "claude_rag": {
+            "type": "python",
+            "path": "claude_rag",
+            "main_file": "server.py",
+            "dependencies": "requirements.txt",
+            "description": "RAG 기반 LLM 통신 컴포넌트"
+        },
+        "new_naraapi": {
+            "type": "nextjs",
+            "path": "new_naraapi",
+            "main_file": "app/page.js",
+            "dependencies": "package.json",
+            "description": "NextJS 프론트엔드 컴포넌트"
+        }
+    },
+    "integration": {
+        "api_endpoints": {
+            "crawler": "http://localhost:8000",
+            "claude_rag": "http://localhost:8001",
+            "nextjs": "http://localhost:3000"
+        },
+        "environment": {
+            "python_version": "3.9+",
+            "node_version": "18+"
+        }
+    },
+    "development": {
+        "recommended_extensions": [
+            "ms-python.python",
+            "ms-python.vscode-pylance",
+            "dbaeumer.vscode-eslint",
+            "esbenp.prettier-vscode"
+        ],
+        "formatting": {
+            "python": {
+                "formatter": "black",
+                "line_length": 88
+            },
+            "javascript": {
+                "formatter": "prettier",
+                "singleQuote": true
+            }
+        }
+    }
+}

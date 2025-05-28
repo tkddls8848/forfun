@@ -5,9 +5,11 @@ password.rb
 OSD
 *.png
 *.svg
+*.woff
 **/data
 **/api_data
 **/api_docs
+**/output
 **/embeddings
 
 # dependencies
