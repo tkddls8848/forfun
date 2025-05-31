@@ -118,7 +118,7 @@ def get_api_id(url):
     return m.group(1) if m else f"api_{url.replace('https://', '').replace('/', '_')}"
 
 def crawl_url(url, output_dir, formats, driver_pool):
-    """단일 URL 크롤링"""
+    """단일 URL 크롤링 - 개선된 순서"""
     os.makedirs(output_dir, exist_ok=True)
     api_id = get_api_id(url)
     
@@ -141,11 +141,47 @@ def crawl_url(url, output_dir, formats, driver_pool):
         WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
         time.sleep(1)
         
-        # Swagger JSON 추출
         parser = NaraParser(driver)
+        
+        # 결과 데이터 초기화
+        result = {
+            'api_id': api_id,
+            'crawled_url': url,
+            'crawled_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        # Step 1: 우선적으로 테이블 정보 추출
+        print("📋 테이블 정보 추출 중...")
+        table_info = parser.extract_table_info()
+        result['info'] = table_info
+        
+        # API 유형 확인
+        api_type_field = table_info.get('API 유형', '').upper()
+        
+        # Step 2: API 유형이 LINK인 경우 테이블 크롤링만 하고 종료
+        if 'LINK' in api_type_field:
+            print("🔗 LINK 타입 API 감지 - 테이블 정보만 저장하고 종료")
+            result['api_type'] = 'link'
+            result['skip_reason'] = 'LINK 타입 API는 테이블 정보만 수집'
+            
+            crawling_result['data'] = result
+            crawling_result['success'] = True
+            
+            # 데이터 저장
+            print("💾 테이블 데이터 저장 중...")
+            saved_files, save_errors = DataExporter.save_crawling_result(result, output_dir, api_id, formats)
+            
+            crawling_result['saved_files'] = saved_files
+            crawling_result['errors'] = save_errors
+            
+            return crawling_result['success']
+        
+        # Step 3: REST API인 경우 Swagger JSON 추출 시도
+        print("🔍 Swagger JSON 추출 시도...")
         swagger_json = parser.extract_swagger_json()
         
-        if swagger_json:
+        if swagger_json and isinstance(swagger_json, dict) and swagger_json:
+            # Swagger JSON이 존재하는 경우
             print("✅ Swagger JSON 추출 성공!")
             
             # API 정보 추출
@@ -164,34 +200,53 @@ def crawl_url(url, output_dir, formats, driver_pool):
             print("🔗 엔드포인트 추출 중...")
             endpoints = parser.extract_endpoints(swagger_json)
             
-            # 테이블 정보 추출
-            print("📋 테이블 정보 추출 중...")
-            table_info = parser.extract_table_info()
-            
             # 결과 데이터 구성
-            result = {
+            result.update({
                 'api_info': api_info,
-                'info': table_info,
                 'endpoints': endpoints,
-                'crawled_url': url,
-                'crawled_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'api_id': api_id,
-                'swagger_json': swagger_json
-            }
-            
-            crawling_result['data'] = result
-            crawling_result['success'] = True
-            
-            # 데이터 저장
-            print("💾 데이터 저장 중...")
-            saved_files, save_errors = DataExporter.save_crawling_result(result, output_dir, api_id, formats)
-            
-            crawling_result['saved_files'] = saved_files
-            crawling_result['errors'] = save_errors
+                'swagger_json': swagger_json,
+                'api_type': 'swagger'
+            })
             
         else:
-            print("❌ Swagger JSON 추출 실패")
-            crawling_result['errors'].append("Swagger JSON을 찾을 수 없습니다.")
+            # Step 4: Swagger JSON이 없는 경우 일반 API 정보 추출
+            print("⚠️ Swagger JSON이 없습니다. 일반 API 정보 추출 시도...")
+            
+            # 일반 API 정보 추출
+            general_api_info = parser.extract_general_api_info()
+            
+            if general_api_info and (general_api_info.get('detail_info') or 
+                                   general_api_info.get('request_parameters') or 
+                                   general_api_info.get('response_elements')):
+                print("✅ 일반 API 정보 추출 성공!")
+                
+                # 결과 데이터 구성
+                result.update({
+                    'general_api_info': general_api_info,
+                    'api_type': 'general'
+                })
+            else:
+                print("❌ 일반 API 정보도 추출할 수 없습니다.")
+                print("📝 정보부족으로 분류하여 failed_urls.txt에 기록")
+                
+                # 정보부족 URL을 별도 파일에 저장
+                failed_urls_file = os.path.join(output_dir, "failed_urls.txt")
+                os.makedirs(output_dir, exist_ok=True)
+                with open(failed_urls_file, 'a', encoding='utf-8') as f:
+                    f.write(f"{url}\n")
+                
+                crawling_result['errors'].append("API 정보를 찾을 수 없어 failed_urls.txt에 기록")
+                return False
+        
+        crawling_result['data'] = result
+        crawling_result['success'] = True
+        
+        # 데이터 저장
+        print("💾 데이터 저장 중...")
+        saved_files, save_errors = DataExporter.save_crawling_result(result, output_dir, api_id, formats)
+        
+        crawling_result['saved_files'] = saved_files
+        crawling_result['errors'] = save_errors
         
         # 메모리 정리
         MemoryManager.cleanup()
@@ -211,7 +266,7 @@ def generate_urls(start_num, end_num):
     base_url = "https://www.data.go.kr/data/{}/openapi.do"
     return [base_url.format(num) for num in range(start_num, end_num + 1)]
 
-def batch_crawl(urls, output_dir="output", formats=['json', 'xml', 'md'], max_workers=10):
+def batch_crawl(urls, output_dir="data", formats=['json', 'xml', 'md'], max_workers=10):
     """범위 내의 모든 API 문서 크롤링"""
     total_urls = len(urls)
     
@@ -229,6 +284,10 @@ def batch_crawl(urls, output_dir="output", formats=['json', 'xml', 'md'], max_wo
         'total': total_urls,
         'success': 0,
         'failed': 0,
+        'link_type': 0,
+        'swagger_type': 0,
+        'general_type': 0,
+        'insufficient_info': 0,  # 정보부족 카운트 추가
         'failed_urls': [],
         'start_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
@@ -252,9 +311,12 @@ def batch_crawl(urls, output_dir="output", formats=['json', 'xml', 'md'], max_wo
                         result = future.result()
                         if result:
                             results['success'] += 1
+                            # API 유형별 카운트 (향후 통계를 위해)
+                            # 실제 데이터를 분석하여 타입 카운트를 업데이트할 수 있음
                         else:
                             results['failed'] += 1
-                            results['failed_urls'].append(url)
+                            # failed_urls.txt에 기록되는 URL은 별도 카운트하지 않음
+                            # (이미 파일에 기록됨)
                     except Exception as e:
                         results['failed'] += 1
                         results['failed_urls'].append(url)
@@ -277,12 +339,20 @@ def batch_crawl(urls, output_dir="output", formats=['json', 'xml', 'md'], max_wo
     with open(summary_file, 'w', encoding='utf-8') as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
     
-    # 실패한 URL 목록 저장
+    # 실패한 URL 목록 저장 (예외 발생한 URL만)
     if results['failed_urls']:
-        failed_urls_file = os.path.join(output_dir, "failed_urls.txt")
-        with open(failed_urls_file, 'w', encoding='utf-8') as f:
+        exception_urls_file = os.path.join(output_dir, "exception_urls.txt")
+        with open(exception_urls_file, 'w', encoding='utf-8') as f:
             for url in results['failed_urls']:
                 f.write(f"{url}\n")
+    
+    # failed_urls.txt 파일 존재 여부 확인 (정보부족 URL들)
+    failed_urls_file = os.path.join(output_dir, "failed_urls.txt")
+    insufficient_info_count = 0
+    if os.path.exists(failed_urls_file):
+        with open(failed_urls_file, 'r', encoding='utf-8') as f:
+            insufficient_info_count = len(f.readlines())
+        results['insufficient_info'] = insufficient_info_count
     
     # 최종 결과 출력
     print("\n" + "=" * 50)
@@ -292,10 +362,14 @@ def batch_crawl(urls, output_dir="output", formats=['json', 'xml', 'md'], max_wo
     print(f"   📋 총 처리: {results['total']}개 URL")
     print(f"   ✅ 성공: {results['success']}개 ({results['success_rate']})")
     print(f"   ❌ 실패: {results['failed']}개")
+    if insufficient_info_count > 0:
+        print(f"   📝 정보부족: {insufficient_info_count}개 (failed_urls.txt에 기록)")
     print(f"   📁 결과 위치: {output_dir}")
     print(f"   📋 요약 파일: crawling_summary.json")
     if results['failed'] > 0:
-        print(f"   📄 실패 목록: failed_urls.txt")
+        print(f"   📄 예외 목록: exception_urls.txt")
+    if insufficient_info_count > 0:
+        print(f"   📄 정보부족 목록: failed_urls.txt")
 
 def main():
     """메인 함수"""
@@ -329,4 +403,4 @@ def main():
     )
 
 if __name__ == '__main__':
-    main() 
+    main()

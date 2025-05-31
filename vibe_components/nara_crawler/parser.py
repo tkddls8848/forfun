@@ -13,135 +13,415 @@ class NaraParser:
     def __init__(self, driver):
         self.driver = driver
     
-    def extract_swagger_json(self):
-        """Swagger JSON 추출"""
+    def extract_table_info(self):
+        """테이블 정보 추출 - 최우선 실행"""
         try:
+            table_info = {}
+            print("🔍 테이블 검색 중...")
+            
+            # 모든 테이블 찾기
+            tables = self.driver.find_elements(By.CSS_SELECTOR, "table.dataset-table")
+            print(f"📊 발견된 테이블 수: {len(tables)}")
+            
+            for idx, table in enumerate(tables, 1):
+                print(f"📋 테이블 {idx} 처리 중...")
+                
+                # 테이블 내용 추출
+                rows = table.find_elements(By.TAG_NAME, "tr")
+                
+                for row in rows:
+                    try:
+                        # th와 td 태그 찾기
+                        th = row.find_element(By.TAG_NAME, "th")
+                        td = row.find_element(By.TAG_NAME, "td")
+                        
+                        key = th.text.strip()
+                        value = td.text.strip()
+                        
+                        # 전화번호의 경우 JavaScript로 처리된 값을 가져오기
+                        if "전화번호" in key:
+                            try:
+                                tel_no_div = td.find_element(By.ID, "telNoDiv")
+                                value = tel_no_div.text.strip()
+                            except:
+                                pass
+                        
+                        # 링크가 있는 경우 링크 텍스트만 추출
+                        if not value:
+                            try:
+                                link = td.find_element(By.TAG_NAME, "a")
+                                value = link.text.strip()
+                            except:
+                                pass
+                        
+                        if key and value:
+                            table_info[key] = value
+                            print(f"  - {key}: {value}")
+                    except Exception as e:
+                        print(f"  ⚠️ 행 처리 중 오류: {str(e)}")
+                        continue
+            
+            print(f"📊 총 {len(table_info)}개의 항목 추출 완료")
+            
+            # API 유형 확인 및 로깅
+            api_type = table_info.get('API 유형', '')
+            if api_type:
+                print(f"🔍 감지된 API 유형: {api_type}")
+                if 'LINK' in api_type.upper():
+                    print("🔗 LINK 타입 API 감지 - 추가 크롤링 건너뛸 예정")
+            
+            return table_info
+            
+        except Exception as e:
+            print(f"❌ 테이블 정보 추출 실패: {str(e)}")
+            return {}
+    
+    def extract_swagger_json(self):
+        """Swagger JSON 추출 - 개선된 로직"""
+        try:
+            print("🔍 Swagger JSON 추출 시도...")
+            
             # 1. JavaScript 변수에서 직접 추출 시도
             swagger_json = self.driver.execute_script("""
-                if (typeof swaggerJson !== 'undefined') {
-                    return swaggerJson;
+                try {
+                    if (typeof swaggerJson !== 'undefined' && swaggerJson !== null) {
+                        console.log('swaggerJson 변수 발견:', typeof swaggerJson);
+                        if (typeof swaggerJson === 'string') {
+                            if (swaggerJson.trim() === '') {
+                                console.log('swaggerJson은 빈 문자열입니다.');
+                                return null;
+                            }
+                            return JSON.parse(swaggerJson);
+                        } else if (typeof swaggerJson === 'object') {
+                            return swaggerJson;
+                        }
+                    }
+                    return null;
+                } catch (e) {
+                    console.log('swaggerJson 추출 중 오류:', e);
+                    return null;
                 }
-                return null;
             """)
             
-            if swagger_json:
+            if swagger_json and isinstance(swagger_json, dict) and swagger_json:
+                print("✅ JavaScript 변수에서 Swagger JSON 추출 성공!")
                 return swagger_json
             
             # 2. script 태그에서 swaggerJson 변수 추출 시도
+            print("🔍 Script 태그에서 swaggerJson 추출 시도...")
             scripts = self.driver.find_elements(By.TAG_NAME, "script")
             for script in scripts:
                 script_content = script.get_attribute("innerHTML")
-                if script_content:
-                    # swaggerJson 변수에서 추출 (여러 패턴 시도)
-                    patterns = [
-                        r'var\s+swaggerJson\s*=\s*(\{.*?\});',  # 기본 패턴
-                        r'swaggerJson\s*=\s*(\{.*?\});',        # var 없는 패턴
-                        r'swaggerJson\s*:\s*(\{.*?\})',         # 객체 속성 패턴
-                        r'swaggerJson\s*=\s*`(\{.*?\})`'        # 템플릿 리터럴 패턴
+                if script_content and 'swaggerJson' in script_content:
+                    print("📝 swaggerJson이 포함된 스크립트 발견")
+                    
+                    # 빈 swaggerJson 패턴 먼저 확인
+                    empty_patterns = [
+                        r'var\s+swaggerJson\s*=\s*[\'\"]\s*[\'\"]\s*[;,]',
+                        r'swaggerJson\s*=\s*[\'\"]\s*[\'\"]\s*[;,]',
+                        r'var\s+swaggerJson\s*=\s*`\s*`\s*[;,]',
+                        r'swaggerJson\s*=\s*`\s*`\s*[;,]'
                     ]
                     
-                    for pattern in patterns:
+                    for pattern in empty_patterns:
+                        if re.search(pattern, script_content):
+                            print("🔍 swaggerJson이 빈 문자열로 설정됨 - 일반 API 모드로 전환")
+                            return None
+                    
+                    # swaggerJson 값 추출 패턴들
+                    json_patterns = [
+                        r'var\s+swaggerJson\s*=\s*(\{.*?\})\s*[;,]',  # var swaggerJson = {...};
+                        r'swaggerJson\s*=\s*(\{.*?\})\s*[;,]',        # swaggerJson = {...};
+                        r'swaggerJson\s*:\s*(\{.*?\})',               # swaggerJson: {...}
+                        r'var\s+swaggerJson\s*=\s*`(\{.*?\})`',       # var swaggerJson = `{...}`;
+                        r'swaggerJson\s*=\s*`(\{.*?\})`'              # swaggerJson = `{...}`;
+                    ]
+                    
+                    for pattern in json_patterns:
                         json_match = re.search(pattern, script_content, re.DOTALL)
                         if json_match:
                             try:
                                 json_str = json_match.group(1)
                                 # JSON 문자열 정리
                                 json_str = json_str.replace('\n', '').replace('\r', '')
-                                return json.loads(json_str)
-                            except:
+                                parsed_json = json.loads(json_str)
+                                if parsed_json:  # 빈 객체가 아닌 경우
+                                    print("✅ Script 태그에서 Swagger JSON 추출 성공!")
+                                    return parsed_json
+                            except Exception as e:
+                                print(f"⚠️ JSON 파싱 실패: {str(e)}")
                                 continue
             
             # 3. window.swaggerUi 변수에서 추출 시도
+            print("🔍 window.swaggerUi에서 추출 시도...")
             swagger_json = self.driver.execute_script("""
-                if (window.swaggerUi) {
-                    return window.swaggerUi.spec;
+                try {
+                    if (window.swaggerUi && window.swaggerUi.spec) {
+                        return window.swaggerUi.spec;
+                    }
+                    return null;
+                } catch (e) {
+                    return null;
                 }
-                return null;
             """)
             
-            if swagger_json:
+            if swagger_json and isinstance(swagger_json, dict) and swagger_json:
+                print("✅ window.swaggerUi에서 Swagger JSON 추출 성공!")
                 return swagger_json
             
-            # 4. script 태그에서 Swagger UI 초기화 코드 추출 시도
+            # 4. Swagger UI 초기화 코드에서 URL 추출 시도
+            print("🔍 Swagger UI 초기화 코드에서 URL 추출 시도...")
             for script in scripts:
                 script_content = script.get_attribute("innerHTML")
-                if script_content:
-                    # Swagger UI 초기화 코드에서 추출
-                    swagger_match = re.search(r'swaggerUi\s*=\s*new\s+SwaggerUIBundle\s*\(\s*{\s*url\s*:\s*[\'"]([^\'"]+)[\'"]', script_content)
-                    if swagger_match:
-                        swagger_url = swagger_match.group(1)
+                if script_content and 'SwaggerUIBundle' in script_content:
+                    # URL 패턴 찾기
+                    url_match = re.search(r'url\s*:\s*[\'"]([^\'"]+)[\'"]', script_content)
+                    if url_match:
+                        swagger_url = url_match.group(1)
                         if swagger_url.startswith('/'):
                             current_url = self.driver.current_url
                             base_url = '/'.join(current_url.split('/')[:3])
                             swagger_url = base_url + swagger_url
                         
-                        response = requests.get(swagger_url)
-                        if response.status_code == 200:
-                            return response.json()
-                    
-                    # 직접 JSON 객체 찾기
-                    json_match = re.search(r'window\.swaggerUi\s*=\s*new\s+SwaggerUIBundle\s*\(\s*{\s*spec\s*:\s*(\{.*?\})\s*[,}]', script_content, re.DOTALL)
-                    if json_match:
                         try:
-                            return json.loads(json_match.group(1))
-                        except:
-                            pass
+                            print(f"🌐 외부 Swagger URL 요청: {swagger_url}")
+                            response = requests.get(swagger_url, timeout=10)
+                            if response.status_code == 200:
+                                swagger_data = response.json()
+                                if swagger_data:
+                                    print("✅ 외부 URL에서 Swagger JSON 추출 성공!")
+                                    return swagger_data
+                        except Exception as e:
+                            print(f"⚠️ 외부 URL 요청 실패: {str(e)}")
+                    
+                    # 인라인 spec 객체 찾기
+                    spec_match = re.search(r'spec\s*:\s*(\{.*?\})\s*[,}]', script_content, re.DOTALL)
+                    if spec_match:
+                        try:
+                            spec_str = spec_match.group(1)
+                            spec_json = json.loads(spec_str)
+                            if spec_json:
+                                print("✅ 인라인 spec에서 Swagger JSON 추출 성공!")
+                                return spec_json
+                        except Exception as e:
+                            print(f"⚠️ 인라인 spec 파싱 실패: {str(e)}")
             
-            # 5. XHR 요청에서 추출 시도
-            logs = self.driver.get_log('performance')
-            for log in logs:
-                if 'Network.responseReceived' in str(log):
-                    try:
-                        message = json.loads(log['message'])
-                        request_id = message['params']['requestId']
-                        response = self.driver.execute_cdp_cmd('Network.getResponseBody', {'requestId': request_id})
-                        if 'application/json' in response.get('headers', {}).get('content-type', ''):
-                            try:
-                                data = json.loads(response['body'])
-                                if 'swagger' in data or 'openapi' in data:
-                                    return data
-                            except:
-                                pass
-                    except:
-                        continue
-            
-            # 6. API 문서 페이지에서 직접 추출 시도
-            try:
-                api_info = {}
-                info_table = self.driver.find_element(By.CSS_SELECTOR, "table.table-striped")
-                if info_table:
-                    rows = info_table.find_elements(By.TAG_NAME, "tr")
-                    for row in rows:
-                        cols = row.find_elements(By.TAG_NAME, "td")
-                        if len(cols) >= 2:
-                            key = cols[0].text.strip().lower()
-                            value = cols[1].text.strip()
-                            if key and value:
-                                api_info[key] = value
-                
-                swagger_json = {
-                    "swagger": "2.0",
-                    "info": {
-                        "title": api_info.get('제공기관', '') + '_' + api_info.get('서비스명', ''),
-                        "description": api_info.get('서비스설명', ''),
-                        "version": "1.0"
-                    },
-                    "host": "www.data.go.kr",
-                    "basePath": "/data",
-                    "schemes": ["https"],
-                    "paths": {}
-                }
-                
-                return swagger_json
-                
-            except Exception as e:
-                print(f"API 문서 페이지에서 정보 추출 실패: {str(e)}")
-            
+            print("❌ Swagger JSON을 찾을 수 없습니다.")
             return None
             
         except Exception as e:
-            print(f"Swagger JSON 추출 실패: {str(e)}")
+            print(f"❌ Swagger JSON 추출 실패: {str(e)}")
             return None
+    
+    def extract_general_api_info(self):
+        """일반 API 정보 추출 (Swagger가 없는 경우)"""
+        try:
+            general_info = {}
+            print("🔍 일반 API 정보 추출 중...")
+            
+            # 1. 상세기능 정보 추출
+            print("📋 상세기능 정보 추출 중...")
+            detail_info = self._extract_detail_info()
+            if detail_info:
+                general_info['detail_info'] = detail_info
+                print(f"✅ 상세기능 정보 추출: {len(detail_info)}개 항목")
+            
+            # 2. 요청변수(Request Parameter) 추출
+            print("📤 요청변수 추출 중...")
+            request_params = self._extract_request_parameters()
+            if request_params:
+                general_info['request_parameters'] = request_params
+                print(f"✅ 요청변수 추출: {len(request_params)}개 파라미터")
+            
+            # 3. 출력결과(Response Element) 추출
+            print("📥 출력결과 추출 중...")
+            response_elements = self._extract_response_elements()
+            if response_elements:
+                general_info['response_elements'] = response_elements
+                print(f"✅ 출력결과 추출: {len(response_elements)}개 요소")
+            
+            return general_info
+            
+        except Exception as e:
+            print(f"❌ 일반 API 정보 추출 실패: {str(e)}")
+            return {}
+    
+    def _extract_detail_info(self):
+        """상세기능 정보 추출"""
+        try:
+            detail_info = {}
+            
+            # open-api-detail-result div 찾기
+            detail_div = self.driver.find_element(By.ID, "open-api-detail-result")
+            
+            # h4.tit 내용 추출 (API 설명)
+            try:
+                title_elem = detail_div.find_element(By.CSS_SELECTOR, "h4.tit")
+                detail_info['description'] = title_elem.text.strip()
+            except:
+                detail_info['description'] = ""
+            
+            # box-gray 하위 리스트 추출
+            try:
+                box_gray = detail_div.find_element(By.CLASS_NAME, "box-gray")
+                list_items = box_gray.find_elements(By.CSS_SELECTOR, "ul.dot-list li")
+                
+                for item in list_items:
+                    item_text = item.text.strip()
+                    
+                    # 활용승인 절차
+                    if "활용승인 절차" in item_text:
+                        # 개발단계와 운영단계 정보 추출
+                        dev_match = re.search(r'개발단계\s*:\s*([^/]+)', item_text)
+                        op_match = re.search(r'운영단계\s*:\s*(.+)', item_text)
+                        
+                        approval_process = {}
+                        if dev_match:
+                            approval_process['development'] = dev_match.group(1).strip()
+                        if op_match:
+                            approval_process['operation'] = op_match.group(1).strip()
+                        
+                        detail_info['approval_process'] = approval_process
+                    
+                    # 신청가능 트래픽
+                    elif "신청가능 트래픽" in item_text:
+                        # 개발계정과 운영계정 정보 추출
+                        dev_traffic_match = re.search(r'개발계정\s*:\s*([^/]+)', item_text)
+                        op_traffic_match = re.search(r'운영계정\s*:\s*(.+)', item_text)
+                        
+                        traffic_info = {}
+                        if dev_traffic_match:
+                            traffic_info['development'] = dev_traffic_match.group(1).strip()
+                        if op_traffic_match:
+                            traffic_info['operation'] = op_traffic_match.group(1).strip()
+                        
+                        detail_info['traffic_limit'] = traffic_info
+                    
+                    # 요청주소
+                    elif "요청주소" in item_text:
+                        url_match = re.search(r'요청주소\s*(.+)', item_text)
+                        if url_match:
+                            detail_info['request_url'] = url_match.group(1).strip()
+                    
+                    # 서비스URL
+                    elif "서비스URL" in item_text:
+                        service_url_match = re.search(r'서비스URL\s*(.+)', item_text)
+                        if service_url_match:
+                            detail_info['service_url'] = service_url_match.group(1).strip()
+            except Exception as e:
+                print(f"⚠️ box-gray 정보 추출 중 오류: {str(e)}")
+            
+            return detail_info
+            
+        except Exception as e:
+            print(f"⚠️ 상세기능 정보 추출 실패: {str(e)}")
+            return {}
+    
+    def _extract_request_parameters(self):
+        """요청변수(Request Parameter) 테이블 추출"""
+        try:
+            parameters = []
+            
+            # 요청변수 섹션 찾기
+            headers = self.driver.find_elements(By.CSS_SELECTOR, "h4.tit")
+            request_header = None
+            
+            for header in headers:
+                if "요청변수" in header.text and "Request Parameter" in header.text:
+                    request_header = header
+                    break
+            
+            if not request_header:
+                print("⚠️ 요청변수 섹션을 찾을 수 없습니다.")
+                return parameters
+            
+            # 요청변수 테이블 찾기 (헤더 다음 div.col-table)
+            table_div = request_header.find_element(By.XPATH, "following-sibling::div[contains(@class, 'col-table')]")
+            table = table_div.find_element(By.TAG_NAME, "table")
+            
+            # 테이블 행 추출 (헤더 제외)
+            tbody = table.find_element(By.TAG_NAME, "tbody")
+            rows = tbody.find_elements(By.TAG_NAME, "tr")
+            
+            for row in rows:
+                try:
+                    cells = row.find_elements(By.TAG_NAME, "td")
+                    if len(cells) >= 6:  # 최소 6개 열이 있어야 함
+                        parameter = {
+                            'name_kor': cells[0].text.strip(),          # 항목명(국문)
+                            'name_eng': cells[1].text.strip(),          # 항목명(영문)
+                            'size': cells[2].text.strip(),              # 항목크기
+                            'required': cells[3].text.strip(),          # 항목구분 (필/옵)
+                            'sample_data': cells[4].text.strip(),       # 샘플데이터
+                            'description': cells[5].text.strip()        # 항목설명
+                        }
+                        
+                        # 빈 값이 아닌 경우만 추가
+                        if parameter['name_eng'] or parameter['name_kor']:
+                            parameters.append(parameter)
+                            
+                except Exception as e:
+                    print(f"⚠️ 파라미터 행 처리 중 오류: {str(e)}")
+                    continue
+            
+            return parameters
+            
+        except Exception as e:
+            print(f"⚠️ 요청변수 추출 실패: {str(e)}")
+            return []
+    
+    def _extract_response_elements(self):
+        """출력결과(Response Element) 테이블 추출"""
+        try:
+            elements = []
+            
+            # 출력결과 섹션 찾기
+            headers = self.driver.find_elements(By.CSS_SELECTOR, "h4.tit")
+            response_header = None
+            
+            for header in headers:
+                if "출력결과" in header.text and "Response Element" in header.text:
+                    response_header = header
+                    break
+            
+            if not response_header:
+                print("⚠️ 출력결과 섹션을 찾을 수 없습니다.")
+                return elements
+            
+            # 출력결과 테이블 찾기 (헤더 다음 div.col-table)
+            table_div = response_header.find_element(By.XPATH, "following-sibling::div[contains(@class, 'col-table')]")
+            table = table_div.find_element(By.TAG_NAME, "table")
+            
+            # 테이블 행 추출 (헤더 제외)
+            tbody = table.find_element(By.TAG_NAME, "tbody")
+            rows = tbody.find_elements(By.TAG_NAME, "tr")
+            
+            for row in rows:
+                try:
+                    cells = row.find_elements(By.TAG_NAME, "td")
+                    if len(cells) >= 6:  # 최소 6개 열이 있어야 함
+                        element = {
+                            'name_kor': cells[0].text.strip(),          # 항목명(국문)
+                            'name_eng': cells[1].text.strip(),          # 항목명(영문)
+                            'size': cells[2].text.strip(),              # 항목크기
+                            'required': cells[3].text.strip(),          # 항목구분 (필/옵)
+                            'sample_data': cells[4].text.strip(),       # 샘플데이터
+                            'description': cells[5].text.strip()        # 항목설명
+                        }
+                        
+                        # 빈 값이 아닌 경우만 추가
+                        if element['name_eng'] or element['name_kor']:
+                            elements.append(element)
+                            
+                except Exception as e:
+                    print(f"⚠️ 응답 요소 행 처리 중 오류: {str(e)}")
+                    continue
+            
+            return elements
+            
+        except Exception as e:
+            print(f"⚠️ 출력결과 추출 실패: {str(e)}")
+            return []
     
     def extract_api_info(self, swagger_json):
         """API 기본 정보 추출"""
@@ -229,60 +509,6 @@ class NaraParser:
         
         return responses
 
-    def extract_table_info(self):
-        """테이블 정보 추출"""
-        try:
-            table_info = {}
-            print("🔍 테이블 검색 중...")
-            
-            # 모든 테이블 찾기
-            tables = self.driver.find_elements(By.CSS_SELECTOR, "table.dataset-table")
-            print(f"📊 발견된 테이블 수: {len(tables)}")
-            
-            for idx, table in enumerate(tables, 1):
-                print(f"📋 테이블 {idx} 처리 중...")
-                
-                # 테이블 내용 추출
-                rows = table.find_elements(By.TAG_NAME, "tr")
-                
-                for row in rows:
-                    try:
-                        # th와 td 태그 찾기
-                        th = row.find_element(By.TAG_NAME, "th")
-                        td = row.find_element(By.TAG_NAME, "td")
-                        
-                        key = th.text.strip()
-                        value = td.text.strip()
-                        
-                        # 전화번호의 경우 JavaScript로 처리된 값을 가져오기
-                        if "전화번호" in key:
-                            try:
-                                tel_no_div = td.find_element(By.ID, "telNoDiv")
-                                value = tel_no_div.text.strip()
-                            except:
-                                pass
-                        
-                        # 링크가 있는 경우 링크 텍스트만 추출
-                        if not value:
-                            try:
-                                link = td.find_element(By.TAG_NAME, "a")
-                                value = link.text.strip()
-                            except:
-                                pass
-                        
-                        if key and value:
-                            table_info[key] = value
-                            print(f"  - {key}: {value}")
-                    except Exception as e:
-                        print(f"  ⚠️ 행 처리 중 오류: {str(e)}")
-                        continue
-            
-            print(f"📊 총 {len(table_info)}개의 항목 추출 완료")
-            return table_info
-            
-        except Exception as e:
-            print(f"❌ 테이블 정보 추출 실패: {str(e)}")
-            return {}
 
 class DataExporter:
     """데이터 내보내기 클래스"""
@@ -389,273 +615,416 @@ class DataExporter:
         """딕셔너리를 Markdown 형식으로 변환"""
         try:
             md_lines = []
-            api_info = data.get('api_info', {})
-            endpoints = data.get('endpoints', [])
+            api_type = data.get('api_type', 'unknown')
             
-            # 제목
-            title = api_info.get('title', 'API Documentation')
-            md_lines.append(f"# {title}")
-            md_lines.append("")
-            
-            # 크롤링 정보
-            if data.get('crawled_time'):
-                md_lines.append(f"**크롤링 시간:** {data['crawled_time']}")
-            if data.get('crawled_url'):
-                md_lines.append(f"**원본 URL:** {data['crawled_url']}")
-            md_lines.append("")
-            
-            # API 기본 정보
-            md_lines.append("## 📋 API 정보")
-            md_lines.append("")
-            
-            if api_info.get('description'):
-                description = str(api_info['description']).replace('\n', ' ').strip()
-                md_lines.append(f"**설명:** {description}")
-                md_lines.append("")
-            
-            # Base URL 정보
-            if api_info.get('base_url'):
-                md_lines.append(f"**Base URL:** `{api_info['base_url']}`")
-                md_lines.append("")
-            
-            if api_info.get('schemes') and isinstance(api_info['schemes'], list):
-                schemes_str = ", ".join(str(s) for s in api_info['schemes'])
-                md_lines.append(f"**지원 프로토콜:** {schemes_str}")
-                md_lines.append("")
-            
-            # 엔드포인트 정보
-            if endpoints and isinstance(endpoints, list):
-                md_lines.append(f"## 🔗 API 엔드포인트 ({len(endpoints)}개)")
-                md_lines.append("")
+            # API 타입에 따른 처리 분기
+            if api_type == 'swagger':
+                return DataExporter._swagger_to_markdown(data, md_lines)
+            elif api_type == 'general':
+                return DataExporter._general_api_to_markdown(data, md_lines)
+            elif api_type == 'link':
+                return DataExporter._link_to_markdown(data, md_lines)
+            else:
+                return "# API 문서\n\n알 수 없는 API 타입입니다."
                 
-                # Base URL이 있으면 완전한 URL 정보 추가
-                base_url = api_info.get('base_url', '')
-                if base_url:
-                    md_lines.append(f"**Base URL:** `{base_url}`")
-                    md_lines.append("")
-                
-                # 섹션별로 그룹화
-                sections = {}
-                for endpoint in endpoints:
-                    if not isinstance(endpoint, dict):
-                        continue
-                    section = endpoint.get('section', 'Default')
-                    if section not in sections:
-                        sections[section] = []
-                    sections[section].append(endpoint)
-                
-                for section_name, section_endpoints in sections.items():
-                    if len(sections) > 1:  # 섹션이 여러 개인 경우만 섹션 제목 표시
-                        md_lines.append(f"### {section_name}")
-                        md_lines.append("")
-                    
-                    for endpoint in section_endpoints:
-                        try:
-                            # 엔드포인트 제목
-                            method = str(endpoint.get('method', 'GET')).upper()
-                            path = str(endpoint.get('path', ''))
-                            description = str(endpoint.get('description', '')).replace('\n', ' ').strip()
-                            
-                            # 완전한 URL 생성 (Base URL이 있는 경우)
-                            full_url = f"{base_url}{path}" if base_url and path else path
-                            
-                            md_lines.append(f"#### `{method}` {path}")
-                            if base_url:
-                                md_lines.append(f"**완전한 URL:** `{full_url}`")
-                            md_lines.append("")
-                            
-                            if description:
-                                md_lines.append(f"**설명:** {description}")
-                                md_lines.append("")
-                            
-                            # 파라미터 정보
-                            parameters = endpoint.get('parameters', [])
-                            if parameters and isinstance(parameters, list):
-                                md_lines.append("**파라미터:**")
-                                md_lines.append("")
-                                md_lines.append("| 이름 | 타입 | 필수 | 설명 |")
-                                md_lines.append("|------|------|------|------|")
-                                
-                                for param in parameters:
-                                    if not isinstance(param, dict):
-                                        continue
-                                    name = str(param.get('name', '')).replace('|', '\\|')
-                                    param_type = str(param.get('type', '')).replace('|', '\\|')
-                                    required = "✅" if param.get('required', False) else "❌"
-                                    desc = str(param.get('description', '')).replace('\n', ' ').replace('|', '\\|')
-                                    
-                                    # 설명이 너무 길면 줄이기
-                                    if len(desc) > 50:
-                                        desc = desc[:50] + "..."
-                                    
-                                    md_lines.append(f"| `{name}` | {param_type} | {required} | {desc} |")
-                                
-                                md_lines.append("")
-                            
-                            # 응답 정보
-                            responses = endpoint.get('responses', [])
-                            if responses and isinstance(responses, list):
-                                md_lines.append("**응답:**")
-                                md_lines.append("")
-                                md_lines.append("| 상태 코드 | 설명 |")
-                                md_lines.append("|-----------|------|")
-                                
-                                for response in responses:
-                                    if not isinstance(response, dict):
-                                        continue
-                                    status_code = str(response.get('status_code', '')).replace('|', '\\|')
-                                    desc = str(response.get('description', '')).replace('\n', ' ').replace('|', '\\|')
-                                    
-                                    # 설명이 너무 길면 줄이기
-                                    if len(desc) > 80:
-                                        desc = desc[:80] + "..."
-                                    
-                                    md_lines.append(f"| `{status_code}` | {desc} |")
-                                
-                                md_lines.append("")
-                            
-                            md_lines.append("---")
-                            md_lines.append("")
-                        except Exception as e:
-                            print(f"⚠️  엔드포인트 처리 중 오류: {e}")
-                            continue
-            
-            # 푸터
-            md_lines.append("## 📝 생성 정보")
-            md_lines.append("")
-            md_lines.append("이 문서는 나라장터 API 크롤러에 의해 자동 생성되었습니다.")
-            if data.get('api_id'):
-                md_lines.append(f"**API ID:** {data['api_id']}")
-            if api_info.get('base_url'):
-                md_lines.append(f"**Base URL:** {api_info['base_url']}")
-            
-            return "\n".join(md_lines)
-            
         except Exception as e:
-            print(f"⚠️  Markdown 변환 중 오류: {e}")
+            print(f"⚠️ Markdown 변환 중 오류: {e}")
             return f"# Markdown 변환 오류\n\n변환 중 오류가 발생했습니다: {str(e)}"
     
     @staticmethod
+    def _link_to_markdown(data, md_lines):
+        """LINK 타입 API를 Markdown으로 변환"""
+        md_lines.append("# LINK 타입 API")
+        md_lines.append("")
+        
+        # 크롤링 정보
+        if data.get('crawled_time'):
+            md_lines.append(f"**크롤링 시간:** {data['crawled_time']}")
+        if data.get('crawled_url'):
+            md_lines.append(f"**원본 URL:** {data['crawled_url']}")
+        md_lines.append("")
+        
+        md_lines.append("## 📋 API 정보")
+        md_lines.append("")
+        md_lines.append("이 API는 LINK 타입으로, 외부 링크를 통해 제공됩니다.")
+        md_lines.append("")
+        
+        # 테이블 정보
+        table_info = data.get('info', {})
+        if table_info:
+            md_lines.append("## 📊 상세 정보")
+            md_lines.append("")
+            for key, value in table_info.items():
+                md_lines.append(f"**{key}:** {value}")
+            md_lines.append("")
+        
+        # 건너뛴 이유
+        if data.get('skip_reason'):
+            md_lines.append("## ℹ️ 처리 정보")
+            md_lines.append("")
+            md_lines.append(f"**처리 상태:** {data['skip_reason']}")
+            md_lines.append("")
+        
+        # 푸터
+        md_lines.append("## 📝 생성 정보")
+        md_lines.append("")
+        md_lines.append("이 문서는 나라장터 API 크롤러에 의해 자동 생성되었습니다.")
+        md_lines.append("**API 타입:** LINK (외부 링크 제공)")
+        if data.get('api_id'):
+            md_lines.append(f"**API ID:** {data['api_id']}")
+        
+        return "\n".join(md_lines)   
+    
+    @staticmethod
+    def _swagger_to_markdown(data, md_lines):
+        """Swagger API를 Markdown으로 변환"""
+        api_info = data.get('api_info', {})
+        endpoints = data.get('endpoints', [])
+        
+        # 제목
+        title = api_info.get('title', 'API Documentation')
+        md_lines.append(f"# {title}")
+        md_lines.append("")
+        
+        # 크롤링 정보
+        if data.get('crawled_time'):
+            md_lines.append(f"**크롤링 시간:** {data['crawled_time']}")
+        if data.get('crawled_url'):
+            md_lines.append(f"**원본 URL:** {data['crawled_url']}")
+        md_lines.append("")
+        
+        # API 기본 정보
+        md_lines.append("## 📋 API 정보")
+        md_lines.append("")
+        
+        if api_info.get('description'):
+            description = str(api_info['description']).replace('\n', ' ').strip()
+            md_lines.append(f"**설명:** {description}")
+            md_lines.append("")
+        
+        # Base URL 정보
+        if api_info.get('base_url'):
+            md_lines.append(f"**Base URL:** `{api_info['base_url']}`")
+            md_lines.append("")
+        
+        if api_info.get('schemes') and isinstance(api_info['schemes'], list):
+            schemes_str = ", ".join(str(s) for s in api_info['schemes'])
+            md_lines.append(f"**지원 프로토콜:** {schemes_str}")
+            md_lines.append("")
+        
+        # 엔드포인트 정보
+        if endpoints and isinstance(endpoints, list):
+            md_lines.append(f"## 🔗 API 엔드포인트 ({len(endpoints)}개)")
+            md_lines.append("")
+            
+            # Base URL이 있으면 완전한 URL 정보 추가
+            base_url = api_info.get('base_url', '')
+            if base_url:
+                md_lines.append(f"**Base URL:** `{base_url}`")
+                md_lines.append("")
+            
+            # 섹션별로 그룹화
+            sections = {}
+            for endpoint in endpoints:
+                if not isinstance(endpoint, dict):
+                    continue
+                section = endpoint.get('section', 'Default')
+                if section not in sections:
+                    sections[section] = []
+                sections[section].append(endpoint)
+            
+            for section_name, section_endpoints in sections.items():
+                if len(sections) > 1:  # 섹션이 여러 개인 경우만 섹션 제목 표시
+                    md_lines.append(f"### {section_name}")
+                    md_lines.append("")
+                
+                for endpoint in section_endpoints:
+                    try:
+                        # 엔드포인트 제목
+                        method = str(endpoint.get('method', 'GET')).upper()
+                        path = str(endpoint.get('path', ''))
+                        description = str(endpoint.get('description', '')).replace('\n', ' ').strip()
+                        
+                        # 완전한 URL 생성 (Base URL이 있는 경우)
+                        full_url = f"{base_url}{path}" if base_url and path else path
+                        
+                        md_lines.append(f"#### `{method}` {path}")
+                        if base_url:
+                            md_lines.append(f"**완전한 URL:** `{full_url}`")
+                        md_lines.append("")
+                        
+                        if description:
+                            md_lines.append(f"**설명:** {description}")
+                            md_lines.append("")
+                        
+                        # 파라미터 정보
+                        parameters = endpoint.get('parameters', [])
+                        if parameters and isinstance(parameters, list):
+                            md_lines.append("**파라미터:**")
+                            md_lines.append("")
+                            md_lines.append("| 이름 | 타입 | 필수 | 설명 |")
+                            md_lines.append("|------|------|------|------|")
+                            
+                            for param in parameters:
+                                if not isinstance(param, dict):
+                                    continue
+                                name = str(param.get('name', '')).replace('|', '\\|')
+                                param_type = str(param.get('type', '')).replace('|', '\\|')
+                                required = "✅" if param.get('required', False) else "❌"
+                                desc = str(param.get('description', '')).replace('\n', ' ').replace('|', '\\|')
+                                
+                                # 설명이 너무 길면 줄이기
+                                if len(desc) > 50:
+                                    desc = desc[:50] + "..."
+                                
+                                md_lines.append(f"| `{name}` | {param_type} | {required} | {desc} |")
+                            
+                            md_lines.append("")
+                        
+                        # 응답 정보
+                        responses = endpoint.get('responses', [])
+                        if responses and isinstance(responses, list):
+                            md_lines.append("**응답:**")
+                            md_lines.append("")
+                            md_lines.append("| 상태 코드 | 설명 |")
+                            md_lines.append("|-----------|------|")
+                            
+                            for response in responses:
+                                if not isinstance(response, dict):
+                                    continue
+                                status_code = str(response.get('status_code', '')).replace('|', '\\|')
+                                desc = str(response.get('description', '')).replace('\n', ' ').replace('|', '\\|')
+                                
+                                # 설명이 너무 길면 줄이기
+                                if len(desc) > 80:
+                                    desc = desc[:80] + "..."
+                                
+                                md_lines.append(f"| `{status_code}` | {desc} |")
+                            
+                            md_lines.append("")
+                        
+                        md_lines.append("---")
+                        md_lines.append("")
+                    except Exception as e:
+                        print(f"⚠️ 엔드포인트 처리 중 오류: {e}")
+                        continue
+        
+        # 푸터
+        md_lines.append("## 📝 생성 정보")
+        md_lines.append("")
+        md_lines.append("이 문서는 나라장터 API 크롤러에 의해 자동 생성되었습니다.")
+        if data.get('api_id'):
+            md_lines.append(f"**API ID:** {data['api_id']}")
+        if api_info.get('base_url'):
+            md_lines.append(f"**Base URL:** {api_info['base_url']}")
+        
+        return "\n".join(md_lines)
+    
+    @staticmethod
+    def _general_api_to_markdown(data, md_lines):
+        """일반 API를 Markdown으로 변환"""
+        general_info = data.get('general_api_info', {})
+        detail_info = general_info.get('detail_info', {})
+        
+        # 제목
+        title = detail_info.get('description', 'API Documentation')[:50] + "..." if len(detail_info.get('description', '')) > 50 else detail_info.get('description', 'API Documentation')
+        md_lines.append(f"# {title}")
+        md_lines.append("")
+        
+        # 크롤링 정보
+        if data.get('crawled_time'):
+            md_lines.append(f"**크롤링 시간:** {data['crawled_time']}")
+        if data.get('crawled_url'):
+            md_lines.append(f"**원본 URL:** {data['crawled_url']}")
+        md_lines.append("")
+        
+        # 상세기능 정보
+        if detail_info:
+            md_lines.append("## 📋 API 상세정보")
+            md_lines.append("")
+            
+            if detail_info.get('description'):
+                md_lines.append(f"**기능 설명:**")
+                md_lines.append(f"{detail_info['description']}")
+                md_lines.append("")
+            
+            if detail_info.get('request_url'):
+                md_lines.append(f"**요청 주소:** `{detail_info['request_url']}`")
+                md_lines.append("")
+            
+            if detail_info.get('service_url'):
+                md_lines.append(f"**서비스 URL:** `{detail_info['service_url']}`")
+                md_lines.append("")
+            
+            # 활용승인 절차
+            if detail_info.get('approval_process'):
+                approval = detail_info['approval_process']
+                md_lines.append("**활용승인 절차:**")
+                if approval.get('development'):
+                    md_lines.append(f"- 개발단계: {approval['development']}")
+                if approval.get('operation'):
+                    md_lines.append(f"- 운영단계: {approval['operation']}")
+                md_lines.append("")
+            
+            # 신청가능 트래픽
+            if detail_info.get('traffic_limit'):
+                traffic = detail_info['traffic_limit']
+                md_lines.append("**신청가능 트래픽:**")
+                if traffic.get('development'):
+                    md_lines.append(f"- 개발계정: {traffic['development']}")
+                if traffic.get('operation'):
+                    md_lines.append(f"- 운영계정: {traffic['operation']}")
+                md_lines.append("")
+        
+        # 요청변수
+        request_params = general_info.get('request_parameters', [])
+        if request_params:
+            md_lines.append(f"## 📤 요청변수 ({len(request_params)}개)")
+            md_lines.append("")
+            md_lines.append("| 항목명(국문) | 항목명(영문) | 크기 | 필수여부 | 샘플데이터 | 설명 |")
+            md_lines.append("|--------------|--------------|------|----------|------------|------|")
+            
+            for param in request_params:
+                name_kor = str(param.get('name_kor', '')).replace('|', '\\|')
+                name_eng = str(param.get('name_eng', '')).replace('|', '\\|')
+                size = str(param.get('size', '')).replace('|', '\\|')
+                required = str(param.get('required', '')).replace('|', '\\|')
+                sample = str(param.get('sample_data', '')).replace('|', '\\|')
+                desc = str(param.get('description', '')).replace('|', '\\|')
+                
+                # 긴 텍스트 줄이기
+                if len(sample) > 30:
+                    sample = sample[:30] + "..."
+                if len(desc) > 50:
+                    desc = desc[:50] + "..."
+                
+                md_lines.append(f"| {name_kor} | `{name_eng}` | {size} | {required} | {sample} | {desc} |")
+            
+            md_lines.append("")
+        
+        # 출력결과
+        response_elements = general_info.get('response_elements', [])
+        if response_elements:
+            md_lines.append(f"## 📥 출력결과 ({len(response_elements)}개)")
+            md_lines.append("")
+            md_lines.append("| 항목명(국문) | 항목명(영문) | 크기 | 필수여부 | 샘플데이터 | 설명 |")
+            md_lines.append("|--------------|--------------|------|----------|------------|------|")
+            
+            for element in response_elements:
+                name_kor = str(element.get('name_kor', '')).replace('|', '\\|')
+                name_eng = str(element.get('name_eng', '')).replace('|', '\\|')
+                size = str(element.get('size', '')).replace('|', '\\|')
+                required = str(element.get('required', '')).replace('|', '\\|')
+                sample = str(element.get('sample_data', '')).replace('|', '\\|')
+                desc = str(element.get('description', '')).replace('|', '\\|')
+                
+                # 긴 텍스트 줄이기
+                if len(sample) > 30:
+                    sample = sample[:30] + "..."
+                if len(desc) > 50:
+                    desc = desc[:50] + "..."
+                
+                md_lines.append(f"| {name_kor} | `{name_eng}` | {size} | {required} | {sample} | {desc} |")
+            
+            md_lines.append("")
+        
+        # 푸터
+        md_lines.append("## 📝 생성 정보")
+        md_lines.append("")
+        md_lines.append("이 문서는 나라장터 API 크롤러에 의해 자동 생성되었습니다.")
+        md_lines.append("**API 타입:** 일반 API (Swagger 미지원)")
+        if data.get('api_id'):
+            md_lines.append(f"**API ID:** {data['api_id']}")
+        
+        return "\n".join(md_lines)
+    
+    @staticmethod
     def save_crawling_result(data, output_dir, api_id, formats=['json', 'xml']):
-        """크롤링 결과를 지정된 형식으로 저장"""
+        """크롤링 결과 저장 - 개선된 로직"""
         saved_files = []
-        save_errors = []
+        errors = []
         
-        # 출력 디렉토리 생성
-        os.makedirs(output_dir, exist_ok=True)
+        # 테이블 정보에서 제공기관과 수정일 추출
+        table_info = data.get('info', {})
+        org_name = table_info.get('제공기관', 'unknown_org')
+        modified_date = table_info.get('수정일', 'unknown_date')
         
-        # 제공기관 정보 추출
-        org_name = "unknown"
-        if isinstance(data, dict) and 'info' in data:
-            info = data['info']
-            if '제공기관명' in info:
-                org_name = info['제공기관명']
-            elif '제공기관' in info:
-                org_name = info['제공기관']
+        # URL에서 문서번호 추출
+        crawled_url = data.get('crawled_url', '')
+        doc_num = 'unknown_doc'
+        if crawled_url:
+            match = re.search(r'/data/(\d+)/openapi\.do', crawled_url)
+            if match:
+                doc_num = match.group(1)
         
-        # 제공기관명에서 특수문자 제거 및 공백을 언더스코어로 변경
+        # 기관명에서 특수문자 제거 및 공백을 언더스코어로 변경
         org_name = re.sub(r'[^\w\s-]', '', org_name)
         org_name = re.sub(r'[\s]+', '_', org_name).strip()
         
-        # 수정일 추출
-        modified_date = ""
-        if isinstance(data, dict) and 'info' in data:
-            info = data['info']
-            if '수정일' in info:
-                modified_date = info['수정일'].replace('-', '')
+        # API 유형 확인
+        api_type = data.get('api_type', 'unknown')
+        api_category = table_info.get('API 유형', '')
+        is_link_type = 'LINK' in api_category.upper() if api_category else False
+        
+        # API 유형에 따른 상위 디렉토리 설정 (개선된 로직)
+        if api_type == 'link' or is_link_type:
+            # LINK 타입의 경우
+            base_output_dir = os.path.join(output_dir, 'LINK', org_name)
+            print(f"🔗 LINK 타입 저장 경로: {base_output_dir}")
+        elif api_type == 'general':
+            # 일반 API (Swagger 미지원)의 경우
+            base_output_dir = os.path.join(output_dir, '일반API_old', org_name)
+            print(f"📋 일반 API 저장 경로: {base_output_dir}")
+        elif api_type == 'swagger':
+            # Swagger API의 경우
+            base_output_dir = os.path.join(output_dir, '일반API', org_name)
+            print(f"🔧 Swagger API 저장 경로: {base_output_dir}")
+        else:
+            # 알 수 없는 타입
+            base_output_dir = os.path.join(output_dir, '기타', org_name)
+            print(f"❓ 기타 타입 저장 경로: {base_output_dir}")
         
         # 파일명 생성
-        file_base_name = f"{api_id}_{modified_date}" if modified_date else api_id
+        file_prefix = f"{doc_num}_{modified_date}"
         
-        # 제공기관 디렉토리 생성
-        org_dir = os.path.join(output_dir, org_name)
-        os.makedirs(org_dir, exist_ok=True)
+        os.makedirs(base_output_dir, exist_ok=True)
         
-        # 타입별 하위 디렉토리 생성
-        type_dirs = {
-            'json': os.path.join(org_dir, 'json'),
-            'xml': os.path.join(org_dir, 'xml'),
-            'md': os.path.join(org_dir, 'markdown')
-        }
-        
-        for dir_path in type_dirs.values():
-            os.makedirs(dir_path, exist_ok=True)
-        
-        # JSON 저장
-        if 'json' in formats:
-            json_file = os.path.join(type_dirs['json'], f"{file_base_name}.json")
-            success, error = DataExporter.save_as_json(data, json_file)
-            
-            if success:
-                saved_files.append(json_file)
-                print(f"✓ JSON 저장 성공: {os.path.basename(json_file)}")
-            else:
-                save_errors.append(f"JSON: {error}")
-                print(f"✗ JSON 저장 실패: {error}")
-        
-        # XML 저장
-        if 'xml' in formats:
-            xml_file = os.path.join(type_dirs['xml'], f"{file_base_name}.xml")
-            
-            # JSON 파일이 존재하면 그것을 읽어서 XML로 변환
-            if 'json' in formats and saved_files and os.path.exists(saved_files[-1]):
-                try:
-                    with open(saved_files[-1], 'r', encoding='utf-8') as f:
-                        json_data = json.load(f)
-                    success, error = DataExporter.save_as_xml(json_data, xml_file)
-                except Exception as e:
-                    success, error = False, f"JSON 파일 읽기 실패: {str(e)}"
-            else:
-                # 직접 데이터를 XML로 저장
-                success, error = DataExporter.save_as_xml(data, xml_file)
-            
-            if success:
-                saved_files.append(xml_file)
-                print(f"✓ XML 저장 성공: {os.path.basename(xml_file)}")
-            else:
-                save_errors.append(f"XML: {error}")
-                print(f"✗ XML 저장 실패: {error}")
-        
-        # Markdown 저장
-        if 'md' in formats or 'markdown' in formats:
-            md_file = os.path.join(type_dirs['md'], f"{file_base_name}.md")
-            
-            # JSON 파일을 찾아서 읽기
-            json_file_path = None
-            if 'json' in formats:
-                # JSON 파일 경로 직접 생성
-                json_file_path = os.path.join(type_dirs['json'], f"{file_base_name}.json")
+        # 각 형식별로 저장
+        for format_type in formats:
+            try:
+                if format_type == 'json':
+                    file_path = os.path.join(base_output_dir, f"{file_prefix}.json")
+                    success, error = DataExporter.save_as_json(data, file_path)
+                    if success:
+                        saved_files.append(file_path)
+                        print(f"✅ JSON 저장 완료: {file_path}")
+                    else:
+                        errors.append(error)
                 
-            # JSON 파일이 존재하면 그것을 읽어서 Markdown으로 변환
-            if json_file_path and os.path.exists(json_file_path):
-                try:
-                    with open(json_file_path, 'r', encoding='utf-8') as f:
-                        json_data = json.load(f)
-                    success, error = DataExporter.save_as_markdown(json_data, md_file)
-                except Exception as e:
-                    success, error = False, f"JSON 파일 읽기 실패: {str(e)}"
-            else:
-                # 직접 데이터를 Markdown으로 저장
-                success, error = DataExporter.save_as_markdown(data, md_file)
+                elif format_type == 'xml':
+                    file_path = os.path.join(base_output_dir, f"{file_prefix}.xml")
+                    success, error = DataExporter.save_as_xml(data, file_path)
+                    if success:
+                        saved_files.append(file_path)
+                        print(f"✅ XML 저장 완료: {file_path}")
+                    else:
+                        errors.append(error)
+                
+                elif format_type == 'md':
+                    file_path = os.path.join(base_output_dir, f"{file_prefix}.md")
+                    success, error = DataExporter.save_as_markdown(data, file_path)
+                    if success:
+                        saved_files.append(file_path)
+                        print(f"✅ Markdown 저장 완료: {file_path}")
+                    else:
+                        errors.append(error)
             
-            if success:
-                saved_files.append(md_file)
-                print(f"✓ Markdown 저장 성공: {os.path.basename(md_file)}")
-            else:
-                save_errors.append(f"Markdown: {error}")
-                print(f"✗ Markdown 저장 실패: {error}")
+            except Exception as e:
+                error_msg = f"{format_type.upper()} 저장 실패: {str(e)}"
+                print(f"❌ {error_msg}")
+                errors.append(error_msg)
         
-        # 저장 결과 요약
-        if saved_files and not save_errors:
-            print(f"📁 모든 형식 저장 완료 ({len(saved_files)}개 파일)")
-            print(f"📂 저장 위치: {org_dir}")
-        elif saved_files and save_errors:
-            print(f"⚠️  일부 형식만 저장됨 (성공: {len(saved_files)}개, 실패: {len(save_errors)}개)")
-            print(f"📂 저장 위치: {org_dir}")
-        elif save_errors and not saved_files:
-            print(f"❌ 모든 형식 저장 실패 ({len(save_errors)}개 오류)")
-        
-        return saved_files, save_errors
+        return saved_files, errors
     
     @staticmethod
     def save_table_info(data, output_dir, api_id):
@@ -676,4 +1045,4 @@ class DataExporter:
             return True, file_path
             
         except Exception as e:
-            return False, f"테이블 정보 저장 실패: {str(e)}" 
+            return False, f"테이블 정보 저장 실패: {str(e)}"
