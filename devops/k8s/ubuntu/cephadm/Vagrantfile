@@ -1,0 +1,85 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# password.rb 파일 로드
+require_relative 'password'
+
+# 버전 관리 변수
+VERSION_CONFIG = {
+  :ubuntu_box => "bento/ubuntu-22.04",
+  :ceph => "squid"
+}
+
+# 네트워크 설정
+NETWORK_CONFIG = { :master_ip => "192.168.60.10", :network_prefix => "192.168.60" }
+
+# Ceph 클러스터 설정
+CLUSTER_NAME = "ceph-cluster"
+CEPH_CLUSTER = {
+  "ceph-worker-1" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.11", :cpus => 3, :memory => 3072, :ssh_port => 22001 },
+  "ceph-worker-2" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.12", :cpus => 3, :memory => 3072, :ssh_port => 22002 },
+  "ceph-master" => { :ip => "#{NETWORK_CONFIG[:master_ip]}", :cpus => 6, :memory => 4096, :ssh_port => 22000 }
+}
+CEPH_WORKER_NODES = CEPH_CLUSTER.length - 1
+
+# Ceph OSD 설정
+CEPH_OSD = { :count => 2, :disk_size => 1024*10 }
+OSD_DISK_BASE_PATH = "./OSD"
+
+Vagrant.configure("2") do |config|  
+  CEPH_CLUSTER.each do |hostname, info|
+    config.vm.define hostname do |cfg|
+      cfg.vm.box = VERSION_CONFIG[:ubuntu_box]
+      cfg.vm.host_name = hostname      
+      cfg.vm.network "private_network", ip: info[:ip]
+      cfg.vm.network "forwarded_port", guest: 22, host: info[:ssh_port], id: "ssh", auto_correct: true 
+      cfg.vm.provider "virtualbox" do |vb|
+        vb.name = hostname
+        vb.memory = info[:memory]
+        vb.cpus = info[:cpus]
+        vb.customize ["modifyvm", :id, "--groups", "/#{CLUSTER_NAME}"]
+        
+        # 워커 노드일 경우 OSD 디스크 추가
+        if hostname.include? "worker"
+          CEPH_OSD[:count].times do |i|
+            osd_disk = "#{OSD_DISK_BASE_PATH}/#{hostname}-osd-#{i}.vdi"
+            vb.customize ['createhd', '--filename', osd_disk, '--size', CEPH_OSD[:disk_size], '--variant', 'Fixed']          
+            vb.customize ['storageattach', :id, '--storagectl', 'SATA Controller', '--port', 1 + i, '--device', 0, '--type', 'hdd', '--medium', osd_disk]                
+            vb.customize ['setextradata', :id, "VBoxInternal/Devices/ahci/0/Config/Port#{1+i}/NonRotational", "1"] # SSD 설정 추가
+          end
+        end
+      end
+      
+      # 노드 공통 설정 (공통 설치 스크립트)
+      cfg.vm.provision "shell", path: "./scripts/ceph/common-setup.sh", 
+        args: ["#{NETWORK_CONFIG[:master_ip]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{CEPH_WORKER_NODES}"]
+      
+      # 마스터 노드 설정
+      if hostname == "ceph-master"
+        # Ceph 설치 및 설정 (OSD 준비 통합)
+        cfg.vm.provision "shell", path: "./scripts/ceph/cephadm-setup.sh", name: "cephadm", 
+          args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{CEPH_WORKER_NODES}", "#{VAGRANT_PASSWORD}", "#{VERSION_CONFIG[:ceph]}"], 
+          privileged: true
+        # Filesystem Storage 설치
+        cfg.vm.provision "shell", path: "./scripts/ceph/cephadm-cephfs.sh", name: "cephfs", 
+          args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{NETWORK_CONFIG[:master_ip]}"], 
+          privileged: true
+        ## block Storage 설치  
+        #cfg.vm.provision "shell", path: "./scripts/ceph/cephadm-rbd.sh", name: "cephrbd", 
+        #  args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{NETWORK_CONFIG[:master_ip]}"], 
+        #  privileged: true
+        ## Grafana, prometheus 설치 (Ceph RBD 선행 필수)
+        #cfg.vm.provision "shell", path: "./scripts/ceph/monitoring-setup.sh", name: "monitoring",
+        #  privileged: true
+        ## Object Storage 설치 (옵션 1 s3cmd 선택)
+        #cfg.vm.provision "shell", path: "./scripts/ceph/cephadm-object-storage.sh", name: "cephobject", 
+        #  args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{NETWORK_CONFIG[:master_ip]}"], 
+        #  env: {"S3_CLIENT_CHOICE" => "1"},
+        #  privileged: true
+        # Proxmox 저장소 미러링 설정
+        cfg.vm.provision "shell", path: "./scripts/proxmox-mirror/proxmox-mirror-setup.sh", name: "proxmoxmirror",
+          privileged: true
+      end
+    end
+  end
+end

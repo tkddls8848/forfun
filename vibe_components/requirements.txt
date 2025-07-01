@@ -1,0 +1,19 @@
+# 빌드 도구 및 기본 패키지
+setuptools>=65.5.1
+wheel>=0.37.0
+
+# 데이터 처리 라이브러리 (Python 3.12 호환)
+numpy>=1.26.0
+pandas>=2.0.0
+
+# 트레이딩 관련 패키지
+python-binance==1.0.19
+pyupbit==0.2.33
+python-dotenv==1.0.0
+
+# 블록체인 관련 패키지
+web3>=6.0.0
+
+# FastAPI 및 웹 서버
+fastapi==0.109.2
+uvicorn==0.27.1 

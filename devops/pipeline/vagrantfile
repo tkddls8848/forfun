@@ -1,0 +1,27 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+    config.vm.box = "bento/ubuntu-22.04"
+    
+    # VM 이름 설정
+    config.vm.hostname = "kafka-dev"
+    
+    # 네트워크 설정 (포트 포워딩)
+    config.vm.network "forwarded_port", guest: 9092, host: 9092  # Kafka
+    config.vm.network "forwarded_port", guest: 2181, host: 2181  # ZooKeeper
+    config.vm.network "forwarded_port", guest: 8080, host: 8080  # Kafka UI (선택사항)
+    
+    # 프라이빗 네트워크 설정
+    config.vm.network "private_network", ip: "192.168.56.10"
+    
+    # VirtualBox 설정
+    config.vm.provider "virtualbox" do |vb|
+      vb.memory = "2048"
+      vb.cpus = 2
+      vb.name = "kafka-dev-vm"
+    end
+    
+    # 프로비저닝 스크립트 실행
+    config.vm.provision "shell", path: "bootstrap.sh"
+  end
