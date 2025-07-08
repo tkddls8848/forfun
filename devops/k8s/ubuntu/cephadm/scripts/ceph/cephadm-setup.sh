@@ -13,8 +13,8 @@ NETWORK_PREFIX=$1
 WORKER_LENGTH=$2
 SSH_PASSWORD=$3
 CEPH_VERSION=$4
-NUM_MON=1 # 테스트 환경용 설정
-NUM_MGR=2 # 소규모 클러스터 권장 수량
+NUM_MON=$5  # Vagrantfile에서 전달받은 모니터 개수
+NUM_MGR=$6  # Vagrantfile에서 전달받은 매니저 개수
 
 echo "=========================================="
 echo "Ceph 클러스터 초기화 시작"
@@ -22,6 +22,8 @@ echo "=========================================="
 echo "Ceph 버전: $CEPH_VERSION"
 echo "네트워크 대역: $NETWORK_PREFIX"
 echo "워커 노드 수: $WORKER_LENGTH"
+echo "모니터 개수: $NUM_MON"
+echo "매니저 개수: $NUM_MGR"
 echo "=========================================="
 
 # 마스터 노드 설정

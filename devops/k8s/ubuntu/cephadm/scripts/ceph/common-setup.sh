@@ -94,6 +94,24 @@ else
     exit 1
 fi
 
+# Podman 레지스트리 설정
+echo ">> Podman 레지스트리 설정 중..."
+mkdir -p /etc/containers
+cat > /etc/containers/registries.conf << EOF
+unqualified-search-registries = ["docker.io"]
+[[registry]]
+prefix = "docker.io"
+location = "docker.io"
+EOF
+
+# Podman 네트워크 설정 확인
+echo ">> Podman 네트워크 설정 확인 중..."
+podman network ls | grep -q podman || podman network create podman
+
+# Podman 서비스 상태 확인
+echo ">> Podman 서비스 상태 확인 중..."
+systemctl is-active --quiet podman.socket || systemctl start podman.socket
+
 #=========================================================================
 # 4. Ceph 공통 패키지 설치 (공통)
 #=========================================================================

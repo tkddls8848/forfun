@@ -6,7 +6,7 @@
 set -e  # 오류 발생 시 스크립트 중단
 
 # 설정 변수
-export MIRROR_BASE_URL="http://download.proxmox.com/debian/ceph-squid"
+export MIRROR_BASE_URL="http://download.proxmox.com/debian/ceph-squid/dists/bookworm/no-subscription/binary-amd64/"
 export MIRROR_LOCAL_PATH="/mnt/cephfs/proxmox-mirror"
 export NGINX_CONFIG_PATH="/etc/nginx/sites-available/proxmox-mirror"
 export NGINX_ENABLED_PATH="/etc/nginx/sites-enabled/proxmox-mirror"
@@ -62,7 +62,7 @@ cat > /usr/local/bin/proxmox-mirror-sync.sh << 'EOF'
 set -e
 
 # 설정 변수
-MIRROR_BASE_URL="http://download.proxmox.com/debian/ceph-squid"
+MIRROR_BASE_URL="http://download.proxmox.com/debian/ceph-squid/dists/bookworm/no-subscription/binary-amd64/"
 MIRROR_LOCAL_PATH="/mnt/cephfs/proxmox-mirror"
 LOG_FILE="/var/log/proxmox-mirror.log"
 LOCK_FILE="/var/run/proxmox-mirror.lock"
@@ -393,8 +393,8 @@ echo -e "\n[단계 5/6] cronjob 설정 중..."
 
 # cronjob 파일 생성
 cat > "$CRON_JOB_FILE" << EOF
-# Proxmox 저장소 미러링 - 매일 새벽 2시에 실행
-0 2 * * * root /usr/local/bin/proxmox-mirror-sync.sh
+# Proxmox 저장소 미러링 - 매일 새벽 1시에 실행
+0 1 * * * root /usr/local/bin/proxmox-mirror-sync.sh
 
 # 로그 로테이션 - 매주 일요일 새벽 3시에 실행
 0 3 * * 0 root find /var/log -name "proxmox-mirror.log*" -mtime +7 -delete

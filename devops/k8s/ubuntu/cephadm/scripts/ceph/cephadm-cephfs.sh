@@ -8,18 +8,19 @@ set -e  # 오류 발생 시 스크립트 중단
 # 네트워크 인자 받기
 NETWORK_PREFIX=$1
 MASTER_IP=$2
+MDS_COUNT=$3  # Vagrantfile에서 전달받은 MDS 개수
 
 echo "=========================================="
 echo "CephFS 설치 시작"
 echo "=========================================="
 echo "네트워크 설정: NETWORK_PREFIX=$NETWORK_PREFIX, MASTER_IP=$MASTER_IP"
+echo "MDS 개수: $MDS_COUNT"
 echo "=========================================="
 
 # CephFS 기본 설정
 export FS_NAME="mycephfs"
 export METADATA_POOL="mycephfs_metadata"
 export DATA_POOL="mycephfs_data"
-export MDS_COUNT=2
 
 # Ceph 클라이언트 사용자 설정
 export CEPH_CSI_USER="ceph-csi-user"
