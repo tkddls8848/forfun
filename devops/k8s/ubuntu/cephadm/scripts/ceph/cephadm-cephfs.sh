@@ -22,6 +22,10 @@ export FS_NAME="mycephfs"
 export METADATA_POOL="mycephfs_metadata"
 export DATA_POOL="mycephfs_data"
 
+# 메타데이터 풀 크기 설정 (조정 가능)
+export METADATA_PG_NUM=16  # 기본값: 32 (16GB -> 4GB로 줄임)
+export DATA_PG_NUM=64      # 데이터 풀 PG 수 (16GB -> 28GB로 늘림)
+
 # Ceph 클라이언트 사용자 설정
 export CEPH_CSI_USER="ceph-csi-user"
 
@@ -32,8 +36,9 @@ echo -e "\n[단계 1/3] CephFS 파일 시스템 생성을 시작합니다..."
 
 # 데이터 및 메타데이터 풀 생성
 echo ">> 데이터 풀 '$DATA_POOL' 및 메타데이터 풀 '$METADATA_POOL' 생성 중..."
-ceph osd pool create "$DATA_POOL" 64 replicated
-ceph osd pool create "$METADATA_POOL" 64 replicated
+echo ">> 데이터 풀 PG 수: $DATA_PG_NUM" 및 메타데이터 풀 PG 수: $METADATA_PG_NUM"
+ceph osd pool create "$DATA_POOL" "$DATA_PG_NUM" replicated
+ceph osd pool create "$METADATA_POOL" "$METADATA_PG_NUM" replicated
 
 # 파일 시스템 생성
 echo ">> 파일 시스템 '$FS_NAME' 생성 및 풀 연결 중..."
