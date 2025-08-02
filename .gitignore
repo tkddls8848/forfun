@@ -11,6 +11,7 @@ OSD
 **/api_docs
 **/output
 **/embeddings
+**/pipeline-venv
 
 # dependencies
 node_modules

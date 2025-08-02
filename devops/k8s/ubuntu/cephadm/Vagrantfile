@@ -13,12 +13,12 @@ VERSION_CONFIG = {
 # 네트워크 설정
 NETWORK_CONFIG = { :master_ip => "192.168.60.10", :network_prefix => "192.168.60" }
 
-# Ceph 클러스터 설정
+# Ceph 클러스터 설정 (리소스 증가)
 CLUSTER_NAME = "ceph-cluster"
 CEPH_CLUSTER = {
-  "ceph-worker-1" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.11", :cpus => 2, :memory => 3000, :ssh_port => 22001 },
-  "ceph-worker-2" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.12", :cpus => 2, :memory => 3000, :ssh_port => 22002 },
-  "ceph-master" => { :ip => "#{NETWORK_CONFIG[:master_ip]}", :cpus => 4, :memory => 4096, :ssh_port => 22000 }
+  "ceph-worker-1" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.11", :cpus => 4, :memory => 4096, :ssh_port => 22001 },
+  "ceph-worker-2" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.12", :cpus => 4, :memory => 4096, :ssh_port => 22002 },
+  "ceph-master" => { :ip => "#{NETWORK_CONFIG[:master_ip]}", :cpus => 6, :memory => 6144, :ssh_port => 22000 }
 }
 CEPH_WORKER_NODES = CEPH_CLUSTER.length - 1
 
@@ -45,6 +45,15 @@ Vagrant.configure("2") do |config|
         vb.memory = info[:memory]
         vb.cpus = info[:cpus]
         vb.customize ["modifyvm", :id, "--groups", "/#{CLUSTER_NAME}"]
+        
+        # 네트워크 성능 최적화
+        vb.customize ["modifyvm", :id, "--nictype1", "82540EM"]
+        vb.customize ["modifyvm", :id, "--nictype2", "82540EM"]
+        
+        # 메모리 및 CPU 최적화
+        vb.customize ["modifyvm", :id, "--vram", "128"]
+        vb.customize ["modifyvm", :id, "--ioapic", "on"]
+        vb.customize ["modifyvm", :id, "--pae", "on"]
         
         # 워커 노드일 경우 OSD 디스크 추가
         if hostname.include? "worker"
@@ -85,6 +94,9 @@ Vagrant.configure("2") do |config|
           privileged: true
         # Proxmox 저장소 미러링 설정
         cfg.vm.provision "shell", path: "./scripts/proxmox-mirror/proxmox-mirror-setup.sh", name: "proxmoxmirror",
+          privileged: true
+        # OSD Heartbeat 최적화 스크립트 실행
+        cfg.vm.provision "shell", path: "./scripts/ceph/fix-osd-heartbeat.sh", name: "osdheartbeat",
           privileged: true
       end
     end
