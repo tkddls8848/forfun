@@ -2,7 +2,7 @@
 #=========================================================================
 # Ceph 클러스터 공통 설치 스크립트 (워커/마스터 노드 공통)
 # - 시스템 기본 설정
-# - containerd 설치 및 설정
+# - Podman 설치
 # - SSH 설정
 # - 네트워크 설정
 # - Ceph 공통 패키지 설치
@@ -72,46 +72,22 @@ echo ">> SSH 서비스 재시작 중..."
 systemctl restart ssh
 
 #=========================================================================
-# 3. containerd 설치 (공통)
+# 3. Podman 설치 (공통)
 #=========================================================================
-echo -e "\n[단계 3/7] containerd 설치를 시작합니다..."
+echo -e "\n[단계 3/7] Podman 설치를 시작합니다..."
 
-# Docker 공식 GPG 키 및 저장소 추가
-echo ">> Docker 공식 저장소 추가 중..."
-install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-chmod a+r /etc/apt/keyrings/docker.asc
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-apt-get update -y
+# Podman 설치
+echo ">> Podman 설치 중..."
+apt-get install -y -q podman
 
-# containerd 설치
-echo ">> containerd.io 설치 중..."
-apt-get install -y -q containerd.io
-
-# containerd 기본 설정 생성 및 systemd cgroup 드라이버 활성화
-echo ">> containerd 설정 중..."
-mkdir -p /etc/containerd
-containerd config default > /etc/containerd/config.toml
-sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
-
-# containerd 서비스 활성화
-echo ">> containerd 서비스 활성화 중..."
-systemctl enable containerd
-systemctl restart containerd
-
-# containerd 설치 확인
-echo ">> containerd 설치 확인 중..."
-if command -v containerd &> /dev/null; then
-    echo ">> containerd 설치 성공: $(containerd --version)"
+# Podman 설치 확인
+echo ">> Podman 설치 확인 중..."
+if command -v podman &> /dev/null; then
+    echo ">> Podman 설치 성공: $(podman --version)"
 else
-    echo ">> containerd 설치 실패"
+    echo ">> Podman 설치 실패"
     exit 1
 fi
-
-# containerd 서비스 상태 확인
-echo ">> containerd 서비스 상태 확인 중..."
-systemctl is-active --quiet containerd || systemctl start containerd
 
 #=========================================================================
 # 4. Ceph 공통 패키지 설치 (공통)
@@ -121,6 +97,11 @@ echo -e "\n[단계 4/7] Ceph 공통 패키지 설치를 시작합니다..."
 # Ceph 공통 패키지 설치 (비대화형)
 echo ">> Ceph 공통 패키지 설치 중..."
 apt-get install -y -q python3 python3-pip ceph-common ceph-fuse lvm2 jq
+
+# virt-manager 통계 수집용 (메모리/네트워크/디스크 I/O)
+echo ">> qemu-guest-agent 설치 중..."
+apt-get install -y -q qemu-guest-agent
+systemctl start qemu-guest-agent || true
 
 # 시간 동기화 서비스 설치 및 구성 (비대화형)
 echo ">> 시간 동기화 서비스 설정 중..."
@@ -186,7 +167,7 @@ else
     
     # OSD 디스크 확인 (워커 노드만)
     echo ">> OSD 디스크 확인 중..."
-    lsblk | grep -E "sdb|sdc|sdd|sde" || echo ">> OSD 디스크가 아직 마운트되지 않았습니다."
+    lsblk | grep -E "vdb|vdc|vdd|vde|sdb|sdc|sdd|sde" || echo ">> OSD 디스크가 아직 마운트되지 않았습니다."
     
     echo ">> 워커 노드 설정 완료"
 fi
@@ -221,9 +202,9 @@ echo "=========================================="
 echo "노드 타입: $NODE_TYPE"
 echo "호스트명: $(hostname)"
 echo "IP 주소: $(hostname -I | awk '{print $1}')"
-echo "containerd 버전: $(containerd --version)"
+echo "Podman 버전: $(podman --version)"
 echo "설치된 패키지:"
-echo "  - containerd: $(which containerd)"
+echo "  - Podman: $(which podman)"
 echo "  - SSH: $(systemctl is-active ssh)"
 echo "  - Chrony: $(systemctl is-active chrony)"
 echo "  - Ceph Common: $(which ceph)"

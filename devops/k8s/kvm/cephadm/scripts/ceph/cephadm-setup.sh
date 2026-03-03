@@ -107,8 +107,7 @@ sudo cephadm bootstrap \
   --mon-ip $MASTER_IP \
   --ssh-private-key /root/.ssh/id_rsa \
   --ssh-public-key /root/.ssh/id_rsa.pub \
-  --cluster-network ${NETWORK_PREFIX}.0/24 \
-  --container-backend containerd
+  --cluster-network ${NETWORK_PREFIX}.0/24
 
 # Ceph 호스트 추가
 echo ">> Ceph 호스트 추가 중..."
@@ -143,7 +142,7 @@ for i in $(seq 1 $WORKER_LENGTH); do
     
     # 모든 추가 디스크 자동으로 찾아서 준비
     ssh -o StrictHostKeyChecking=no root@$host '
-    for disk in $(lsblk -dn -o NAME | grep -E "sd[b-z]"); do
+    for disk in $(lsblk -dn -o NAME | grep -E "vd[b-z]|sd[b-z]"); do
         echo "   디스크 /dev/$disk 준비 중..."
         sgdisk --zap-all /dev/$disk
         echo "   디스크 /dev/$disk 준비 완료"

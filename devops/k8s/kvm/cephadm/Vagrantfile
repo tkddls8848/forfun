@@ -1,0 +1,95 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# 워커 노드 생성 완료 후 마스터 노드 생성 (순차 실행)
+ENV['VAGRANT_NO_PARALLEL'] = 'yes'
+
+# password.rb 파일 로드
+require_relative 'password'
+
+# 버전 관리 변수
+VERSION_CONFIG = {
+  :ubuntu_box => "generic/ubuntu2204",  # libvirt 호환 박스
+  :ceph => "squid"
+}
+
+# 네트워크 설정
+NETWORK_CONFIG = { :master_ip => "192.168.60.10", :network_prefix => "192.168.60" }
+
+# Ceph 클러스터 설정
+CLUSTER_NAME = "ceph-cluster"
+CEPH_CLUSTER = {
+  "ceph-worker-1" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.11", :cpus => 4, :memory => 4096 },
+  "ceph-worker-2" => { :ip => "#{NETWORK_CONFIG[:network_prefix]}.12", :cpus => 4, :memory => 4096 },
+  "ceph-master"   => { :ip => "#{NETWORK_CONFIG[:master_ip]}",          :cpus => 6, :memory => 6144 }
+}
+CEPH_WORKER_NODES = CEPH_CLUSTER.length - 1
+
+# Ceph 서비스 설정
+CEPH_SERVICES = {
+  :mon_count => 1,    # 모니터 개수 (테스트 환경용)
+  :mgr_count => 2,    # 매니저 개수 (소규모 클러스터 권장)
+  :mds_count => 2     # MDS 개수 (CephFS용)
+}
+
+# Ceph OSD 설정 (libvirt는 GB 단위로 직접 지정)
+CEPH_OSD = { :count => 2, :disk_size_gb => 10 }
+
+Vagrant.configure("2") do |config|
+  CEPH_CLUSTER.each do |hostname, info|
+    config.vm.define hostname do |cfg|
+      cfg.vm.box = VERSION_CONFIG[:ubuntu_box]
+      cfg.vm.host_name = hostname
+      cfg.vm.network "private_network", ip: info[:ip]
+
+      cfg.vm.provider "libvirt" do |lv|
+        lv.memory              = info[:memory]
+        lv.cpus                = info[:cpus]
+        lv.driver              = "kvm"
+        lv.cpu_mode            = "host-passthrough"  # 성능 최적화 (호스트 CPU 특성 그대로 전달)
+        lv.machine_virtual_size = 32  # OS 디스크 32GB (thin provisioning)
+
+        # 워커 노드일 경우 OSD 디스크 추가
+        if hostname.include? "worker"
+          CEPH_OSD[:count].times do
+            lv.storage :file,
+              size:  "#{CEPH_OSD[:disk_size_gb]}G",
+              type:  'raw',
+              bus:   'virtio',
+              cache: 'none'
+          end
+        end
+      end
+
+      # 노드 공통 설정 (공통 설치 스크립트)
+      cfg.vm.provision "shell", path: "./scripts/ceph/common-setup.sh",
+        args: ["#{NETWORK_CONFIG[:master_ip]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{CEPH_WORKER_NODES}"]
+
+      # 마스터 노드 설정
+      if hostname == "ceph-master"
+        # Ceph 설치 및 설정 (OSD 준비 통합)
+        cfg.vm.provision "shell", path: "./scripts/ceph/cephadm-setup.sh", name: "cephadm",
+          args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{CEPH_WORKER_NODES}", "#{VAGRANT_PASSWORD}", "#{VERSION_CONFIG[:ceph]}", "#{CEPH_SERVICES[:mon_count]}", "#{CEPH_SERVICES[:mgr_count]}"],
+          privileged: true
+        # Filesystem Storage 설치
+        cfg.vm.provision "shell", path: "./scripts/ceph/cephadm-cephfs.sh", name: "cephfs",
+          args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{NETWORK_CONFIG[:master_ip]}", "#{CEPH_SERVICES[:mds_count]}"],
+          privileged: true
+        # Block Storage 설치
+        cfg.vm.provision "shell", path: "./scripts/ceph/cephadm-rbd.sh", name: "cephrbd",
+          args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{NETWORK_CONFIG[:master_ip]}"],
+          privileged: true
+        # Grafana, Prometheus 설치 (Ceph RBD 선행 필수)
+        cfg.vm.provision "shell", path: "./scripts/ceph/monitoring-setup.sh", name: "monitoring",
+          privileged: true
+        # Object Storage 설치 (s3cmd)
+        cfg.vm.provision "shell", path: "./scripts/ceph/cephadm-object-storage.sh", name: "cephobject",
+          args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{NETWORK_CONFIG[:master_ip]}"],
+          privileged: true
+        # OSD Heartbeat 최적화 스크립트 실행
+        cfg.vm.provision "shell", path: "./scripts/ceph/fix-osd-heartbeat.sh", name: "osdheartbeat",
+          privileged: true
+      end
+    end
+  end
+end
