@@ -1,0 +1,178 @@
+#!/usr/bin/bash
+# 00_host_setup.sh
+# 호스트 KVM 환경 준비
+# - Intel/AMD CPU 자동 감지 → IOMMU GRUB 설정
+# - KVM/libvirt 설치
+# - NVIDIA 드라이버 확인
+# - /dev/nvidia* 장치 권한 설정
+# - libvirt 네트워크 확인
+#
+# 실행: bash 00_host_setup.sh
+# 완료 후 01_vm_create.sh 실행
+
+set -e
+
+log()        { echo "[$(date '+%H:%M:%S')] $1"; }
+warn()       { echo "[$(date '+%H:%M:%S')] WARNING: $1"; }
+error_exit() { echo "❌ ERROR: $1"; exit 1; }
+
+log "=== Phase 0: 호스트 환경 준비 시작 ==="
+
+# ────────────────────────────────────────────
+# 1. CPU 제조사 감지 (Intel / AMD)
+# ────────────────────────────────────────────
+log "1. CPU 제조사 감지 중..."
+
+CPU_VENDOR=$(grep -m1 vendor_id /proc/cpuinfo | awk '{print $3}')
+log "   감지된 CPU: $CPU_VENDOR"
+
+case "$CPU_VENDOR" in
+  GenuineIntel)
+    IOMMU_PARAM="intel_iommu=on iommu=pt"
+    VIRT_MODULE="kvm_intel"
+    log "   Intel CPU → intel_iommu=on iommu=pt"
+    ;;
+  AuthenticAMD)
+    IOMMU_PARAM="amd_iommu=on iommu=pt"
+    VIRT_MODULE="kvm_amd"
+    log "   AMD CPU → amd_iommu=on iommu=pt"
+    ;;
+  *)
+    error_exit "지원하지 않는 CPU 제조사: $CPU_VENDOR (Intel/AMD 만 지원)"
+    ;;
+esac
+
+# ────────────────────────────────────────────
+# 2. GRUB IOMMU 파라미터 추가
+# ────────────────────────────────────────────
+log "2. GRUB IOMMU 설정 확인 중..."
+
+GRUB_FILE="/etc/default/grub"
+REBOOT_REQUIRED=false
+
+if grep -q "iommu" "$GRUB_FILE"; then
+  log "   IOMMU 파라미터가 이미 설정되어 있습니다. 스킵"
+else
+  log "   GRUB에 IOMMU 파라미터 추가: $IOMMU_PARAM"
+  sudo sed -i \
+    "s/GRUB_CMDLINE_LINUX_DEFAULT=\"\(.*\)\"/GRUB_CMDLINE_LINUX_DEFAULT=\"\1 $IOMMU_PARAM\"/" \
+    "$GRUB_FILE"
+  sudo update-grub
+  REBOOT_REQUIRED=true
+  log "   GRUB 업데이트 완료"
+fi
+
+# ────────────────────────────────────────────
+# 3. 가상화 지원 확인
+# ────────────────────────────────────────────
+log "3. 가상화 지원 확인 중..."
+
+grep -Ec '(vmx|svm)' /proc/cpuinfo > /dev/null \
+  || error_exit "CPU가 가상화를 지원하지 않습니다. BIOS에서 VT-x/AMD-V를 활성화하세요."
+
+log "   CPU 가상화 지원 확인 완료"
+
+# ────────────────────────────────────────────
+# 4. KVM / libvirt 패키지 설치
+# ────────────────────────────────────────────
+log "4. KVM/libvirt 패키지 설치 중..."
+
+sudo apt-get update -y
+sudo apt-get install -y \
+  qemu-kvm \
+  libvirt-daemon-system \
+  libvirt-clients \
+  bridge-utils \
+  virtinst \
+  cloud-image-utils \
+  cpu-checker
+
+# 사용자 그룹 추가
+sudo usermod -aG libvirt,kvm "$USER"
+log "   $USER 를 libvirt, kvm 그룹에 추가 완료"
+
+# KVM 사용 가능 확인
+sudo kvm-ok || error_exit "KVM을 사용할 수 없습니다. BIOS에서 가상화를 활성화하세요."
+
+# libvirtd 시작
+sudo systemctl enable --now libvirtd
+log "   libvirtd 활성화 완료"
+
+# ────────────────────────────────────────────
+# 5. NVIDIA 드라이버 확인
+# ────────────────────────────────────────────
+log "5. NVIDIA 드라이버 확인 중..."
+
+nvidia-smi > /dev/null 2>&1 \
+  || error_exit "NVIDIA 드라이버가 로드되지 않았습니다. 먼저 'sudo apt install nvidia-driver-XXX' 로 설치 후 재부팅하세요."
+
+DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)
+DRIVER_MAJOR=$(echo "$DRIVER_VERSION" | cut -d. -f1)
+GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
+
+log "   GPU: $GPU_NAME"
+log "   드라이버 버전: $DRIVER_VERSION (major: $DRIVER_MAJOR)"
+
+# 드라이버 버전을 VM 생성 스크립트가 참조할 수 있도록 저장
+sudo mkdir -p "/var/lib/libvirt/images/k8s-setup"
+sudo tee "/var/lib/libvirt/images/k8s-setup/host_info.env" > /dev/null <<EOF
+CPU_VENDOR=$CPU_VENDOR
+VIRT_MODULE=$VIRT_MODULE
+DRIVER_VERSION=$DRIVER_VERSION
+DRIVER_MAJOR=$DRIVER_MAJOR
+GPU_NAME="$GPU_NAME"
+EOF
+log "   호스트 정보 저장: /var/lib/libvirt/images/k8s-setup/host_info.env"
+
+# ────────────────────────────────────────────
+# 6. /dev/nvidia* 장치 권한 설정
+# ────────────────────────────────────────────
+log "6. /dev/nvidia* 장치 권한 설정 중..."
+
+ls /dev/nvidia* > /dev/null 2>&1 \
+  || error_exit "/dev/nvidia* 장치를 찾을 수 없습니다."
+
+log "   발견된 장치:"
+ls -la /dev/nvidia* | while read -r line; do log "     $line"; done
+
+# libvirt가 장치에 접근할 수 있도록 권한 추가
+for dev in /dev/nvidia*; do
+  sudo chmod 0666 "$dev"
+done
+
+# udev rule 추가 (재부팅 후에도 권한 유지)
+sudo tee /etc/udev/rules.d/99-nvidia-libvirt.rules > /dev/null <<'EOF'
+KERNEL=="nvidia*", MODE="0666"
+EOF
+sudo udevadm control --reload-rules
+log "   udev rule 추가 완료 (재부팅 후에도 유지)"
+
+# ────────────────────────────────────────────
+# 7. libvirt 기본 네트워크 확인
+# ────────────────────────────────────────────
+log "7. libvirt 네트워크 확인 중..."
+
+if ! sudo virsh net-list --all | grep -q "default"; then
+  warn "default 네트워크가 없습니다. 재생성 중..."
+  sudo virsh net-define /usr/share/libvirt/networks/default.xml 2>/dev/null || true
+fi
+
+sudo virsh net-start default 2>/dev/null || true
+sudo virsh net-autostart default 2>/dev/null || true
+log "   libvirt default 네트워크 활성화 완료"
+
+# ────────────────────────────────────────────
+# 완료
+# ────────────────────────────────────────────
+log "=== Phase 0 완료 ==="
+echo ""
+echo "   CPU: $CPU_VENDOR | GPU: $GPU_NAME | 드라이버: $DRIVER_VERSION"
+echo ""
+
+if [[ "$REBOOT_REQUIRED" == "true" ]]; then
+  echo "⚠️  GRUB이 변경되었습니다. 재부팅 후 01_vm_create.sh를 실행하세요."
+  read -rp "지금 재부팅하시겠습니까? (y/N): " resp
+  [[ "$resp" =~ ^[yY]$ ]] && sudo reboot || echo "수동으로 재부팅 후 계속 진행하세요."
+else
+  echo "다음 단계: bash 01_vm_create.sh"
+fi

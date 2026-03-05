@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-# 04_gpu_plugin.sh
+# 05_gpu_plugin.sh
 # NVIDIA Device Plugin 배포 + CUDA 테스트
 # master 노드에서 실행 (single/multi 노드 공통)
 
@@ -10,13 +10,13 @@ DEVICE_PLUGIN_VERSION="v0.17.0"
 log()        { echo "[$(date '+%H:%M:%S')] $1"; }
 error_exit() { echo "❌ ERROR: $1"; exit 1; }
 
-log "=== Phase 4: GPU Plugin 설정 시작 ==="
+log "=== Phase 5: GPU Plugin 설정 시작 ==="
 
 # ────────────────────────────────────────────
 # 사전 확인
 # ────────────────────────────────────────────
 kubectl get nodes > /dev/null 2>&1 \
-  || error_exit "kubectl 접근 불가. 02_master_init.sh 완료 후 실행하세요."
+  || error_exit "kubectl 접근 불가. 03_master_init.sh 완료 후 실행하세요."
 
 # GPU 노드 존재 여부 확인
 GPU_NODE_COUNT=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
@@ -88,7 +88,7 @@ kubectl logs cuda-test
 # ────────────────────────────────────────────
 # 완료
 # ────────────────────────────────────────────
-log "=== Phase 4 완료 ==="
+log "=== Phase 5 완료 ==="
 echo ""
 echo "✅ GPU 설정 완료"
 echo ""
