@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 # 06_rollback.sh
 # 단계별 선택 롤백
-#
+# 
 # 각 단계는 해당 단계 이후 변경사항을 모두 역순으로 제거합니다.
 #   1단계 이전: VM 전체 삭제 (디스크 포함)
 #   2단계 이전: VM 재생성 필요 (= 1단계 이전 수준)
@@ -14,7 +14,7 @@
 log()  { echo "[$(date '+%H:%M:%S')] $*"; }
 warn() { echo "[$(date '+%H:%M:%S')] WARNING: $*"; }
 
-VM_NAMES=("k8s-master" "k8s-worker1" "k8s-worker2")
+VM_NAMES=("k8s-master")   # worker는 호스트 베어메탈 (VM 없음)
 VM_DIR="/var/lib/libvirt/images"
 SETUP_DIR="/var/lib/libvirt/images/k8s-setup"
 VM_IPS_ENV="$SETUP_DIR/vm_ips.env"
@@ -77,62 +77,81 @@ rollback_05() {
 }
 
 rollback_04() {
-  log "--- [04단계 롤백] Worker 노드 제거 ---"
+  log "--- [04단계 롤백] Worker(호스트) 노드 제거 ---"
+  local HOST_NODE
+  HOST_NODE=$(hostname)
 
-  # master에서 worker drain & delete
+  # master에서 호스트 노드 drain & delete
   if kubectl get nodes &>/dev/null; then
-    for vm in "${VM_NAMES[@]}"; do
-      [[ "$vm" == "k8s-master" ]] && continue
-      kubectl drain "$vm" --ignore-daemonsets --delete-emptydir-data --force \
-        2>/dev/null || true
-      kubectl delete node "$vm" --ignore-not-found=true 2>/dev/null || true
-      log "   노드 $vm 삭제 완료"
-    done
+    kubectl drain "$HOST_NODE" --ignore-daemonsets --delete-emptydir-data --force \
+      2>/dev/null || true
+    kubectl delete node "$HOST_NODE" --ignore-not-found=true 2>/dev/null || true
+    log "   호스트 노드 $HOST_NODE 삭제 완료"
   else
     warn "kubectl 접근 불가 → 노드 삭제 스킵"
   fi
 
-  # 각 worker VM에서 kubeadm reset
-  if [[ -f "$VM_IPS_ENV" ]]; then
-    source "$VM_IPS_ENV"
-    for WORKER_VAR in WORKER1_IP WORKER2_IP; do
-      WORKER_IP="${!WORKER_VAR}"
-      [[ -z "$WORKER_IP" || "$WORKER_IP" == "unknown" ]] && continue
-      log "   $WORKER_VAR ($WORKER_IP) → kubeadm reset 중..."
-      ssh $SSH_OPTS "ubuntu@${WORKER_IP}" \
-        "sudo kubeadm reset --force --cri-socket=unix:///run/containerd/containerd.sock 2>/dev/null; \
-         sudo rm -rf /etc/cni/net.d /var/lib/cni 2>/dev/null; \
-         sudo iptables -F; sudo iptables -t nat -F" \
-        2>/dev/null \
-        || warn "$WORKER_IP kubeadm reset 실패 (수동 확인 필요)"
-    done
-  else
-    warn "vm_ips.env 없음 → worker kubeadm reset 스킵 (VM에서 수동 실행 필요)"
-  fi
+  # 호스트에서 kubeadm reset (로컬 실행)
+  log "   호스트 kubeadm reset 중..."
+  sudo kubeadm reset --force \
+    --cri-socket=unix:///run/containerd/containerd.sock 2>/dev/null || true
+  sudo rm -rf /etc/cni/net.d /var/lib/cni 2>/dev/null || true
+  sudo iptables -F 2>/dev/null || true
+  sudo iptables -t nat -F 2>/dev/null || true
+  log "   호스트 kubeadm reset 완료"
+
+  # 패키지 제거 (02_node_setup.sh 에서 설치된 것들)
+  log "   호스트 패키지 제거 중..."
+  sudo apt-mark unhold kubelet kubeadm kubectl 2>/dev/null || true
+  sudo apt-get purge -y kubeadm kubelet kubectl 2>/dev/null || true
+  sudo apt-get purge -y nvidia-container-toolkit 2>/dev/null || true
+  sudo apt-get purge -y containerd.io 2>/dev/null || true
+  sudo apt-get autoremove -y 2>/dev/null || true
+
+  # APT 소스 / 키링 정리
+  sudo rm -f /etc/apt/sources.list.d/kubernetes.list
+  sudo rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  sudo rm -f /etc/apt/sources.list.d/nvidia-container-toolkit.list
+  sudo rm -f /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  sudo rm -f /etc/apt/sources.list.d/docker.list
+  sudo rm -f /etc/apt/keyrings/docker.asc
+
+  # 설정 파일 정리
+  sudo rm -rf /etc/containerd 2>/dev/null || true
+  sudo rm -f /etc/modules-load.d/k8s.conf 2>/dev/null || true
+  sudo rm -f /etc/sysctl.d/k8s.conf 2>/dev/null || true
+  sudo rm -f /etc/modprobe.d/blacklist-nouveau.conf 2>/dev/null || true
+  sudo rm -f "$HOME/.kube/config" 2>/dev/null || true
+
+  log "   패키지 및 설정 파일 제거 완료"
 }
 
 rollback_03() {
   log "--- [03단계 롤백] Master 클러스터 해체 ---"
+  # Master는 VM → SSH로 접속하여 reset
 
-  sudo kubeadm reset --force \
-    --cri-socket=unix:///run/containerd/containerd.sock 2>/dev/null \
-    || warn "kubeadm reset 실패 (이미 초기화 상태일 수 있음)"
+  local MASTER_IP=""
+  if [[ -f "$VM_IPS_ENV" ]]; then
+    source "$VM_IPS_ENV"
+    MASTER_IP="${MASTER_IP:-}"
+  fi
 
-  sudo rm -rf /etc/cni/net.d /var/lib/cni 2>/dev/null || true
-
-  sudo iptables -F 2>/dev/null || true
-  sudo iptables -X 2>/dev/null || true
-  sudo iptables -t nat -F 2>/dev/null || true
-  sudo iptables -t nat -X 2>/dev/null || true
-
-  rm -f "$HOME/.kube/config" 2>/dev/null || true
-  rmdir "$HOME/.kube" 2>/dev/null || true
-  rm -rf "$HOME/k8s-setup" 2>/dev/null || true
-
-  sudo systemctl restart containerd 2>/dev/null \
-    || warn "containerd 재시작 실패"
-
-  log "   클러스터 해체 완료"
+  if [[ -n "$MASTER_IP" && "$MASTER_IP" != "unknown" ]]; then
+    log "   Master VM ($MASTER_IP) → kubeadm reset 중..."
+    ssh $SSH_OPTS "ubuntu@${MASTER_IP}" \
+      "sudo kubeadm reset --force --cri-socket=unix:///run/containerd/containerd.sock 2>/dev/null; \
+       sudo rm -rf /etc/cni/net.d /var/lib/cni 2>/dev/null; \
+       sudo iptables -F 2>/dev/null; sudo iptables -t nat -F 2>/dev/null; \
+       rm -f ~/.kube/config 2>/dev/null; rm -rf ~/k8s-setup 2>/dev/null; \
+       sudo systemctl restart containerd 2>/dev/null" \
+      || warn "Master VM SSH 실패 → ssh ubuntu@${MASTER_IP} 접속 후 수동으로 kubeadm reset 실행"
+    log "   Master 클러스터 해체 완료"
+  else
+    warn "Master VM IP를 찾을 수 없습니다."
+    warn "직접 실행: ssh ubuntu@<master-ip>"
+    warn "  sudo kubeadm reset --force --cri-socket=unix:///run/containerd/containerd.sock"
+    warn "  sudo rm -rf /etc/cni/net.d /var/lib/cni ~/.kube ~/k8s-setup"
+  fi
 }
 
 rollback_02() {
@@ -164,6 +183,13 @@ rollback_01() {
   sudo rm -rf "$SETUP_DIR"/cloud-init-* 2>/dev/null || true
   sudo rm -f  "$SETUP_DIR/vm_ips.env"  2>/dev/null || true
 
+  # /etc/hosts 및 known_hosts VM 항목 제거
+  for vm in "${VM_NAMES[@]}"; do
+    sudo sed -i "/[[:space:]]${vm}$/d" /etc/hosts
+    ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$vm" 2>/dev/null || true
+  done
+  log "   /etc/hosts 및 known_hosts VM 항목 제거 완료"
+
   log "   VM 삭제 완료"
   log "   보존: $SETUP_DIR/ubuntu-24.04-cloud.img"
   log "   보존: $SETUP_DIR/host_info.env"
@@ -187,9 +213,9 @@ log "=== 롤백 완료 ==="
 echo ""
 echo "재시작 위치:"
 case "$CHOICE" in
-  5) echo "   bash 05_gpu_plugin.sh" ;;
-  4) echo "   worker VM에서: bash 04_worker_join.sh" ;;
-  3) echo "   master VM에서: bash 03_master_init.sh" ;;
-  1|2) echo "   호스트에서:    bash 01_vm_create.sh" ;;
+  5) echo "   master VM: bash ~/05_gpu_plugin.sh" ;;
+  4) echo "   호스트(worker): bash 04_worker_join.sh \"<join 명령>\"" ;;
+  3) echo "   master VM: bash ~/03_master_init.sh" ;;
+  1|2) echo "   호스트: bash 01_vm_create.sh" ;;
 esac
 echo ""

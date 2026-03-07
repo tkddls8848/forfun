@@ -1,14 +1,18 @@
 #!/usr/bin/bash
 # 01_vm_create.sh
-# K8s용 KVM VM 3개 생성 (master 1, worker 2)
-# Worker VM에 /dev/nvidia* 장치 자동 연결 (toolkit 공유 방식)
+# K8s용 KVM VM 생성 (master 1개)
+# GPU worker는 호스트(베어메탈)에서 직접 실행 → iGPU 없는 환경에서도 화면 유지
 #
-# 리소스 (CUDA 최소 사양 1.2배):
+# 아키텍처:
+#   k8s-master (VM)  ← control plane (GPU 없음)
+#   호스트 (psi)     ← GPU worker (베어메탈, nvidia 드라이버 직접 사용)
+#
+# 리소스:
 #   Master : 2 vCPU, 4096MB RAM, 30GB disk
-#   Worker : 3 vCPU, 5120MB RAM, 50GB disk
 #
 # 실행: bash 01_vm_create.sh
-# 완료 후 각 VM에서 02_node_setup.sh 실행
+# 완료 후: master VM에서 02_node_setup.sh → 03_master_init.sh
+#          호스트에서 02_node_setup.sh → 04_worker_join.sh
 
 set -e
 
@@ -28,14 +32,11 @@ SETUP_DIR="/var/lib/libvirt/images/k8s-setup"
 CLOUD_IMG="$SETUP_DIR/ubuntu-24.04-cloud.img"
 CLOUD_IMG_URL="https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
 
-# VM 리소스 (CUDA 최소 1.2배)
-MASTER_VCPU=2;  MASTER_MEM=4096;  MASTER_DISK=30   # master
-WORKER_VCPU=3;  WORKER_MEM=5120;  WORKER_DISK=50   # worker (1.2x CUDA min)
+# VM 리소스
+MASTER_VCPU=2;  MASTER_MEM=4096;  MASTER_DISK=30   # master only
 
-# VM 이름 / IP (libvirt default NAT: 192.168.122.x)
+# VM 이름 (libvirt default NAT: 192.168.122.x)
 MASTER_NAME="k8s-master"
-WORKER1_NAME="k8s-worker1"
-WORKER2_NAME="k8s-worker2"
 
 SSH_KEY_PATH="$HOME/.ssh/id_ed25519.pub"
 
@@ -60,13 +61,8 @@ if [[ ! -f "$SSH_KEY_PATH" ]]; then
 fi
 SSH_PUB_KEY=$(cat "$SSH_KEY_PATH")
 
-# /dev/nvidia* 장치 목록 수집
-NVIDIA_DEVS=()
-for dev in /dev/nvidia0 /dev/nvidiactl /dev/nvidia-uvm /dev/nvidia-uvm-tools; do
-  [[ -e "$dev" ]] && NVIDIA_DEVS+=("$dev")
-done
-[[ ${#NVIDIA_DEVS[@]} -eq 0 ]] && error_exit "/dev/nvidia* 장치를 찾을 수 없습니다."
-log "   연결할 GPU 장치: ${NVIDIA_DEVS[*]}"
+# GPU는 호스트(worker)에서 직접 사용 → VM에 패스스루 불필요
+log "   GPU worker: 호스트 베어메탈 (VM 패스스루 없음)"
 
 # ────────────────────────────────────────────
 # 1. Ubuntu 24.04 클라우드 이미지 다운로드
@@ -86,64 +82,50 @@ fi
 # ────────────────────────────────────────────
 create_cloud_init() {
   local vm_name="$1"
-  local gpu_mode="$2"   # none | toolkit-vm
 
   local seed_dir="$SETUP_DIR/cloud-init-$vm_name"
   mkdir -p "$seed_dir"
 
-  # VM 역할에 맞는 스크립트를 base64로 인코딩 (write_files 삽입용)
+  # master VM에 필요한 스크립트를 base64로 인코딩 (write_files 삽입용)
   local write_files_section=""
-  local b64_02 b64_03 b64_04
+  local b64_02 b64_03 b64_05
   b64_02=$(base64 -w0 "$SCRIPT_DIR/02_node_setup.sh" 2>/dev/null || true)
   b64_03=$(base64 -w0 "$SCRIPT_DIR/03_master_init.sh" 2>/dev/null || true)
-  b64_04=$(base64 -w0 "$SCRIPT_DIR/04_worker_join.sh" 2>/dev/null || true)
+  b64_05=$(base64 -w0 "$SCRIPT_DIR/05_gpu_plugin.sh"  2>/dev/null || true)
 
+  # defer: true → modules-final 단계(유저 생성 완료 후)에 파일 기록
   if [[ -n "$b64_02" ]]; then
     write_files_section+="
   - path: /home/ubuntu/02_node_setup.sh
     permissions: '0755'
-    owner: ubuntu:ubuntu
+    owner: 'ubuntu:ubuntu'
     encoding: b64
+    defer: true
     content: $b64_02"
   fi
 
-  if [[ "$vm_name" == *"master"* && -n "$b64_03" ]]; then
+  if [[ -n "$b64_03" ]]; then
     write_files_section+="
   - path: /home/ubuntu/03_master_init.sh
     permissions: '0755'
-    owner: ubuntu:ubuntu
+    owner: 'ubuntu:ubuntu'
     encoding: b64
+    defer: true
     content: $b64_03"
   fi
 
-  if [[ "$vm_name" != *"master"* && -n "$b64_04" ]]; then
+  if [[ -n "$b64_05" ]]; then
     write_files_section+="
-  - path: /home/ubuntu/04_worker_join.sh
+  - path: /home/ubuntu/05_gpu_plugin.sh
     permissions: '0755'
-    owner: ubuntu:ubuntu
+    owner: 'ubuntu:ubuntu'
     encoding: b64
-    content: $b64_04"
+    defer: true
+    content: $b64_05"
   fi
 
-  # NVIDIA 관련 패키지 (toolkit-vm 모드)
-  local nvidia_packages=""
-  local nvidia_postinstall=""
-
-  if [[ "$gpu_mode" == "toolkit-vm" ]]; then
-    nvidia_packages="
-    - nvidia-utils-${DRIVER_MAJOR}
-    - nvidia-container-toolkit"
-    nvidia_postinstall="
-  - |
-    # NVIDIA 커널 모듈 블랙리스트 (장치는 호스트에서 제공)
-    echo 'blacklist nvidia' > /etc/modprobe.d/blacklist-nvidia-km.conf
-    echo 'blacklist nvidia_drm' >> /etc/modprobe.d/blacklist-nvidia-km.conf
-    echo 'blacklist nvidia_uvm' >> /etc/modprobe.d/blacklist-nvidia-km.conf
-    echo 'blacklist nvidia_modeset' >> /etc/modprobe.d/blacklist-nvidia-km.conf
-    update-initramfs -u"
-  fi
-
-  # user-data
+  # user-data: 패키지 설치 없음 (02_node_setup.sh에서 처리)
+  # cloud-init은 사용자/SSH키 설정 + 스크립트 배포 + swap off만 담당
   cat > "$seed_dir/user-data" <<USERDATA
 #cloud-config
 hostname: ${vm_name}
@@ -166,25 +148,12 @@ chpasswd:
 
 ssh_pwauth: true
 
-apt:
-  sources:
-    nvidia-container-toolkit:
-      source: "deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://nvidia.github.io/libnvidia-container/stable/deb/\$(ARCH) /"
-      key: |
-$(curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey 2>/dev/null | sed 's/^/        /' || echo "        # GPG key fetch failed")
-
-packages:${nvidia_packages}
-  - curl
-  - apt-transport-https
-  - ca-certificates
-  - gpg
-
 write_files:${write_files_section}
 
 runcmd:
   - chown ubuntu:ubuntu /home/ubuntu
   - swapoff -a
-  - sed -i '/\bswap\b/s/^[^#]/#&/' /etc/fstab${nvidia_postinstall}
+  - sed -i '/\bswap\b/s/^[^#]/#&/' /etc/fstab
 
 final_message: "VM $vm_name cloud-init 완료"
 USERDATA
@@ -236,9 +205,8 @@ create_vm() {
   local vcpu="$2"
   local mem="$3"
   local disk_gb="$4"
-  local gpu_mode="$5"   # none | toolkit-vm
 
-  log "--- VM 생성: $vm_name (${vcpu}vCPU / ${mem}MB / ${disk_gb}GB / GPU: $gpu_mode) ---"
+  log "--- VM 생성: $vm_name (${vcpu}vCPU / ${mem}MB / ${disk_gb}GB) ---"
 
   # 이미 존재하면 스킵
   if sudo virsh dominfo "$vm_name" &>/dev/null; then
@@ -247,7 +215,7 @@ create_vm() {
   fi
 
   create_vm_disk "$vm_name" "$disk_gb"
-  create_cloud_init "$vm_name" "$gpu_mode"
+  create_cloud_init "$vm_name"
 
   # CPU 제조사에 따른 최적화 옵션
   local cpu_model
@@ -272,43 +240,14 @@ create_vm() {
     --noautoconsole
 
   log "   VM '$vm_name' 생성 완료"
-
-  # GPU worker에 /dev/nvidia* 장치 연결
-  if [[ "$gpu_mode" == "toolkit-vm" ]]; then
-    log "   GPU 장치 연결 중..."
-    for dev in "${NVIDIA_DEVS[@]}"; do
-      local major minor type
-      major=$(stat -c '%t' "$dev" | tr '[:lower:]' '[:upper:]')
-      minor=$(stat -c '%T' "$dev" | tr '[:lower:]' '[:upper:]')
-      type=$(stat -c '%F' "$dev")
-
-      # char device 인 경우만 추가
-      if [[ "$type" == "character special file" ]]; then
-        local tmp_xml
-        tmp_xml=$(mktemp /tmp/hostdev-XXXXXX.xml)
-        cat > "$tmp_xml" <<XMLEOF
-<hostdev mode='capabilities' type='char'>
-  <source>
-    <char>${dev}</char>
-  </source>
-</hostdev>
-XMLEOF
-        sudo virsh attach-device "$vm_name" --persistent "$tmp_xml" 2>/dev/null || true
-        rm -f "$tmp_xml"
-        log "   장치 연결: $dev"
-      fi
-    done
-  fi
 }
 
 # ────────────────────────────────────────────
-# 5. VM 3개 생성
+# 5. Master VM 생성
 # ────────────────────────────────────────────
-log "5. VM 생성 중..."
+log "5. Master VM 생성 중..."
 
-create_vm "$MASTER_NAME"  "$MASTER_VCPU" "$MASTER_MEM"  "$MASTER_DISK"  "none"
-create_vm "$WORKER1_NAME" "$WORKER_VCPU" "$WORKER_MEM"  "$WORKER_DISK"  "toolkit-vm"
-create_vm "$WORKER2_NAME" "$WORKER_VCPU" "$WORKER_MEM"  "$WORKER_DISK"  "toolkit-vm"
+create_vm "$MASTER_NAME" "$MASTER_VCPU" "$MASTER_MEM" "$MASTER_DISK"
 
 # ────────────────────────────────────────────
 # 6. VM IP 확인 대기
@@ -317,59 +256,68 @@ log "6. VM 부팅 대기 중 (최대 3분)..."
 sleep 30
 
 declare -A VM_IPS
-for vm_name in "$MASTER_NAME" "$WORKER1_NAME" "$WORKER2_NAME"; do
-  log "   $vm_name IP 확인 중..."
-  for i in $(seq 1 18); do
-    IP=$(sudo virsh domifaddr "$vm_name" 2>/dev/null \
-      | grep -oE '192\.168\.[0-9]+\.[0-9]+' | head -1)
-    if [[ -n "$IP" ]]; then
-      VM_IPS[$vm_name]="$IP"
-      log "   $vm_name → $IP"
-      break
-    fi
-    sleep 10
-  done
-  [[ -z "${VM_IPS[$vm_name]}" ]] && warn "$vm_name IP 확인 실패 (수동 확인: sudo virsh domifaddr $vm_name)"
+log "   $MASTER_NAME IP 확인 중..."
+for i in $(seq 1 18); do
+  IP=$(sudo virsh domifaddr "$MASTER_NAME" 2>/dev/null \
+    | grep -oE '192\.168\.[0-9]+\.[0-9]+' | head -1)
+  if [[ -n "$IP" ]]; then
+    VM_IPS[$MASTER_NAME]="$IP"
+    log "   $MASTER_NAME → $IP"
+    break
+  fi
+  sleep 10
 done
+[[ -z "${VM_IPS[$MASTER_NAME]}" ]] && warn "$MASTER_NAME IP 확인 실패 (수동 확인: sudo virsh domifaddr $MASTER_NAME)"
 
 # VM IP 저장
 cat > "$SETUP_DIR/vm_ips.env" <<EOF
 MASTER_IP=${VM_IPS[$MASTER_NAME]:-unknown}
-WORKER1_IP=${VM_IPS[$WORKER1_NAME]:-unknown}
-WORKER2_IP=${VM_IPS[$WORKER2_NAME]:-unknown}
 MASTER_NAME=$MASTER_NAME
-WORKER1_NAME=$WORKER1_NAME
-WORKER2_NAME=$WORKER2_NAME
 EOF
 log "VM IP 저장: $SETUP_DIR/vm_ips.env"
+
+# ────────────────────────────────────────────
+# 7. /etc/hosts에 VM 이름 등록
+# ────────────────────────────────────────────
+log "7. /etc/hosts VM 이름 등록 및 known_hosts 정리 중..."
+MASTER_IP="${VM_IPS[$MASTER_NAME]:-}"
+if [[ -n "$MASTER_IP" && "$MASTER_IP" != "unknown" ]]; then
+  sudo sed -i "/[[:space:]]${MASTER_NAME}$/d" /etc/hosts
+  echo "$MASTER_IP $MASTER_NAME" | sudo tee -a /etc/hosts > /dev/null
+  ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$MASTER_NAME" 2>/dev/null || true
+  ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$MASTER_IP"   2>/dev/null || true
+  log "   $MASTER_NAME → $MASTER_IP"
+fi
+log "7. /etc/hosts 등록 완료 → ssh ubuntu@k8s-master 로 접속 가능"
 
 # ────────────────────────────────────────────
 # 완료
 # ────────────────────────────────────────────
 log "=== VM 생성 완료 ==="
 echo ""
-echo "VM 구성:"
-printf "  %-15s %s vCPU / %sMB RAM / %sGB disk | GPU: none\n" \
+echo "클러스터 구성:"
+printf "  %-15s %s vCPU / %sMB RAM / %sGB disk | 역할: control-plane\n" \
   "$MASTER_NAME" "$MASTER_VCPU" "$MASTER_MEM" "$MASTER_DISK"
-printf "  %-15s %s vCPU / %sMB RAM / %sGB disk | GPU: toolkit (shared)\n" \
-  "$WORKER1_NAME" "$WORKER_VCPU" "$WORKER_MEM" "$WORKER_DISK"
-printf "  %-15s %s vCPU / %sMB RAM / %sGB disk | GPU: toolkit (shared)\n" \
-  "$WORKER2_NAME" "$WORKER_VCPU" "$WORKER_MEM" "$WORKER_DISK"
+printf "  %-15s %-30s | 역할: GPU worker (베어메탈)\n" \
+  "$(hostname)" "호스트 직접"
 echo ""
-echo "VM IP 확인:"
-for vm_name in "$MASTER_NAME" "$WORKER1_NAME" "$WORKER2_NAME"; do
-  echo "  sudo virsh domifaddr $vm_name"
-done
+echo "Master VM IP: ${VM_IPS[$MASTER_NAME]:-unknown}"
 echo ""
-echo "SSH 접속:"
-echo "  ssh ubuntu@${VM_IPS[$MASTER_NAME]:-<master-ip>}"
+echo "=== 다음 단계 ==="
 echo ""
-echo "다음 단계 (각 VM에 SSH 접속 후):"
+echo "① Master VM에 SSH 접속 후 노드 설정 (GPU_MODE=none 자동감지):"
+echo "   ssh ubuntu@$MASTER_NAME"
+echo "   bash ~/02_node_setup.sh   # 완료 후 재부팅"
 echo ""
-echo "  [Master]"
-echo "  scp 02_node_setup.sh 03_master_init.sh ubuntu@${VM_IPS[$MASTER_NAME]:-<master-ip>}:~/"
-echo "  ssh ubuntu@${VM_IPS[$MASTER_NAME]:-<master-ip>} 'GPU_MODE=none bash 02_node_setup.sh'"
+echo "② 호스트(GPU worker)에서 노드 설정 (GPU_MODE=full 자동감지):"
+echo "   bash $SCRIPT_DIR/02_node_setup.sh   # 완료 후 재부팅"
 echo ""
-echo "  [Worker1, Worker2]"
-echo "  scp 02_node_setup.sh 04_worker_join.sh ubuntu@${VM_IPS[$WORKER1_NAME]:-<worker1-ip>}:~/"
-echo "  ssh ubuntu@${VM_IPS[$WORKER1_NAME]:-<worker1-ip>} 'GPU_MODE=toolkit-vm bash 02_node_setup.sh'"
+echo "③ 재부팅 후 Master VM에서 클러스터 초기화:"
+echo "   bash ~/03_master_init.sh"
+echo "   cat ~/k8s-setup/worker_join.sh   # join 명령 확인"
+echo ""
+echo "④ 재부팅 후 호스트에서 worker join:"
+echo "   bash $SCRIPT_DIR/04_worker_join.sh \"<join 명령>\""
+echo ""
+echo "⑤ Master VM에서 GPU Plugin 배포:"
+echo "   bash ~/05_gpu_plugin.sh"

@@ -29,6 +29,11 @@ log "1. NVIDIA Device Plugin ${DEVICE_PLUGIN_VERSION} 배포 중..."
 kubectl apply -f \
   "https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/${DEVICE_PLUGIN_VERSION}/deployments/static/nvidia-device-plugin.yml"
 
+# auto 전략이 containerd CDI 미설정 환경에서 실패하는 경우 nvml로 강제 지정
+kubectl patch daemonset -n kube-system nvidia-device-plugin-daemonset --type=json -p='[
+  {"op":"add","path":"/spec/template/spec/containers/0/args","value":["--device-discovery-strategy=nvml"]}
+]' 2>/dev/null || true
+
 # ────────────────────────────────────────────
 # 2. Device Plugin Ready 대기
 # ────────────────────────────────────────────

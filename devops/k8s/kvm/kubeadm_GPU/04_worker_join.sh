@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 # 04_worker_join.sh
 # worker 노드를 k8s 클러스터에 join
-# worker 노드에서 실행
+# worker 노드에서 실행 (02_node_setup.sh + 재부팅 후 실행)
 #
 # 사용법 1 (인수):
 #   bash 04_worker_join.sh "kubeadm join <ip>:6443 --token xxx --discovery-token-ca-cert-hash sha256:xxx"
@@ -9,42 +9,19 @@
 # 사용법 2 (환경변수):
 #   MASTER_IP=192.168.1.10 TOKEN=xxx HASH=xxx bash 04_worker_join.sh
 #
-# GPU_MODE 환경변수 (02_node_setup.sh와 동일하게):
-#   GPU_MODE=toolkit-vm  KVM VM worker (nvidia-smi 체크 스킵, /dev/nvidia* 장치 확인)
-#   GPU_MODE=none        GPU 없는 worker (nvidia-smi 체크 스킵)
-#   GPU_MODE=full        베어메탈 (기본값, nvidia-smi 필수)
-#
 # master에서 join 명령 확인:
 #   cat ~/k8s-setup/worker_join.sh
 
 set -e
 
-GPU_MODE="${GPU_MODE:-full}"
-
 log()        { echo "[$(date '+%H:%M:%S')] $1"; }
 error_exit() { echo "❌ ERROR: $1"; exit 1; }
 
-log "=== Phase 3: Worker Join 시작 (GPU_MODE=$GPU_MODE) ==="
+log "=== Phase 3: Worker Join 시작 ==="
 
 # ────────────────────────────────────────────
 # 사전 확인
 # ────────────────────────────────────────────
-
-# GPU 상태 확인 (GPU_MODE에 따라 분기)
-if [[ "$GPU_MODE" == "full" ]]; then
-  # 베어메탈: nvidia-smi 필수
-  nvidia-smi > /dev/null 2>&1 \
-    || error_exit "NVIDIA 드라이버 미로드. 재부팅 후 nvidia-smi 확인하세요."
-  log "   nvidia-smi 확인 완료"
-elif [[ "$GPU_MODE" == "toolkit-vm" ]]; then
-  # KVM VM: /dev/nvidia* 장치 파일 존재 여부 확인 (커널 모듈 없이도 동작)
-  ls /dev/nvidia* > /dev/null 2>&1 \
-    || error_exit "/dev/nvidia* 장치 없음. libvirt에서 GPU 장치가 VM에 연결되었는지 확인하세요."
-  log "   /dev/nvidia* 장치 확인 완료 (toolkit-vm 모드)"
-else
-  log "   GPU 확인 스킵 (GPU_MODE=none)"
-fi
-
 kubeadm version > /dev/null 2>&1 \
   || error_exit "kubeadm 없음. 02_node_setup.sh 실행 후 재부팅 하세요."
 systemctl is-active --quiet containerd \
