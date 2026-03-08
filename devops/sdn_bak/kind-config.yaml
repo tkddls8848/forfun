@@ -1,0 +1,17 @@
+# kind-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  disableDefaultCNI: true   # Calico 직접 설치하기 위해 기본 CNI 비활성화
+  podSubnet: "192.168.0.0/16"
+nodes:
+- role: control-plane
+- role: worker
+  extraPortMappings:
+  - containerPort: 30080
+    hostPort: 30080
+- role: worker
+  extraPortMappings:
+  - containerPort: 30081
+    hostPort: 30081
+- role: worker
