@@ -156,25 +156,80 @@ sudo apt-get update -y
 sudo apt-get install -y containerd.io
 
 sudo mkdir -p /etc/containerd
+sudo mkdir -p /etc/cni/net.d
 containerd config default | sudo tee /etc/containerd/config.toml > /dev/null
 sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
 
 if [[ $IS_MASTER == false ]]; then
-  sudo nvidia-ctk runtime configure --runtime=containerd --set-as-default
-  # nvidia-ctk 1.18+ 는 conf.d 방식 사용 → containerd가 해당 경로를 import해야 함
-  # 중복 방지: 기존 imports conf.d 항목을 모두 제거 후 정확히 한 번만 추가
-  sudo sed -i '/^imports.*conf\.d/d' /etc/containerd/config.toml
-  sudo sed -i '/^version/a imports = ["/etc/containerd/conf.d/*.toml"]' \
-    /etc/containerd/config.toml
+  # nvidia-container-runtime: legacy 모드 강제 지정
+  # - auto 모드는 CDI를 우선하나 pod에 CDI annotation 없으면 라이브러리 미inject
+  # - disable-require: 드라이버가 이미지 NVIDIA_REQUIRE_CUDA 버전 범위 밖인 경우 우회
+  # - toolkit 신버전은 /etc/nvidia-container-toolkit/config.toml 사용 (구버전은 /etc/nvidia-container-runtime/)
+  NVIDIA_RT_CONFIG=""
+  for _cfg in \
+    "/etc/nvidia-container-toolkit/config.toml" \
+    "/etc/nvidia-container-runtime/config.toml"; do
+    [[ -f "$_cfg" ]] && NVIDIA_RT_CONFIG="$_cfg" && break
+  done
 
-  # CDI 스펙 생성 (device-plugin v0.17+ auto 전략에 필요)
+  if [[ -n "$NVIDIA_RT_CONFIG" ]]; then
+    # mode: [nvidia-container-cli] 섹션 내부 또는 최상위 레벨 모두 처리
+    sudo sed -i 's|^\(\s*\)mode\s*=\s*"auto"|\1mode = "legacy"|g' "$NVIDIA_RT_CONFIG"
+    sudo sed -i 's|^\(\s*\)disable-require\s*=\s*false|\1disable-require = true|g' "$NVIDIA_RT_CONFIG"
+
+    # v1.14+ 보안 정책: unprivileged 컨테이너에서 NVIDIA_VISIBLE_DEVICES 환경변수 무시
+    # k8s에서 device plugin이 env로 GPU를 요청하므로 허용 필요
+    if grep -q 'accept-nvidia-visible-devices-envvar-when-unprivileged' "$NVIDIA_RT_CONFIG"; then
+      sudo sed -i \
+        's|.*accept-nvidia-visible-devices-envvar-when-unprivileged.*|accept-nvidia-visible-devices-envvar-when-unprivileged = true|' \
+        "$NVIDIA_RT_CONFIG"
+    else
+      sudo sed -i "1s|^|accept-nvidia-visible-devices-envvar-when-unprivileged = true\n|" \
+        "$NVIDIA_RT_CONFIG"
+    fi
+    log "   nvidia-container-runtime config 패치 완료: $NVIDIA_RT_CONFIG"
+  else
+    # config 파일 없으면 nvidia-ctk로 직접 설정 (경로 자동 처리)
+    sudo nvidia-ctk config --set nvidia-container-cli.mode=legacy 2>/dev/null || true
+    sudo nvidia-ctk config --set nvidia-container-runtime.disable-require=true 2>/dev/null || true
+    sudo nvidia-ctk config --set accept-nvidia-visible-devices-envvar-when-unprivileged=true 2>/dev/null || true
+    log "   nvidia-ctk config 로 legacy 모드 설정 완료 (config 파일 미발견)"
+  fi
+
+  # nvidia-ctk로 containerd runtime 설정
+  # - 버전(1.x/2.x) 자동 감지 후 올바른 포맷으로 conf.d/99-nvidia.toml 생성
+  # - 수동으로 만든 이전 파일 제거 (중복 방지)
+  sudo mkdir -p /etc/containerd/conf.d
+  sudo rm -f /etc/containerd/conf.d/nvidia-runtime.toml \
+             /etc/containerd/conf.d/nvidia-runtime-v3.toml
+
+  sudo nvidia-ctk runtime configure --runtime=containerd --set-as-default \
+    || error_exit "nvidia-ctk runtime configure 실패. nvidia-container-toolkit 설치를 확인하세요."
+
+  # containerd 1.x는 conf.d 로드를 위해 imports 라인 필요 (중복 방지)
+  if ! grep -q 'conf\.d' /etc/containerd/config.toml 2>/dev/null; then
+    sudo sed -i '1s|^|imports = ["/etc/containerd/conf.d/*.toml"]\n|' /etc/containerd/config.toml
+    log "   containerd: conf.d imports 라인 추가"
+  fi
+  log "   nvidia-ctk: containerd runtime 설정 완료"
+
+  # CDI 스펙 생성 (참조용)
   sudo mkdir -p /etc/cdi
-  sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+  sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml 2>/dev/null || true
 
-  # containerd CDI 지원 활성화
-  sudo nvidia-ctk config --set accept-nvidia-visible-devices-envvar-when-unprivileged=false \
-    --in-place 2>/dev/null || true
-  log "   NVIDIA containerd runtime + CDI 설정 완료"
+  # nvidia 전용 라이브러리 스테이징 디렉토리 생성
+  # - /usr/local/nvidia/lib64 에 nvidia 라이브러리 symlink만 모아둠
+  # - device plugin DaemonSet이 hostPath로 이 디렉토리만 마운트 (libc 등 충돌 방지)
+  # - /lib/x86_64-linux-gnu 전체 마운트 시 컨테이너 libc와 버전 충돌 발생
+  NVIDIA_LIB_STAGING="/usr/local/nvidia/lib64"
+  sudo mkdir -p "$NVIDIA_LIB_STAGING"
+  sudo find /lib/x86_64-linux-gnu -maxdepth 1 \
+    \( -name 'libnvidia-*.so*' -o -name 'libcuda.so*' \
+       -o -name 'libnvcuvid.so*' -o -name 'libnvoptix.so*' \) \
+    | xargs -I{} sudo ln -sf {} "$NVIDIA_LIB_STAGING/" 2>/dev/null || true
+  log "   nvidia 라이브러리 스테이징 완료: $NVIDIA_LIB_STAGING ($(ls $NVIDIA_LIB_STAGING | wc -l)개)"
+
+  log "   NVIDIA containerd runtime (nvidia-ctk) 설정 완료"
 fi
 
 sudo systemctl restart containerd
@@ -185,8 +240,7 @@ sudo systemctl enable containerd
 # ────────────────────────────────────────────
 log "6. kubeadm/kubelet/kubectl v${K8S_VERSION} 설치..."
 
-sudo apt-get install -y apt-transport-https ca-certificates curl gpg
-sudo mkdir -p /etc/apt/keyrings
+sudo apt-get install -y apt-transport-https gpg
 
 curl -fsSL "https://pkgs.k8s.io/core:/stable:/v${K8S_VERSION}/deb/Release.key" \
   | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg

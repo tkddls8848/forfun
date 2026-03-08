@@ -148,7 +148,10 @@ chpasswd:
 
 ssh_pwauth: true
 
-write_files:${write_files_section}
+write_files:
+  - path: /etc/apt/apt.conf.d/99force-ipv4
+    content: |
+      Acquire::ForceIPv4 "true";${write_files_section}
 
 runcmd:
   - chown ubuntu:ubuntu /home/ubuntu
@@ -190,11 +193,9 @@ create_vm_disk() {
       return 0
     fi
   fi
-  if true; then
-    sudo qemu-img create -f qcow2 -b "$CLOUD_IMG" -F qcow2 "$dst" "${size_gb}G"
-    sudo chmod 644 "$dst"
-    log "   디스크 생성: $dst (${size_gb}GB)"
-  fi
+  sudo qemu-img create -f qcow2 -b "$CLOUD_IMG" -F qcow2 "$dst" "${size_gb}G"
+  sudo chmod 644 "$dst"
+  log "   디스크 생성: $dst (${size_gb}GB)"
 }
 
 # ────────────────────────────────────────────
@@ -277,9 +278,39 @@ EOF
 log "VM IP 저장: $SETUP_DIR/vm_ips.env"
 
 # ────────────────────────────────────────────
-# 7. /etc/hosts에 VM 이름 등록
+# 7. Master VM에 최신 스크립트 배포 (SCP)
 # ────────────────────────────────────────────
-log "7. /etc/hosts VM 이름 등록 및 known_hosts 정리 중..."
+log "7. Master VM에 스크립트 최신화 중..."
+MASTER_IP_FOR_SCP="${VM_IPS[$MASTER_NAME]:-}"
+if [[ -n "$MASTER_IP_FOR_SCP" && "$MASTER_IP_FOR_SCP" != "unknown" ]]; then
+  SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes"
+  # SSH 접속 가능할 때까지 대기 (최대 2분)
+  for i in $(seq 1 12); do
+    if ssh $SSH_OPTS "ubuntu@$MASTER_IP_FOR_SCP" true 2>/dev/null; then
+      for script in 02_node_setup.sh 03_master_init.sh 05_gpu_plugin.sh; do
+        if [[ -f "$SCRIPT_DIR/$script" ]]; then
+          scp $SSH_OPTS "$SCRIPT_DIR/$script" \
+            "ubuntu@$MASTER_IP_FOR_SCP:/home/ubuntu/$script" 2>/dev/null \
+            && log "   복사 완료: $script" \
+            || log "   복사 실패: $script"
+        fi
+      done
+      break
+    fi
+    log "   SSH 대기 중... [$i/12]"
+    sleep 10
+  done
+else
+  warn "Master IP 미확인 → 스크립트 배포 스킵. 수동 복사 필요:"
+  for script in 02_node_setup.sh 03_master_init.sh 05_gpu_plugin.sh; do
+    echo "   scp $SCRIPT_DIR/$script ubuntu@k8s-master:~/"
+  done
+fi
+
+# ────────────────────────────────────────────
+# 8. /etc/hosts에 VM 이름 등록
+# ────────────────────────────────────────────
+log "8. /etc/hosts VM 이름 등록 및 known_hosts 정리 중..."
 MASTER_IP="${VM_IPS[$MASTER_NAME]:-}"
 if [[ -n "$MASTER_IP" && "$MASTER_IP" != "unknown" ]]; then
   sudo sed -i "/[[:space:]]${MASTER_NAME}$/d" /etc/hosts
@@ -288,7 +319,7 @@ if [[ -n "$MASTER_IP" && "$MASTER_IP" != "unknown" ]]; then
   ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$MASTER_IP"   2>/dev/null || true
   log "   $MASTER_NAME → $MASTER_IP"
 fi
-log "7. /etc/hosts 등록 완료 → ssh ubuntu@k8s-master 로 접속 가능"
+log "8. /etc/hosts 등록 완료 → ssh ubuntu@k8s-master 로 접속 가능"
 
 # ────────────────────────────────────────────
 # 완료

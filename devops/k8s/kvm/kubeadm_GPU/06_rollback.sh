@@ -95,7 +95,7 @@ rollback_04() {
   log "   호스트 kubeadm reset 중..."
   sudo kubeadm reset --force \
     --cri-socket=unix:///run/containerd/containerd.sock 2>/dev/null || true
-  sudo rm -rf /etc/cni/net.d /var/lib/cni 2>/dev/null || true
+  sudo rm -rf /etc/cni/net.d/* /var/lib/cni 2>/dev/null || true  # 디렉터리 자체는 보존 (containerd 필요)
   sudo iptables -F 2>/dev/null || true
   sudo iptables -t nat -F 2>/dev/null || true
   log "   호스트 kubeadm reset 완료"
@@ -116,14 +116,16 @@ rollback_04() {
   sudo rm -f /etc/apt/sources.list.d/docker.list
   sudo rm -f /etc/apt/keyrings/docker.asc
 
-  # 설정 파일 정리
+  # 설정 파일 정리 (GPU 드라이버 관련 요소는 보존)
   sudo rm -rf /etc/containerd 2>/dev/null || true
+  sudo rm -rf /etc/cdi 2>/dev/null || true          # nvidia-ctk CDI 스펙
   sudo rm -f /etc/modules-load.d/k8s.conf 2>/dev/null || true
   sudo rm -f /etc/sysctl.d/k8s.conf 2>/dev/null || true
-  sudo rm -f /etc/modprobe.d/blacklist-nouveau.conf 2>/dev/null || true
+  # blacklist-nouveau.conf 보존: nvidia 드라이버 유지 시 nouveau 충돌 방지
   sudo rm -f "$HOME/.kube/config" 2>/dev/null || true
 
   log "   패키지 및 설정 파일 제거 완료"
+  log "   보존: NVIDIA 드라이버, blacklist-nouveau.conf"
 }
 
 rollback_03() {
@@ -140,7 +142,7 @@ rollback_03() {
     log "   Master VM ($MASTER_IP) → kubeadm reset 중..."
     ssh $SSH_OPTS "ubuntu@${MASTER_IP}" \
       "sudo kubeadm reset --force --cri-socket=unix:///run/containerd/containerd.sock 2>/dev/null; \
-       sudo rm -rf /etc/cni/net.d /var/lib/cni 2>/dev/null; \
+       sudo rm -rf /etc/cni/net.d/* /var/lib/cni 2>/dev/null; \
        sudo iptables -F 2>/dev/null; sudo iptables -t nat -F 2>/dev/null; \
        rm -f ~/.kube/config 2>/dev/null; rm -rf ~/k8s-setup 2>/dev/null; \
        sudo systemctl restart containerd 2>/dev/null" \

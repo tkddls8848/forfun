@@ -50,12 +50,13 @@ log "2. GRUB IOMMU 설정 확인 중..."
 GRUB_FILE="/etc/default/grub"
 REBOOT_REQUIRED=false
 
-if grep -q "iommu" "$GRUB_FILE"; then
+if grep -q "^GRUB_CMDLINE_LINUX.*iommu" "$GRUB_FILE"; then
   log "   IOMMU 파라미터가 이미 설정되어 있습니다. 스킵"
 else
   log "   GRUB에 IOMMU 파라미터 추가: $IOMMU_PARAM"
+  # 기존 값이 비어있으면 공백 없이, 있으면 공백 추가
   sudo sed -i \
-    "s/GRUB_CMDLINE_LINUX_DEFAULT=\"\(.*\)\"/GRUB_CMDLINE_LINUX_DEFAULT=\"\1 $IOMMU_PARAM\"/" \
+    "s/GRUB_CMDLINE_LINUX_DEFAULT=\"\(\)/GRUB_CMDLINE_LINUX_DEFAULT=\"$IOMMU_PARAM\"/;t;s/GRUB_CMDLINE_LINUX_DEFAULT=\"\(.*\)\"/GRUB_CMDLINE_LINUX_DEFAULT=\"\1 $IOMMU_PARAM\"/" \
     "$GRUB_FILE"
   sudo update-grub
   REBOOT_REQUIRED=true
@@ -67,7 +68,7 @@ fi
 # ────────────────────────────────────────────
 log "3. 가상화 지원 확인 중..."
 
-grep -Ec '(vmx|svm)' /proc/cpuinfo > /dev/null \
+grep -qE '(vmx|svm)' /proc/cpuinfo \
   || error_exit "CPU가 가상화를 지원하지 않습니다. BIOS에서 VT-x/AMD-V를 활성화하세요."
 
 log "   CPU 가상화 지원 확인 완료"
@@ -95,20 +96,28 @@ log "   $USER 를 libvirt, kvm 그룹에 추가 완료"
 # KVM 사용 가능 확인
 sudo kvm-ok || error_exit "KVM을 사용할 수 없습니다. BIOS에서 가상화를 활성화하세요."
 
+# nftables 먼저 시작 (libvirtd보다 먼저 올라와야 backend 전환이 유효함)
+sudo systemctl enable --now nftables 2>/dev/null || true
+log "   nftables 서비스 활성화 완료"
+
 # libvirtd 시작 전 nftables 백엔드 설정
 # Ubuntu 24.04는 nftables 사용 → 먼저 설정해야 첫 시작부터 올바른 백엔드 사용
 LIBVIRT_NET_CONF="/etc/libvirt/network.conf"
 sudo mkdir -p /etc/libvirt
-if grep -q 'firewall_backend' "$LIBVIRT_NET_CONF" 2>/dev/null; then
-  sudo sed -i 's/.*firewall_backend.*/firewall_backend = "nftables"/' "$LIBVIRT_NET_CONF"
-else
-  echo 'firewall_backend = "nftables"' | sudo tee -a "$LIBVIRT_NET_CONF" > /dev/null
-fi
-log "   libvirt firewall_backend = nftables 설정 완료"
+# 파일 전체를 덮어써서 주석 라인 매칭 실패나 중복 항목 문제를 방지
+sudo tee "$LIBVIRT_NET_CONF" > /dev/null <<'EOF'
+firewall_backend = "nftables"
+EOF
+log "   libvirt firewall_backend = nftables 설정 완료 ($LIBVIRT_NET_CONF)"
 
 # libvirtd 시작/재시작 (설정 변경 반영을 위해 restart 사용)
 sudo systemctl enable libvirtd
 sudo systemctl restart libvirtd
+# libvirtd가 완전히 뜰 때까지 대기 (소켓 준비 확인)
+for i in $(seq 1 10); do
+  sudo virsh list --all > /dev/null 2>&1 && break
+  sleep 1
+done
 log "   libvirtd 재시작 완료 (nftables 백엔드 적용)"
 
 # ────────────────────────────────────────────
@@ -162,7 +171,7 @@ sudo udevadm trigger --subsystem-match=char 2>/dev/null || true
 log "   udev rule 추가 완료 (재부팅 후에도 유지)"
 
 # ────────────────────────────────────────────
-# 7. libvirt 기본 네트워크 확인 및 NAT 동작 검증
+# 7. libvirt 기본 네트워크 확인 및 NAT 영구 설정
 # ────────────────────────────────────────────
 log "7. libvirt 네트워크 확인 중..."
 
@@ -172,29 +181,16 @@ if ! sudo virsh net-list --all | grep -q "default"; then
     || error_exit "default 네트워크 정의 실패. /usr/share/libvirt/networks/default.xml 확인하세요."
 fi
 
-# 이미 실행 중이면 재시작하여 nftables 규칙 재적용
-if sudo virsh net-list | grep -q "default.*active"; then
-  sudo virsh net-destroy default 2>/dev/null || true
-fi
-sudo virsh net-start default \
-  || error_exit "default 네트워크 시작 실패. 'sudo virsh net-start default' 수동 확인하세요."
-sudo virsh net-autostart default 2>/dev/null || true
-log "   libvirt default 네트워크 활성화 완료"
-
-# ip_forward 영구 활성화
+# ip_forward 영구 활성화 (net-start 전에 설정해야 포워딩 가능)
 sudo sysctl -w net.ipv4.ip_forward=1 > /dev/null
 if ! grep -q 'net.ipv4.ip_forward' /etc/sysctl.d/99-libvirt-nat.conf 2>/dev/null; then
   echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-libvirt-nat.conf > /dev/null
 fi
 log "   ip_forward 활성화 완료"
 
-# NAT 동작 검증 및 필요 시 nftables 규칙 추가
-# Ubuntu 24.04는 nftables 환경 → iptables 명령 대신 nft 직접 사용
-# oif != "virbr0" 패턴: 호스트 인터페이스명 하드코딩 없이 외부 인터페이스 전체에 적용
-# → VM IP 동적 부여, 호스트 NIC 이름 변경 모두 자동 대응
+# libvirt default 네트워크 서브넷 동적 감지 (net-start 전에 수행: 정의만 있으면 가능)
 log "   호스트 인터넷 인터페이스: $(ip route | awk '/^default/{print $5; exit}')"
 
-# libvirt default 네트워크 서브넷 동적 감지
 LIBVIRT_SUBNET=$(sudo virsh net-dumpxml default 2>/dev/null \
   | grep -oP 'address="\K[0-9.]+' | head -1)
 LIBVIRT_PREFIX=$(sudo virsh net-dumpxml default 2>/dev/null \
@@ -210,30 +206,14 @@ fi
 LIBVIRT_NET="${LIBVIRT_SUBNET:-192.168.122.0}/${LIBVIRT_PREFIX:-24}"
 log "   libvirt 네트워크 서브넷: $LIBVIRT_NET"
 
-NAT_OK=false
-sudo nft list ruleset 2>/dev/null | grep -q "masquerade" && NAT_OK=true
-
-if [[ "$NAT_OK" == "false" ]]; then
-  warn "NAT masquerade 규칙 없음 → nftables 규칙 추가"
-
-  sudo nft add table ip libvirt_helper 2>/dev/null || true
-  sudo nft add chain ip libvirt_helper postrouting \
-    '{ type nat hook postrouting priority srcnat; }' 2>/dev/null || true
-  sudo nft add rule ip libvirt_helper postrouting \
-    ip saddr "$LIBVIRT_NET" oif != "virbr0" masquerade 2>/dev/null || true
-  sudo nft add chain ip libvirt_helper forward \
-    '{ type filter hook forward priority filter; }' 2>/dev/null || true
-  sudo nft add rule ip libvirt_helper forward \
-    iif "virbr0" oif != "virbr0" accept 2>/dev/null || true
-  sudo nft add rule ip libvirt_helper forward \
-    iif != "virbr0" oif "virbr0" ct state related,established accept 2>/dev/null || true
-
-  log "   nftables NAT 규칙 추가 완료 (서브넷: $LIBVIRT_NET)"
-
-  # 재부팅 후 유지: /etc/nftables.d/ 에 저장
-  # 인터페이스명 대신 virbr0 기준 상대 조건 사용 → 동적 대응
-  sudo mkdir -p /etc/nftables.d
-  sudo tee /etc/nftables.d/99-libvirt-nat.nft > /dev/null << EOF
+# nftables 백업 NAT 규칙 항상 저장
+# - libvirt가 net-start 시 자체 nftables 규칙(masquerade)을 추가하지만
+#   재부팅 시 서비스 시작 타이밍에 따라 규칙이 없을 수 있음
+# - libvirt_helper 테이블은 libvirt 규칙과 독립적으로 NAT를 보장하는 폴백
+# - nftables.service는 libvirtd보다 먼저 시작(Before=network.target)되므로
+#   부팅 시 libvirt_helper가 먼저 로드되고 libvirt가 자체 규칙을 추가함 → 충돌 없음
+sudo mkdir -p /etc/nftables.d
+sudo tee /etc/nftables.d/99-libvirt-nat.nft > /dev/null << EOF
 table ip libvirt_helper {
   chain postrouting {
     type nat hook postrouting priority srcnat;
@@ -247,14 +227,38 @@ table ip libvirt_helper {
 }
 EOF
 
-  if ! grep -q 'nftables.d' /etc/nftables.conf 2>/dev/null; then
-    echo 'include "/etc/nftables.d/*.nft"' | sudo tee -a /etc/nftables.conf > /dev/null
-  fi
-  sudo systemctl enable --now nftables 2>/dev/null || true
-  log "   nftables 규칙 저장 완료 (/etc/nftables.d/99-libvirt-nat.nft, 재부팅 후 유지)"
-else
-  log "   NAT masquerade 규칙 확인 완료"
+if ! grep -q 'nftables.d' /etc/nftables.conf 2>/dev/null; then
+  echo 'include "/etc/nftables.d/*.nft"' | sudo tee -a /etc/nftables.conf > /dev/null
 fi
+# nftables 서비스는 위에서 이미 활성화됨 — 설정 파일만 reload
+sudo systemctl reload-or-restart nftables 2>/dev/null || true
+log "   nftables NAT 백업 규칙 저장 완료 (/etc/nftables.d/99-libvirt-nat.nft)"
+
+# 현재 세션에 live 규칙 즉시 적용 (net-start 전 시점 기준으로 확인)
+if ! sudo nft list ruleset 2>/dev/null | grep -q "libvirt_helper"; then
+  sudo nft add table ip libvirt_helper 2>/dev/null || true
+  sudo nft add chain ip libvirt_helper postrouting \
+    '{ type nat hook postrouting priority srcnat; }' 2>/dev/null || true
+  sudo nft add rule ip libvirt_helper postrouting \
+    ip saddr "$LIBVIRT_NET" oif != "virbr0" masquerade 2>/dev/null || true
+  sudo nft add chain ip libvirt_helper forward \
+    '{ type filter hook forward priority filter; }' 2>/dev/null || true
+  sudo nft add rule ip libvirt_helper forward \
+    iif "virbr0" oif != "virbr0" accept 2>/dev/null || true
+  sudo nft add rule ip libvirt_helper forward \
+    iif != "virbr0" oif "virbr0" ct state related,established accept 2>/dev/null || true
+  log "   libvirt_helper 테이블 live 적용 완료"
+fi
+
+# 이미 실행 중이면 재시작하여 libvirt nftables 규칙 재적용
+# ⚠️ net-destroy는 연결된 VM 네트워크를 일시 단절함 (초기 설정 단계에서만 실행 권장)
+if sudo virsh net-list | grep -q "default.*active"; then
+  sudo virsh net-destroy default 2>/dev/null || true
+fi
+sudo virsh net-start default \
+  || error_exit "default 네트워크 시작 실패. 'sudo virsh net-start default' 수동 확인하세요."
+sudo virsh net-autostart default 2>/dev/null || true
+log "   libvirt default 네트워크 활성화 완료"
 
 # ────────────────────────────────────────────
 # 완료

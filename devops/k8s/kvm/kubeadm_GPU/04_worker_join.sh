@@ -3,11 +3,12 @@
 # worker 노드를 k8s 클러스터에 join
 # worker 노드에서 실행 (02_node_setup.sh + 재부팅 후 실행)
 #
-# 사용법 1 (인수):
-#   bash 04_worker_join.sh "kubeadm join <ip>:6443 --token xxx --discovery-token-ca-cert-hash sha256:xxx"
+# 사용법 1 (자동, 권장):
+#   bash 04_worker_join.sh
+#   → ubuntu@k8s-master (DNS) 로 SSH 접속해 토큰을 자동 발급받아 join
 #
-# 사용법 2 (환경변수):
-#   MASTER_IP=192.168.1.10 TOKEN=xxx HASH=xxx bash 04_worker_join.sh
+# 사용법 2 (인수):
+#   bash 04_worker_join.sh "kubeadm join <ip>:6443 --token xxx --discovery-token-ca-cert-hash sha256:xxx"
 #
 # master에서 join 명령 확인:
 #   cat ~/k8s-setup/worker_join.sh
@@ -42,24 +43,25 @@ fi
 # ────────────────────────────────────────────
 # kubeadm join 실행
 # ────────────────────────────────────────────
+MASTER="ubuntu@k8s-master"
+
 if [[ -n "$1" ]]; then
   log "join 실행 중 (인수 방식)..."
   sudo $1
 
-elif [[ -n "$MASTER_IP" && -n "$TOKEN" && -n "$HASH" ]]; then
-  log "join 실행 중 (master: $MASTER_IP)..."
-  sudo kubeadm join "${MASTER_IP}:6443" \
-    --token "$TOKEN" \
-    --discovery-token-ca-cert-hash "sha256:${HASH}"
-
 else
-  error_exit "join 명령이 없습니다.
+  log "SSH로 $MASTER 에서 join 명령 자동 발급 중..."
 
-사용법 1: bash 04_worker_join.sh \"kubeadm join <ip>:6443 --token xxx --discovery-token-ca-cert-hash sha256:xxx\"
-사용법 2: MASTER_IP=x.x.x.x TOKEN=xxx HASH=xxx bash 04_worker_join.sh
+  ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+    "$MASTER" "command -v kubeadm > /dev/null" \
+    || error_exit "master($MASTER) SSH 접속 실패. SSH 키 설정을 확인하세요."
 
-master에서 join 명령 확인:
-  cat ~/k8s-setup/worker_join.sh"
+  JOIN_CMD=$(ssh -o StrictHostKeyChecking=no "$MASTER" \
+    "sudo kubeadm token create --print-join-command 2>/dev/null")
+
+  [[ -z "$JOIN_CMD" ]] && error_exit "master에서 join 명령 발급 실패."
+  log "join 명령 수신 완료 → 실행 중..."
+  sudo $JOIN_CMD
 fi
 
 # ────────────────────────────────────────────

@@ -16,7 +16,7 @@ K8S_SETUP_DIR="$HOME/k8s-setup"
 log()        { echo "[$(date '+%H:%M:%S')] $1"; }
 error_exit() { echo "❌ ERROR: $1"; exit 1; }
 
-log "=== Phase 2: Master 초기화 시작 ==="
+log "=== Phase 3: Master 초기화 시작 ==="
 log "   단일 노드 모드: $SINGLE_NODE"
 
 # ────────────────────────────────────────────
