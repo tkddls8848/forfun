@@ -131,7 +131,10 @@ resource "aws_instance" "openclaw" {
     instance_name = var.instance_name
   }))
 
-  tags = merge(var.tags, { Name = var.instance_name })
+  tags = merge(var.tags, {
+    Name      = var.instance_name
+    AutoStart = "true" # Lambda 함수가 이 태그로 인스턴스를 식별
+  })
 
   lifecycle {
     ignore_changes = [user_data, ami]
@@ -144,4 +147,134 @@ resource "aws_eip" "openclaw" {
   domain   = "vpc"
 
   tags = merge(var.tags, { Name = "${var.instance_name}-eip" })
+}
+
+# ══════════════════════════════════════════════════════════════════════════
+# EC2 자동 스케줄링 (매일 한국시간 오전 5시 시작, 오전 9시 종료)
+# ══════════════════════════════════════════════════════════════════════════
+
+# ── Lambda IAM 역할 ────────────────────────────────────────────────────────
+resource "aws_iam_role" "lambda_scheduler" {
+  name = "${var.instance_name}-lambda-scheduler-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = var.tags
+}
+
+# Lambda가 EC2를 제어할 수 있는 정책
+resource "aws_iam_role_policy" "lambda_ec2_control" {
+  name = "${var.instance_name}-lambda-ec2-policy"
+  role = aws_iam_role.lambda_scheduler.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeInstances",
+          "ec2:StartInstances",
+          "ec2:StopInstances"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      }
+    ]
+  })
+}
+
+# ── Lambda 함수 ────────────────────────────────────────────────────────────
+data "archive_file" "lambda_scheduler" {
+  type        = "zip"
+  source_file = "${path.module}/lambda/ec2_scheduler.py"
+  output_path = "${path.module}/lambda/ec2_scheduler.zip"
+}
+
+resource "aws_lambda_function" "ec2_scheduler" {
+  filename         = data.archive_file.lambda_scheduler.output_path
+  function_name    = "${var.instance_name}-scheduler"
+  role             = aws_iam_role.lambda_scheduler.arn
+  handler          = "ec2_scheduler.lambda_handler"
+  source_code_hash = data.archive_file.lambda_scheduler.output_base64sha256
+  runtime          = "python3.12"
+  timeout          = 60
+
+  environment {
+    variables = {
+      AWS_REGION = var.aws_region
+    }
+  }
+
+  tags = merge(var.tags, { Name = "${var.instance_name}-scheduler" })
+}
+
+# ── EventBridge 스케줄러 ───────────────────────────────────────────────────
+# 한국시간 오전 5시 = UTC 20시 (전날) → 매일 20:00 UTC에 시작
+resource "aws_cloudwatch_event_rule" "start_instance" {
+  name                = "${var.instance_name}-start-schedule"
+  description         = "Start OpenClaw instance at 5 AM KST (8 PM UTC)"
+  schedule_expression = "cron(0 20 * * ? *)"
+
+  tags = var.tags
+}
+
+resource "aws_cloudwatch_event_target" "start_instance" {
+  rule      = aws_cloudwatch_event_rule.start_instance.name
+  target_id = "StartInstance"
+  arn       = aws_lambda_function.ec2_scheduler.arn
+
+  input = jsonencode({
+    action = "start"
+  })
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_start" {
+  statement_id  = "AllowExecutionFromEventBridgeStart"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ec2_scheduler.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.start_instance.arn
+}
+
+# 한국시간 오전 9시 = UTC 0시 (당일) → 매일 00:00 UTC에 중지
+resource "aws_cloudwatch_event_rule" "stop_instance" {
+  name                = "${var.instance_name}-stop-schedule"
+  description         = "Stop OpenClaw instance at 9 AM KST (12 AM UTC)"
+  schedule_expression = "cron(0 0 * * ? *)"
+
+  tags = var.tags
+}
+
+resource "aws_cloudwatch_event_target" "stop_instance" {
+  rule      = aws_cloudwatch_event_rule.stop_instance.name
+  target_id = "StopInstance"
+  arn       = aws_lambda_function.ec2_scheduler.arn
+
+  input = jsonencode({
+    action = "stop"
+  })
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_stop" {
+  statement_id  = "AllowExecutionFromEventBridgeStop"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ec2_scheduler.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.stop_instance.arn
 }

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(aws lightsail get-instances:*)"
+    ]
+  }
+}
