@@ -31,14 +31,21 @@ usermod -aG docker ubuntu
 echo "==> [4/5] OpenClaw 설치"
 # ubuntu 유저로 설치
 sudo -u ubuntu bash << 'OPENCLAW_INSTALL'
+  set -euo pipefail
   cd /home/ubuntu
 
-  # pnpm 설치
-  npm install -g pnpm@latest
+  # pnpm 공식 설치 스크립트 사용
+  export PNPM_HOME="/home/ubuntu/.local/share/pnpm"
+  curl -fsSL https://get.pnpm.io/install.sh | env PNPM_HOME="$PNPM_HOME" sh -
+  export PATH="$PNPM_HOME:$PATH"
 
   # OpenClaw 글로벌 설치
   pnpm add -g openclaw@latest
   pnpm approve-builds -g
+
+  # PATH 영구 등록
+  echo 'export PNPM_HOME="/home/ubuntu/.local/share/pnpm"' >> /home/ubuntu/.bashrc
+  echo 'export PATH="$PNPM_HOME:$PATH"' >> /home/ubuntu/.bashrc
 
   # OpenClaw 초기화 (daemon 모드)
   openclaw onboard --install-daemon --non-interactive || true

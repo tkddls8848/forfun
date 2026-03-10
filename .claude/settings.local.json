@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(aws lightsail get-instances:*)"
+      "Bash(aws lightsail get-instances:*)",
+      "Bash(terraform version:*)",
+      "Bash(which winget:*)",
+      "Bash(aws configure:*)"
     ]
   }
 }

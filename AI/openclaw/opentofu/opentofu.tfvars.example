@@ -1,0 +1,27 @@
+# cp opentofu.tfvars.example terraform.tfvars 후 수정
+
+aws_region        = "ap-northeast-2"
+availability_zone = "ap-northeast-2a"
+instance_name     = "openclaw"
+instance_type     = "t3.large"
+ebs_volume_size   = 80
+
+# EC2 키 페어 이름 (aws ec2 create-key-pair --key-name openclaw-key)
+key_pair_name = "openclaw-key"
+
+# SSH 접속 허용 IP — 본인 IP로 제한 강력 권장
+# curl ifconfig.me 로 확인
+allowed_ssh_cidrs = ["YOUR_IP/32"]
+allowed_ui_cidrs  = ["YOUR_IP/32"]
+
+# Ubuntu 24.04 LTS AMI (서울 리전) — 배포 전 아래 명령으로 최신 ID 확인 권장
+# aws ec2 describe-images --region ap-northeast-2 --owners 099720109477 \
+#   --filters 'Name=name,Values=ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*' \
+#   --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text
+ubuntu_ami = "ami-0c9c942bd7bf113a2"
+
+tags = {
+  Project   = "openclaw"
+  ManagedBy = "opentofu"
+  Env       = "prod"
+}

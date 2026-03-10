@@ -215,21 +215,15 @@ resource "aws_lambda_function" "ec2_scheduler" {
   runtime          = "python3.12"
   timeout          = 60
 
-  environment {
-    variables = {
-      AWS_REGION = var.aws_region
-    }
-  }
-
   tags = merge(var.tags, { Name = "${var.instance_name}-scheduler" })
 }
 
 # ── EventBridge 스케줄러 ───────────────────────────────────────────────────
-# 한국시간 오전 5시 = UTC 20시 (전날) → 매일 20:00 UTC에 시작
+# 한국시간 오후 8시 = UTC 11시 → 매일 11:00 UTC에 시작
 resource "aws_cloudwatch_event_rule" "start_instance" {
   name                = "${var.instance_name}-start-schedule"
-  description         = "Start OpenClaw instance at 5 AM KST (8 PM UTC)"
-  schedule_expression = "cron(0 20 * * ? *)"
+  description         = "Start OpenClaw instance at 8 PM KST (11 AM UTC)"
+  schedule_expression = "cron(0 11 * * ? *)"
 
   tags = var.tags
 }
@@ -252,11 +246,11 @@ resource "aws_lambda_permission" "allow_eventbridge_start" {
   source_arn    = aws_cloudwatch_event_rule.start_instance.arn
 }
 
-# 한국시간 오전 9시 = UTC 0시 (당일) → 매일 00:00 UTC에 중지
+# 한국시간 오후 11시 55분 = UTC 14시 55분 → 매일 14:55 UTC에 중지
 resource "aws_cloudwatch_event_rule" "stop_instance" {
   name                = "${var.instance_name}-stop-schedule"
-  description         = "Stop OpenClaw instance at 9 AM KST (12 AM UTC)"
-  schedule_expression = "cron(0 0 * * ? *)"
+  description         = "Stop OpenClaw instance at 11:55 PM KST (2:55 PM UTC)"
+  schedule_expression = "cron(55 14 * * ? *)"
 
   tags = var.tags
 }

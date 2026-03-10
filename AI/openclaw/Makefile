@@ -1,45 +1,45 @@
 .PHONY: init plan apply apply-auto destroy ssh token bedrock-setup url output fmt validate ami clean help status start stop schedule lambda-logs
 
-TERRAFORM_DIR := terraform
+TERRAFORM_DIR := opentofu
 SCRIPTS_DIR   := scripts
 
 ## ── Terraform ──────────────────────────────────────────────────────────────
 
 init:
-	cd $(TERRAFORM_DIR) && terraform init
+	cd $(TERRAFORM_DIR) && tofu init
 
 plan:
-	cd $(TERRAFORM_DIR) && terraform plan
+	cd $(TERRAFORM_DIR) && tofu plan
 
 apply:
-	cd $(TERRAFORM_DIR) && terraform apply
+	cd $(TERRAFORM_DIR) && tofu apply
 
 apply-auto:
-	cd $(TERRAFORM_DIR) && terraform apply -auto-approve
+	cd $(TERRAFORM_DIR) && tofu apply -auto-approve
 
 destroy:
-	cd $(TERRAFORM_DIR) && terraform destroy
+	cd $(TERRAFORM_DIR) && tofu destroy
 
 fmt:
-	cd $(TERRAFORM_DIR) && terraform fmt -recursive
+	cd $(TERRAFORM_DIR) && tofu fmt -recursive
 
 validate: init
-	cd $(TERRAFORM_DIR) && terraform validate
+	cd $(TERRAFORM_DIR) && tofu validate
 
 output:
-	cd $(TERRAFORM_DIR) && terraform output
+	cd $(TERRAFORM_DIR) && tofu output
 
 ## ── 운영 ───────────────────────────────────────────────────────────────────
 
 # SSH 접속
 ssh:
-	@IP=$$(cd $(TERRAFORM_DIR) && terraform output -raw public_ip); \
+	@IP=$$(cd $(TERRAFORM_DIR) && tofu output -raw public_ip); \
 	echo "==> ssh ubuntu@$$IP"; \
 	ssh -o StrictHostKeyChecking=no ubuntu@$$IP
 
 # 설치 로그 실시간 확인
 log:
-	@IP=$$(cd $(TERRAFORM_DIR) && terraform output -raw public_ip); \
+	@IP=$$(cd $(TERRAFORM_DIR) && tofu output -raw public_ip); \
 	ssh -o StrictHostKeyChecking=no ubuntu@$$IP 'tail -f /var/log/openclaw-setup.log'
 
 # 게이트웨이 토큰 확인
@@ -52,17 +52,17 @@ bedrock-setup:
 
 # UI URL 출력
 url:
-	@cd $(TERRAFORM_DIR) && terraform output -raw openclaw_ui_url
+	@cd $(TERRAFORM_DIR) && tofu output -raw openclaw_ui_url
 
 # 예상 월 비용 출력
 cost:
-	@cd $(TERRAFORM_DIR) && terraform output -json estimated_monthly_cost | python3 -m json.tool
+	@cd $(TERRAFORM_DIR) && tofu output -json estimated_monthly_cost | python3 -m json.tool
 
 ## ── 자동 스케줄링 ──────────────────────────────────────────────────────────
 
 # 인스턴스 상태 확인
 status:
-	@INSTANCE_ID=$$(cd $(TERRAFORM_DIR) && terraform output -raw instance_id); \
+	@INSTANCE_ID=$$(cd $(TERRAFORM_DIR) && tofu output -raw instance_id); \
 	echo "==> 인스턴스 상태 확인: $$INSTANCE_ID"; \
 	aws ec2 describe-instances --instance-ids $$INSTANCE_ID \
 		--query 'Reservations[0].Instances[0].{State:State.Name,LaunchTime:LaunchTime,InstanceType:InstanceType}' \
@@ -70,30 +70,30 @@ status:
 
 # 인스턴스 수동 시작
 start:
-	@INSTANCE_ID=$$(cd $(TERRAFORM_DIR) && terraform output -raw instance_id); \
+	@INSTANCE_ID=$$(cd $(TERRAFORM_DIR) && tofu output -raw instance_id); \
 	echo "==> 인스턴스 시작: $$INSTANCE_ID"; \
 	aws ec2 start-instances --instance-ids $$INSTANCE_ID
 
 # 인스턴스 수동 중지
 stop:
-	@INSTANCE_ID=$$(cd $(TERRAFORM_DIR) && terraform output -raw instance_id); \
+	@INSTANCE_ID=$$(cd $(TERRAFORM_DIR) && tofu output -raw instance_id); \
 	echo "==> 인스턴스 중지: $$INSTANCE_ID"; \
 	aws ec2 stop-instances --instance-ids $$INSTANCE_ID
 
 # 스케줄 정보 확인
 schedule:
 	@echo "==> 자동 스케줄링 정보"; \
-	cd $(TERRAFORM_DIR) && terraform output -json schedule_info | python3 -m json.tool
+	cd $(TERRAFORM_DIR) && tofu output -json schedule_info | python3 -m json.tool
 
 # Lambda 로그 확인
 lambda-logs:
-	@LAMBDA_NAME=$$(cd $(TERRAFORM_DIR) && terraform output -raw lambda_function_name); \
+	@LAMBDA_NAME=$$(cd $(TERRAFORM_DIR) && tofu output -raw lambda_function_name); \
 	echo "==> Lambda 로그 확인: $$LAMBDA_NAME"; \
 	aws logs tail /aws/lambda/$$LAMBDA_NAME --follow
 
 # Lambda 함수 테스트 (시작)
 lambda-test-start:
-	@LAMBDA_NAME=$$(cd $(TERRAFORM_DIR) && terraform output -raw lambda_function_name); \
+	@LAMBDA_NAME=$$(cd $(TERRAFORM_DIR) && tofu output -raw lambda_function_name); \
 	echo "==> Lambda 테스트 (시작): $$LAMBDA_NAME"; \
 	aws lambda invoke --function-name $$LAMBDA_NAME \
 		--payload '{"action":"start"}' \
@@ -102,7 +102,7 @@ lambda-test-start:
 
 # Lambda 함수 테스트 (중지)
 lambda-test-stop:
-	@LAMBDA_NAME=$$(cd $(TERRAFORM_DIR) && terraform output -raw lambda_function_name); \
+	@LAMBDA_NAME=$$(cd $(TERRAFORM_DIR) && tofu output -raw lambda_function_name); \
 	echo "==> Lambda 테스트 (중지): $$LAMBDA_NAME"; \
 	aws lambda invoke --function-name $$LAMBDA_NAME \
 		--payload '{"action":"stop"}' \
@@ -111,7 +111,7 @@ lambda-test-stop:
 
 ## ── 유틸리티 ───────────────────────────────────────────────────────────────
 
-# 서울 리전 최신 Ubuntu 22.04 AMI 조회
+# 서울 리전 최신 Ubuntu 24.04 AMI 조회
 ami:
 	@bash $(SCRIPTS_DIR)/get_latest_ami.sh ap-northeast-2
 

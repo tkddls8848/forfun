@@ -1,12 +1,12 @@
 # OpenClaw on AWS EC2 with Auto-Scheduling
 
-AWS EC2에서 OpenClaw를 자동으로 배포하고, 매일 정해진 시간에 자동으로 시작/종료되도록 구성한 Terraform 프로젝트입니다.
+AWS EC2에서 OpenClaw를 자동으로 배포하고, 매일 정해진 시간에 자동으로 시작/종료되도록 구성한 OpenTofu 프로젝트입니다.
 
 ## 주요 기능
 
-- **EC2 인스턴스**: Ubuntu 22.04 LTS 기반 t3.large (2 vCPU, 8GB RAM)
-- **자동 스케줄링**: 매일 한국시간 오전 5시 시작, 오전 9시 종료 (4시간 운영)
-- **비용 절감**: 24시간 운영 대비 약 70% 비용 절감 (~$80/월 → ~$24/월)
+- **EC2 인스턴스**: Ubuntu 24.04 LTS 기반 t3.large (2 vCPU, 8GB RAM)
+- **자동 스케줄링**: 매일 한국시간 오후 8시 시작, 오후 11시 55분 종료 (3시간 55분 운영)
+- **비용 절감**: 24시간 운영 대비 약 88% 비용 절감 (~$80/월 → ~$9/월)
 - **AWS Bedrock 통합**: IAM 역할을 통한 Bedrock API 접근 권한 포함
 - **자동 설치**: user_data를 통한 OpenClaw 자동 설치 및 구성
 
@@ -52,16 +52,16 @@ AWS EC2에서 OpenClaw를 자동으로 배포하고, 매일 정해진 시간에 
 ## 비용 예상
 
 ### 자동 스케줄링 활성화 (매일 4시간 운영)
-- **EC2 (t3.large)**: ~$11.1/월 (4h × 30일 × $0.0928/h)
+- **EC2 (t3.large)**: ~$10.9/월 (3.92h × 30일 × $0.0928/h)
 - **EBS (gp3 80GB)**: ~$6.4/월
 - **Elastic IP**: ~$3.6/월
 - **Lambda**: $0 (월 100만 요청 무료)
-- **총 예상 비용**: **~$23~26/월**
+- **총 예상 비용**: **~$18~21/월**
 
 ### 24시간 운영 시
 - **총 예상 비용**: **~$80~83/월**
 
-**비용 절감**: 약 **70%** (연간 약 $650 절약)
+**비용 절감**: 약 **75%** (연간 약 $740 절약)
 
 ## 사전 요구사항
 
@@ -70,18 +70,22 @@ AWS EC2에서 OpenClaw를 자동으로 배포하고, 매일 정해진 시간에 
    aws configure
    ```
 
-2. **Terraform 설치**
+2. **OpenTofu 설치**
    ```bash
    # macOS
-   brew install terraform
+   brew install opentofu
 
-   # Windows (Chocolatey)
-   choco install terraform
+   # Windows (Chocolatey 권장)
+   choco install opentofu
 
-   # Linux
-   wget https://releases.hashicorp.com/terraform/1.7.0/terraform_1.7.0_linux_amd64.zip
-   unzip terraform_1.7.0_linux_amd64.zip
-   sudo mv terraform /usr/local/bin/
+   # Windows (Scoop)
+   scoop install opentofu
+
+   # Linux (tofuenv 권장)
+   git clone https://github.com/tofuutils/tofuenv.git ~/.tofuenv
+   export PATH="$HOME/.tofuenv/bin:$PATH"
+   tofuenv install latest
+   tofuenv use latest
    ```
 
 3. **AWS 권한**
@@ -92,8 +96,8 @@ AWS EC2에서 OpenClaw를 자동으로 배포하고, 매일 정해진 시간에 
 ### 1. 설정 파일 생성
 
 ```bash
-cd terraform
-cp terraform.tfvars.example terraform.tfvars
+cd opentofu
+cp opentofu.tfvars.example terraform.tfvars
 ```
 
 `terraform.tfvars` 파일 편집:
@@ -110,17 +114,17 @@ allowed_ui_cidrs  = ["YOUR_IP_ADDRESS/32"]  # 본인 IP로 제한
 # instance_type = "t3.medium"  # 더 작은 사이즈로 변경 시
 ```
 
-### 2. Terraform 초기화 및 배포
+### 2. OpenTofu 초기화 및 배포
 
 ```bash
-terraform init
-terraform plan
-terraform apply
+tofu init
+tofu plan
+tofu apply
 ```
 
 배포 완료 후 출력 정보 확인:
 ```bash
-terraform output
+tofu output
 ```
 
 ### 3. OpenClaw 접속
@@ -132,7 +136,7 @@ terraform output
 http://<ELASTIC_IP>:18789
 
 # 토큰 확인
-ssh ubuntu@<ELASTIC_IP> 'cat /home/ubuntu/.openclaw/.env | grep TOKEN'
+ssh ubuntu@<ELASTIC_IP> 'grep TOKEN /home/ubuntu/.openclaw/.env'
 
 # 설치 로그 확인
 ssh ubuntu@<ELASTIC_IP> 'tail -f /var/log/openclaw-setup.log'
@@ -143,16 +147,16 @@ ssh ubuntu@<ELASTIC_IP> 'tail -f /var/log/openclaw-setup.log'
 ### 스케줄 확인
 
 ```bash
-# Terraform output으로 확인
-terraform output schedule_info
+# OpenTofu output으로 확인
+tofu output schedule_info
 ```
 
 출력 예시:
 ```
 {
-  "start_time_kst" = "매일 오전 5시 (KST)"
-  "stop_time_kst" = "매일 오전 9시 (KST)"
-  "daily_runtime" = "4시간"
+  "start_time_kst" = "매일 오후 8시 (KST)"
+  "stop_time_kst" = "매일 오후 11시 55분 (KST)"
+  "daily_runtime" = "3시간 55분"
   "status" = "활성화됨"
 }
 ```
@@ -189,13 +193,13 @@ resource "aws_cloudwatch_event_rule" "start_instance" {
 
 # 중지 시간 변경 (예: 오전 10시 KST = 01:00 UTC)
 resource "aws_cloudwatch_event_rule" "stop_instance" {
-  schedule_expression = "cron(0 1 * * ? *)"   # 시간 수정
+  schedule_expression = "cron(55 0 * * ? *)"   # 시간 수정 (분 먼저, 시간 다음)
 }
 ```
 
 변경 후 적용:
 ```bash
-terraform apply
+tofu apply
 ```
 
 ### 자동 스케줄링 비활성화
@@ -259,7 +263,10 @@ OpenClaw UI에서:
 1. Settings → AI Provider
 2. "AWS Bedrock" 선택
 3. 리전: `ap-northeast-2` (서울)
-4. 모델: `anthropic.claude-3-5-sonnet-20241022-v2:0`
+4. 모델: 콘솔에서 활성화된 모델 확인 후 선택
+   - Claude 3.7 Sonnet: `anthropic.claude-3-7-sonnet-20250219-v1:0`
+   - Claude 3.5 Sonnet v2: `anthropic.claude-3-5-sonnet-20241022-v2:0` (이전 세대)
+   - 최신 모델 목록: `aws bedrock list-foundation-models --region ap-northeast-2 --by-provider Anthropic --output table`
 
 EC2 인스턴스의 IAM 역할에 이미 Bedrock 권한이 부여되어 있어 별도의 자격 증명이 필요하지 않습니다.
 
@@ -310,7 +317,7 @@ aws events describe-rule --name openclaw-stop-schedule
 모든 AWS 리소스를 삭제하려면:
 
 ```bash
-terraform destroy
+tofu destroy
 ```
 
 ⚠️ **주의**: 이 명령은 모든 리소스(EC2, Lambda, EventBridge 등)를 삭제합니다. 데이터 백업을 먼저 수행하세요.
@@ -325,12 +332,12 @@ AI/openclaw/
 │   ├── enable_bedrock.sh        # Bedrock 활성화 스크립트
 │   ├── get_latest_ami.sh        # 최신 Ubuntu AMI 조회
 │   └── show_token.sh            # OpenClaw 토큰 표시
-└── terraform/
-    ├── main.tf                  # 메인 Terraform 구성
+└── opentofu/
+    ├── main.tf                  # 메인 OpenTofu 구성
     ├── variables.tf             # 변수 정의
     ├── outputs.tf               # 출력 정의
     ├── versions.tf              # Provider 버전
-    ├── terraform.tfvars.example # 설정 예시
+    ├── opentofu.tfvars.example  # 설정 예시
     ├── user_data.sh.tpl         # EC2 초기화 스크립트
     └── lambda/
         ├── ec2_scheduler.py     # Lambda 함수 코드
@@ -377,4 +384,4 @@ make destroy
 - [AWS Lambda 문서](https://docs.aws.amazon.com/lambda/)
 - [Amazon EventBridge 문서](https://docs.aws.amazon.com/eventbridge/)
 - [AWS Bedrock 문서](https://docs.aws.amazon.com/bedrock/)
-- [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
+- [OpenTofu Registry - AWS Provider](https://registry.opentofu.org/providers/hashicorp/aws/latest/docs)

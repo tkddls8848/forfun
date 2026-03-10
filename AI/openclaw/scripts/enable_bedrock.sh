@@ -26,8 +26,9 @@ ssh -o StrictHostKeyChecking=no ubuntu@"$PUBLIC_IP" bash << 'EOF'
   grep -v '^BEDROCK_AWS_REGION\|^AWS_REGION' "$ENV_FILE" > /tmp/.env.tmp 2>/dev/null || true
   cat >> /tmp/.env.tmp << 'ENVEOF'
 # Bedrock은 EC2 Instance Profile(IAM Role)로 인증 → 별도 키 불필요
-BEDROCK_AWS_REGION=us-east-1
-AWS_REGION=us-east-1
+# 서울 리전(ap-northeast-2)에서 Claude 모델 직접 지원 (2024년부터)
+BEDROCK_AWS_REGION=ap-northeast-2
+AWS_REGION=ap-northeast-2
 ENVEOF
   mv /tmp/.env.tmp "$ENV_FILE"
 

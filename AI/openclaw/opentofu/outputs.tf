@@ -63,11 +63,11 @@ output "lambda_function_name" {
 output "schedule_info" {
   description = "자동 스케줄링 정보"
   value = {
-    start_time_kst = "매일 오전 5시 (KST)"
-    stop_time_kst  = "매일 오전 9시 (KST)"
-    start_time_utc = "매일 20:00 UTC (전날)"
-    stop_time_utc  = "매일 00:00 UTC (당일)"
-    daily_runtime  = "4시간"
+    start_time_kst = "매일 오후 8시 (KST)"
+    stop_time_kst  = "매일 오후 11시 55분 (KST)"
+    start_time_utc = "매일 11:00 UTC"
+    stop_time_utc  = "매일 14:55 UTC"
+    daily_runtime  = "3시간 55분"
     status         = "활성화됨"
   }
 }

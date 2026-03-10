@@ -50,13 +50,14 @@ variable "allowed_ui_cidrs" {
 }
 
 variable "ubuntu_ami" {
-  description = "Ubuntu 22.04 LTS AMI ID (서울 리전)"
+  description = "Ubuntu 24.04 LTS AMI ID (서울 리전)"
   type        = string
+  # 최신 AMI 조회:
   # aws ec2 describe-images --region ap-northeast-2 \
   #   --owners 099720109477 \
-  #   --filters 'Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*' \
-  #   --query 'sort_by(Images,&CreationDate)[-1].ImageId'
-  default = "ami-042e76978adeb8c48" # Ubuntu 22.04 LTS (서울, 2024년 기준)
+  #   --filters 'Name=name,Values=ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*' \
+  #   --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text
+  default = "ami-0c9c942bd7bf113a2" # Ubuntu 24.04 LTS (서울, 확인 필요)
 }
 
 variable "tags" {
@@ -64,7 +65,7 @@ variable "tags" {
   type        = map(string)
   default = {
     Project   = "openclaw"
-    ManagedBy = "terraform"
+    ManagedBy = "opentofu"
     Env       = "prod"
   }
 }
