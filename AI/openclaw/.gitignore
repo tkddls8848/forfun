@@ -1,12 +1,19 @@
 # Terraform / OpenTofu
 **/.terraform/
-**/.terraform.lock.hcl
 **/terraform.tfstate
 **/terraform.tfstate.backup
+**/.terraform.tfstate.lock.info
 **/terraform.tfvars
+**/opentofu.tfvars
 *.tfplan
+
+# Lambda 빌드 아티팩트
+**/lambda/*.zip
 
 # 민감 정보
 .env
 *.pem
 *.key
+
+**/.claude
+

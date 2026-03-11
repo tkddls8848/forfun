@@ -1,4 +1,4 @@
-# cp opentofu.tfvars.example terraform.tfvars 후 수정
+# cp opentofu.tfvars.example opentofu.tfvars 후 수정
 
 aws_region        = "ap-northeast-2"
 availability_zone = "ap-northeast-2a"

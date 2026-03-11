@@ -97,21 +97,49 @@ AWS EC2에서 OpenClaw를 자동으로 배포하고, 매일 정해진 시간에 
 
 ```bash
 cd opentofu
-cp opentofu.tfvars.example terraform.tfvars
+cp opentofu.tfvars.example opentofu.tfvars
 ```
 
-`terraform.tfvars` 파일 편집:
+`opentofu.tfvars` 파일 편집:
+
+### 반드시 직접 설정해야 하는 값
+
+| 변수 | 설명 | 설정 방법 |
+|------|------|-----------|
+| `key_pair_name` | AWS EC2 키 페어 이름 | AWS 콘솔 또는 `aws ec2 create-key-pair --key-name openclaw-key --query 'KeyMaterial' --output text > openclaw-key.pem` |
+| `allowed_ssh_cidrs` | SSH 허용 IP (보안상 본인 IP 필수) | `curl ifconfig.me` 로 확인 후 `["x.x.x.x/32"]` 형식 |
+| `allowed_ui_cidrs` | OpenClaw UI 허용 IP | 위와 동일 |
+| `ubuntu_ami` | Ubuntu 24.04 LTS AMI ID | 아래 명령으로 최신 ID 확인 (기본값이 구버전일 수 있음) |
+
+```bash
+# 최신 AMI ID 확인 (배포 전 실행 권장)
+aws ec2 describe-images --region ap-northeast-2 \
+  --owners 099720109477 \
+  --filters 'Name=name,Values=ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*' \
+  --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text
+```
+
+### 선택적으로 변경 가능한 값 (기본값 사용 가능)
+
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `aws_region` | `ap-northeast-2` | AWS 리전 (서울) |
+| `availability_zone` | `ap-northeast-2a` | 가용 영역 |
+| `instance_name` | `openclaw` | 리소스 이름 prefix |
+| `instance_type` | `t3.large` | EC2 타입 (2 vCPU, 8GB) |
+| `ebs_volume_size` | `80` | 루트 볼륨 크기 (GB) |
+| `tags` | `Project=openclaw` 등 | AWS 리소스 태그 |
 
 ```hcl
-# 필수 설정
-key_pair_name = "your-ec2-key-pair-name"  # SSH 키 페어 이름
+# ── 반드시 변경 ──────────────────────────────
+key_pair_name     = "openclaw-key"       # AWS에 실제 존재하는 키 페어 이름
+allowed_ssh_cidrs = ["YOUR_IP/32"]       # curl ifconfig.me
+allowed_ui_cidrs  = ["YOUR_IP/32"]
+ubuntu_ami        = "ami-xxxxxxxxxxxxxxxxx"  # 위 명령으로 최신 ID 확인
 
-# 선택 설정 (보안 강화)
-allowed_ssh_cidrs = ["YOUR_IP_ADDRESS/32"]  # 본인 IP로 제한
-allowed_ui_cidrs  = ["YOUR_IP_ADDRESS/32"]  # 본인 IP로 제한
-
-# 인스턴스 타입 변경 (선택)
-# instance_type = "t3.medium"  # 더 작은 사이즈로 변경 시
+# ── 선택 변경 ────────────────────────────────
+# instance_type   = "t3.medium"   # 비용 절감 시
+# ebs_volume_size = 50            # 저장공간 축소 시
 ```
 
 ### 2. OpenTofu 초기화 및 배포
