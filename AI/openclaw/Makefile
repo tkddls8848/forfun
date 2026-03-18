@@ -3,7 +3,7 @@
 TERRAFORM_DIR := opentofu
 SCRIPTS_DIR   := scripts
 
-## ── Terraform ──────────────────────────────────────────────────────────────
+## ── OpenTofu ───────────────────────────────────────────────────────────────
 
 init:
 	cd $(TERRAFORM_DIR) && tofu init
@@ -118,20 +118,19 @@ ami:
 # .terraform 캐시 정리
 clean:
 	rm -rf $(TERRAFORM_DIR)/.terraform \
-	       $(TERRAFORM_DIR)/.terraform.lock.hcl \
 	       $(TERRAFORM_DIR)/terraform.tfstate.backup
 
 help:
 	@echo ""
 	@echo "OpenClaw on EC2 with Auto-Scheduling — 명령어 목록"
 	@echo "==================================================="
-	@echo "📦 Terraform 배포"
-	@echo "  make init          Terraform 초기화"
+	@echo "📦 OpenTofu 배포"
+	@echo "  make init          OpenTofu 초기화"
 	@echo "  make plan          변경사항 미리 보기"
 	@echo "  make apply         인프라 배포 (확인 필요)"
 	@echo "  make apply-auto    인프라 배포 (자동 승인)"
 	@echo "  make destroy       인프라 삭제"
-	@echo "  make output        Terraform 출력값 확인"
+	@echo "  make output        OpenTofu 출력값 확인"
 	@echo "  make cost          예상 월 비용 출력"
 	@echo ""
 	@echo "🖥️  인스턴스 운영"
@@ -152,7 +151,7 @@ help:
 	@echo ""
 	@echo "🔧 유틸리티"
 	@echo "  make ami           서울 리전 최신 Ubuntu AMI 조회"
-	@echo "  make validate      Terraform 코드 검증"
-	@echo "  make fmt           Terraform 코드 포맷"
+	@echo "  make validate      OpenTofu 코드 검증"
+	@echo "  make fmt           OpenTofu 코드 포맷"
 	@echo "  make clean         캐시 정리"
 	@echo ""

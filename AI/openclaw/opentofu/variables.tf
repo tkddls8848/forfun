@@ -32,7 +32,7 @@ variable "ebs_volume_size" {
 variable "key_pair_name" {
   description = "EC2 SSH 키 페어 이름"
   type        = string
-  default     = ""
+  default     = "openclaw-key"
 }
 
 # SSH 접속을 허용할 IP 대역 (보안상 본인 IP로 제한 권장)
@@ -57,7 +57,7 @@ variable "ubuntu_ami" {
   #   --owners 099720109477 \
   #   --filters 'Name=name,Values=ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*' \
   #   --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text
-  default = "ami-0c9c942bd7bf113a2" # Ubuntu 24.04 LTS (서울, 확인 필요)
+  default = "ami-04f851a80be515079" # Ubuntu 24.04 LTS (서울, 확인 필요)
 }
 
 variable "tags" {

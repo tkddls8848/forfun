@@ -5,15 +5,15 @@
 # 이 스크립트는 OpenClaw .env에 Bedrock 리전 설정만 추가함
 set -euo pipefail
 
-cd "$(dirname "$0")/../terraform"
+cd "$(dirname "$0")/../opentofu"
 
-PUBLIC_IP=$(terraform output -raw public_ip 2>/dev/null)
+PUBLIC_IP=$(tofu output -raw public_ip 2>/dev/null)
 if [[ -z "$PUBLIC_IP" ]]; then
   echo "❌ 배포된 인스턴스가 없습니다. 'make apply'를 먼저 실행하세요."
   exit 1
 fi
 
-KEY_NAME=$(terraform output -json | python3 -c \
+KEY_NAME=$(tofu output -json | python3 -c \
   "import sys,json; d=json.load(sys.stdin); print(d.get('ssh_command',{}).get('value',''))" \
   | grep -oP '(?<=-i ~/.ssh/)[^ ]+' || echo "")
 
