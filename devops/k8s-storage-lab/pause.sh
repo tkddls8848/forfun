@@ -1,0 +1,45 @@
+#!/bin/bash
+set -e
+
+AWS_REGION="${AWS_REGION:-ap-northeast-2}"
+TAG_FILTER="Name=tag:Name,Values=k8s-storage-lab-*"
+
+echo "=============================="
+echo " Ceph OSD EBS 스냅샷 생성"
+echo "=============================="
+aws ec2 describe-volumes \
+  --region $AWS_REGION \
+  --filters "Name=tag:Name,Values=*ceph-osd*" \
+  --query 'Volumes[].VolumeId' \
+  --output text | tr '\t' '\n' | while read vol_id; do
+    [ -z "$vol_id" ] && continue
+    echo "  스냅샷: $vol_id"
+    aws ec2 create-snapshot \
+      --region $AWS_REGION \
+      --volume-id $vol_id \
+      --description "k8s-storage-lab-backup-$(date +%Y%m%d)" \
+      --query 'SnapshotId' --output text
+done
+
+echo "=============================="
+echo " EC2 중지"
+echo "=============================="
+INSTANCE_IDS=$(aws ec2 describe-instances \
+  --region $AWS_REGION \
+  --filters "$TAG_FILTER" "Name=instance-state-name,Values=running" \
+  --query 'Reservations[].Instances[].InstanceId' \
+  --output text | tr '\t' ' ')
+
+if [ -z "$INSTANCE_IDS" ]; then
+  echo "  실행 중인 인스턴스가 없습니다."
+  exit 0
+fi
+
+echo "  중지 대상: $INSTANCE_IDS"
+aws ec2 stop-instances --region $AWS_REGION --instance-ids $INSTANCE_IDS > /dev/null
+
+echo -n "  중지 대기 중..."
+aws ec2 wait instance-stopped --region $AWS_REGION --instance-ids $INSTANCE_IDS
+echo " ✓"
+
+echo "✅ 스냅샷 생성 및 EC2 중지 완료 (재시작: bash resume.sh)"

@@ -54,16 +54,14 @@ clusters:
 nodeMapping:
   - k8sNode: \"master-1\"
     spectrumscaleNode: \"master-1\"
-  - k8sNode: \"master-2\"
-    spectrumscaleNode: \"master-2\"
-  - k8sNode: \"master-3\"
-    spectrumscaleNode: \"master-3\"
   - k8sNode: \"worker-1\"
     spectrumscaleNode: \"worker-1\"
   - k8sNode: \"worker-2\"
     spectrumscaleNode: \"worker-2\"
   - k8sNode: \"worker-3\"
     spectrumscaleNode: \"worker-3\"
+  - k8sNode: \"worker-4\"
+    spectrumscaleNode: \"worker-4\"
 EOF
 
 kubectl create secret generic scale-secret \

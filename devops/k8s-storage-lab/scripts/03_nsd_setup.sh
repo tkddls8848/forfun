@@ -17,11 +17,10 @@ $CSSH$N1_PUB "
 nsd-1:quorum-manager
 nsd-2:quorum-manager
 master-1:quorum
-master-2:quorum
-master-3:quorum
 worker-1:
 worker-2:
 worker-3:
+worker-4:
 EOF
 
   sudo /usr/lpp/mmfs/bin/mmcrcluster \
@@ -31,7 +30,7 @@ EOF
     -s nsd-2
 
   sudo /usr/lpp/mmfs/bin/mmchlicense client --accept \
-    -N master-1,master-2,master-3,worker-1,worker-2,worker-3
+    -N master-1,worker-1,worker-2,worker-3,worker-4
   sudo /usr/lpp/mmfs/bin/mmchlicense server --accept \
     -N nsd-1,nsd-2
 
@@ -45,14 +44,14 @@ echo "=============================="
 $CSSH$N1_PUB "
   sudo tee /tmp/NSDFile <<EOF
 %nsd:
-  device=/dev/xvdb
+  device=/dev/nvme1n1
   nsd=nsd1disk
   servers=nsd-1,nsd-2
   usage=dataAndMetadata
   failureGroup=1
 
 %nsd:
-  device=/dev/xvdb
+  device=/dev/nvme1n1
   nsd=nsd2disk
   servers=nsd-2,nsd-1
   usage=dataAndMetadata
@@ -82,7 +81,7 @@ $CSSH$N1_PUB "
 echo "=============================="
 echo " Step 3-3: GPFS 데몬 시작 및 마운트"
 echo "=============================="
-ALL_GPFS_PUB=($N1_PUB $N2_PUB $M1_PUB $M2_PUB $M3_PUB $W1_PUB $W2_PUB $W3_PUB)
+ALL_GPFS_PUB=($N1_PUB $N2_PUB $M1_PUB $W1_PUB $W2_PUB $W3_PUB $W4_PUB)
 
 for ip in "${ALL_GPFS_PUB[@]}"; do
   $CSSH$ip "sudo /usr/lpp/mmfs/bin/mmstartup"
@@ -103,4 +102,4 @@ $CSSH$N1_PUB "
 
 echo ""
 echo "✅ Step 3 완료 - 마운트 포인트: $MOUNT_POINT"
-echo "   다음: scripts/04_k8s_install.sh"
+echo "   다음: scripts/06_csi_gpfs.sh"

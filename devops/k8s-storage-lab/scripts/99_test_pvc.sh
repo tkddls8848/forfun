@@ -71,7 +71,7 @@ spec:
 EOF
 
 echo "=============================="
-echo " Test 3: gpfs-scale (GPFS)"
+echo " Test 3: gpfs-scale (GPFS RWX)"
 echo "=============================="
 kubectl apply -f - <<EOF
 apiVersion: v1

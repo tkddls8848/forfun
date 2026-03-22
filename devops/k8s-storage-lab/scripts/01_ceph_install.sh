@@ -2,90 +2,219 @@
 set -e
 source scripts/.env
 
+export KUBECONFIG=~/.kube/config-k8s-storage-lab
 SSH_OPTS="-o StrictHostKeyChecking=no -i $SSH_KEY"
 CSSH="ssh $SSH_OPTS ubuntu@"
 
-echo "=============================="
-echo " Step 1: cephadm 설치 (ceph-1)"
-echo "=============================="
-$CSSH$C1_PUB <<'ENDSSH'
-  curl -fsSL https://download.ceph.com/keys/release.asc | sudo gpg --dearmor -o /etc/apt/keyrings/ceph.gpg
-  echo "deb [signed-by=/etc/apt/keyrings/ceph.gpg] https://download.ceph.com/debian-reef/ $(lsb_release -cs) main" | \
-    sudo tee /etc/apt/sources.list.d/ceph.list
-  sudo apt-get update -y
-  sudo apt-get install -y cephadm
-  sudo cephadm install
-ENDSSH
+ROOK_VERSION="v1.13.0"
+CEPH_IMAGE="quay.io/ceph/ceph:v18"
 
 echo "=============================="
-echo " Step 1-1: Ceph 클러스터 Bootstrap"
+echo " Step 1: Helm 설치 (master-1)"
 echo "=============================="
-CEPH1_PRIV_IP=$C1_PRIV
-$CSSH$C1_PUB "sudo cephadm bootstrap \
-  --mon-ip $CEPH1_PRIV_IP \
-  --initial-dashboard-user admin \
-  --initial-dashboard-password admin123! \
-  --allow-overwrite \
-  --skip-monitoring-stack"
-
-echo "=============================="
-echo " Step 1-2: ceph-2, ceph-3 노드 추가"
-echo "=============================="
-CEPH_PUBKEY=$($CSSH$C1_PUB "sudo cat /etc/ceph/ceph.pub")
-
-for ip in $C2_PUB $C3_PUB; do
-  ssh $SSH_OPTS ubuntu@$ip "echo '$CEPH_PUBKEY' | sudo tee -a /root/.ssh/authorized_keys"
-done
-
-$CSSH$C1_PUB "
-  sudo ceph orch host add ceph-2 $C2_PRIV
-  sudo ceph orch host add ceph-3 $C3_PRIV
-  sleep 10
+$CSSH$M1_PUB "
+  curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  helm version
 "
 
 echo "=============================="
-echo " Step 1-3: OSD 추가"
+echo " Step 1-1: rook-ceph Helm repo 추가"
 echo "=============================="
-$CSSH$C1_PUB "
-  sudo ceph orch apply osd --all-available-devices
-  sleep 30
-  sudo ceph osd tree
+$CSSH$M1_PUB "
+  helm repo add rook-release https://charts.rook.io/release
+  helm repo update
+  kubectl create namespace rook-ceph || true
 "
 
 echo "=============================="
-echo " Step 1-4: CephFS + RBD Pool 생성"
+echo " Step 1-2: rook-ceph Operator 배포"
 echo "=============================="
-$CSSH$C1_PUB "
-  sudo ceph osd pool create cephfs_data 32
-  sudo ceph osd pool create cephfs_metadata 8
-  sudo ceph fs new labfs cephfs_metadata cephfs_data
+$CSSH$M1_PUB "helm upgrade --install rook-ceph rook-release/rook-ceph --namespace rook-ceph --version $ROOK_VERSION"
+echo "  Operator Pod 기동 대기..."
+$CSSH$M1_PUB "kubectl -n rook-ceph rollout status deployment/rook-ceph-operator --timeout=300s"
 
-  sudo ceph osd pool create rbd 32
-  sudo ceph osd pool application enable rbd rbd
-  sudo rbd pool init rbd
+# [안정화 대기 1] operator의 CRD watch 연결(20+개)이 안정화될 시간 확보
+# 바로 CephCluster를 배포하면 watch 폭풍 + reconcile 루프로 etcd 과부하 발생
+echo "  CRD watch 안정화 대기 (60초)..."
+sleep 60
+$CSSH$M1_PUB "kubectl -n rook-ceph get pods"
 
-  sudo ceph osd pool set cephfs_data size 2
-  sudo ceph osd pool set cephfs_metadata size 2
-  sudo ceph osd pool set rbd size 2
+echo "=============================="
+echo " Step 1-3: CephCluster CR 배포 (HCI: worker-1~4)"
+echo "=============================="
+# mon count=1 (실습 환경 최적화)
+# - mon 3개: mon pod × 3 + mgr + OSD × 8 + CSI × 12 → API server 과부하
+# - mon 1개: API server 연결 수 대폭 감소, 단일 master 환경에 적합
+# - replication size=2로 조정 (mon 1개에서 size=3은 PG undersized 경고 발생)
+$CSSH$M1_PUB "
+cat <<'EOF' | kubectl apply -f -
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: rook-ceph
+  namespace: rook-ceph
+spec:
+  cephVersion:
+    image: $CEPH_IMAGE
+    allowUnsupported: false
+  dataDirHostPath: /var/lib/rook
+  skipUpgradeChecks: false
+  mon:
+    count: 1
+    allowMultiplePerNode: false
+  mgr:
+    count: 1
+    modules:
+      - name: pg_autoscaler
+        enabled: true
+  dashboard:
+    enabled: true
+    ssl: false
+  placement:
+    all:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: DoesNotExist
+  storage:
+    useAllNodes: false
+    useAllDevices: false
+    nodes:
+      - name: worker-1
+        devices:
+          - name: nvme1n1
+          - name: nvme2n1
+      - name: worker-2
+        devices:
+          - name: nvme1n1
+          - name: nvme2n1
+      - name: worker-3
+        devices:
+          - name: nvme1n1
+          - name: nvme2n1
+      - name: worker-4
+        devices:
+          - name: nvme1n1
+          - name: nvme2n1
+EOF
+"
 
-  echo '--- Ceph 상태 확인 ---'
-  sudo ceph status
-  sudo ceph df
+# [안정화 대기 2] CephCluster CR 적용 후 CSI DaemonSet 배포가 시작됨
+# CSI pod들이 일제히 API server 연결을 맺기 전에 잠시 대기
+echo "  CSI 배포 시작 대기 (30초)..."
+sleep 30
+
+echo "=============================="
+echo " Step 1-4: Ceph 클러스터 HEALTH_OK 대기"
+echo "=============================="
+echo "  (mon 1개 + OSD 초기화 포함 최대 10분 소요)"
+$CSSH$M1_PUB "
+  for i in \$(seq 1 60); do
+    STATUS=\$(kubectl -n rook-ceph get cephcluster rook-ceph \
+      -o jsonpath='{.status.ceph.health}' 2>/dev/null || echo 'PENDING')
+    echo \"  [\$i/60] Ceph 상태: \$STATUS\"
+    [ \"\$STATUS\" = 'HEALTH_OK' ] && break
+    sleep 10
+  done
+  kubectl -n rook-ceph get cephcluster rook-ceph
+  kubectl -n rook-ceph get pods -o wide
 "
 
 echo "=============================="
-echo " Step 1-5: CSI용 ceph 키 추출"
+echo " Step 1-5: CephBlockPool + StorageClass (RBD)"
 echo "=============================="
-$CSSH$C1_PUB "
-  sudo ceph auth get-or-create client.k8s \
-    mon 'profile rbd' \
-    osd 'profile rbd pool=rbd, profile rbd pool=cephfs_data' \
-    mds 'allow rw' \
-    > /tmp/ceph-client-k8s.keyring
-  sudo cat /etc/ceph/ceph.conf
-  sudo cat /tmp/ceph-client-k8s.keyring
-" > /tmp/ceph-info.txt
+# replication size=2: mon 1개 환경에서 size=3은 PG undersized 경고 유발
+$CSSH$M1_PUB "
+cat <<'EOF' | kubectl apply -f -
+apiVersion: ceph.rook.io/v1
+kind: CephBlockPool
+metadata:
+  name: replicapool
+  namespace: rook-ceph
+spec:
+  replicated:
+    size: 2
+    requireSafeReplicaSize: false
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ceph-rbd
+provisioner: rook-ceph.rbd.csi.ceph.com
+parameters:
+  clusterID: rook-ceph
+  pool: replicapool
+  imageFormat: \"2\"
+  imageFeatures: layering
+  csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+  csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph
+  csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+  csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+EOF
+"
+
+echo "=============================="
+echo " Step 1-6: CephFilesystem + StorageClass (CephFS)"
+echo "=============================="
+$CSSH$M1_PUB "
+cat <<'EOF' | kubectl apply -f -
+apiVersion: ceph.rook.io/v1
+kind: CephFilesystem
+metadata:
+  name: labfs
+  namespace: rook-ceph
+spec:
+  metadataPool:
+    replicated:
+      size: 2
+  dataPools:
+    - name: replicated
+      replicated:
+        size: 2
+  preserveFilesystemOnDelete: false
+  metadataServer:
+    activeCount: 1
+    activeStandby: false
+    placement:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: DoesNotExist
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ceph-cephfs
+provisioner: rook-ceph.cephfs.csi.ceph.com
+parameters:
+  clusterID: rook-ceph
+  fsName: labfs
+  pool: labfs-replicated
+  csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
+  csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+  csi.storage.k8s.io/controller-expand-secret-name: rook-csi-cephfs-provisioner
+  csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph
+  csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
+  csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+EOF
+"
+
+echo "=============================="
+echo " Step 1-7: StorageClass 확인"
+echo "=============================="
+kubectl get storageclass
+kubectl -n rook-ceph get pods -o wide
 
 echo ""
-echo "✅ Step 1 완료 - Ceph 클러스터 구성 완료"
-echo "   다음: scripts/02_gpfs_install.sh"
+echo "✅ Step 1 완료 - StorageClass: ceph-rbd, ceph-cephfs"
+echo "   다음: scripts/02_gpfs_install.sh (IBM 패키지 필요)"

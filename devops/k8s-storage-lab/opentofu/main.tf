@@ -41,23 +41,21 @@ module "security_group" {
 }
 
 module "ec2" {
-  source         = "./modules/ec2"
-  project_name   = var.project_name
-  ami_id         = data.aws_ami.ubuntu.id
-  key_name       = var.key_name
-  subnet_k8s_id  = module.vpc.subnet_k8s_id
-  subnet_nsd_id  = module.vpc.subnet_nsd_id
-  subnet_ceph_id = module.vpc.subnet_ceph_id
-  sg_k8s_id      = module.security_group.sg_k8s_id
-  sg_nsd_id      = module.security_group.sg_nsd_id
-  sg_ceph_id     = module.security_group.sg_ceph_id
+  source        = "./modules/ec2"
+  project_name  = var.project_name
+  ami_id        = data.aws_ami.ubuntu.id
+  key_name      = var.key_name
+  subnet_k8s_id = module.vpc.subnet_k8s_id
+  subnet_nsd_id = module.vpc.subnet_nsd_id
+  sg_k8s_id     = module.security_group.sg_k8s_id
+  sg_nsd_id     = module.security_group.sg_nsd_id
 }
 
 module "ebs" {
-  source            = "./modules/ebs"
-  project_name      = var.project_name
-  availability_zone = "${var.aws_region}a"
-  nsd1_instance_id  = module.ec2.nsd1_instance_id
-  nsd2_instance_id  = module.ec2.nsd2_instance_id
-  ceph_instance_ids = module.ec2.ceph_instance_ids
+  source              = "./modules/ebs"
+  project_name        = var.project_name
+  availability_zone   = "${var.aws_region}a"
+  nsd1_instance_id    = module.ec2.nsd1_instance_id
+  nsd2_instance_id    = module.ec2.nsd2_instance_id
+  worker_instance_ids = module.ec2.worker_instance_ids
 }

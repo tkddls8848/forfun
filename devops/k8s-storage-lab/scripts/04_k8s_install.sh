@@ -6,13 +6,23 @@ SSH_OPTS="-o StrictHostKeyChecking=no -i $SSH_KEY"
 CSSH="ssh $SSH_OPTS ubuntu@"
 
 K8S_VERSION="1.29"
-POD_CIDR="192.168.0.0/16"
-CONTROL_PLANE_EP="$M1_PRIV:6443"
+POD_CIDR="10.244.0.0/16"   # Flannel 기본 CIDR
 
-ALL_K8S_PUB=($M1_PUB $M2_PUB $M3_PUB $W1_PUB $W2_PUB $W3_PUB)
+ALL_K8S_PUB=($M1_PUB $W1_PUB $W2_PUB $W3_PUB $W4_PUB)
 
 echo "=============================="
-echo " Step 4: kubeadm 설치"
+echo " Step 4-0: 노드 hostname 설정"
+echo "=============================="
+# kubeadm은 hostname을 노드명으로 등록하므로 미리 설정
+$CSSH$M1_PUB "sudo hostnamectl set-hostname master-1"
+$CSSH$W1_PUB "sudo hostnamectl set-hostname worker-1"
+$CSSH$W2_PUB "sudo hostnamectl set-hostname worker-2"
+$CSSH$W3_PUB "sudo hostnamectl set-hostname worker-3"
+$CSSH$W4_PUB "sudo hostnamectl set-hostname worker-4"
+echo "  ✓ hostname 설정 완료"
+
+echo "=============================="
+echo " Step 4: kubeadm 설치 (전체 노드)"
 echo "=============================="
 for ip in "${ALL_K8S_PUB[@]}"; do
   $CSSH$ip <<EOF
@@ -39,9 +49,8 @@ echo " Step 4-1: Master-1 초기화"
 echo "=============================="
 $CSSH$M1_PUB "
   sudo kubeadm init \
-    --control-plane-endpoint '$CONTROL_PLANE_EP' \
+    --node-name master-1 \
     --pod-network-cidr $POD_CIDR \
-    --upload-certs \
     --v=5 2>&1 | tee /tmp/kubeadm-init.log
 
   mkdir -p \$HOME/.kube
@@ -50,55 +59,54 @@ $CSSH$M1_PUB "
 "
 
 echo "=============================="
-echo " Step 4-2: join 명령어 추출"
+echo " Step 4-2: Worker join 명령어 추출"
 echo "=============================="
-MASTER_JOIN=$($CSSH$M1_PUB "sudo kubeadm token create --print-join-command --certificate-key \$(sudo kubeadm init phase upload-certs --upload-certs 2>/dev/null | tail -1)")
 WORKER_JOIN=$($CSSH$M1_PUB "sudo kubeadm token create --print-join-command")
 
 echo "=============================="
-echo " Step 4-3: Master-2, Master-3 join"
+echo " Step 4-3: Worker-1~4 join"
 echo "=============================="
-for ip in $M2_PUB $M3_PUB; do
-  $CSSH$ip "sudo $MASTER_JOIN --control-plane"
-  $CSSH$ip "
-    mkdir -p \$HOME/.kube
-    sudo cp /etc/kubernetes/admin.conf \$HOME/.kube/config
-    sudo chown \$(id -u):\$(id -g) \$HOME/.kube/config
-  "
-  echo "  ✓ Master join: $ip"
-done
+$CSSH$W1_PUB "sudo $WORKER_JOIN --node-name worker-1"
+echo "  ✓ Worker join: worker-1"
+$CSSH$W2_PUB "sudo $WORKER_JOIN --node-name worker-2"
+echo "  ✓ Worker join: worker-2"
+$CSSH$W3_PUB "sudo $WORKER_JOIN --node-name worker-3"
+echo "  ✓ Worker join: worker-3"
+$CSSH$W4_PUB "sudo $WORKER_JOIN --node-name worker-4"
+echo "  ✓ Worker join: worker-4"
 
 echo "=============================="
-echo " Step 4-4: Worker join"
+echo " Step 4-4: Flannel CNI (VXLAN 모드)"
 echo "=============================="
-for ip in $W1_PUB $W2_PUB $W3_PUB; do
-  $CSSH$ip "sudo $WORKER_JOIN"
-  echo "  ✓ Worker join: $ip"
-done
+# Calico tigera-operator는 master에 과부하 → Flannel(경량 DaemonSet)으로 교체
+# Flannel은 VXLAN(UDP 8472) 사용 → AWS SG 문제 없음
+$CSSH$M1_PUB "kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml"
 
-echo "=============================="
-echo " Step 4-5: Calico CNI"
-echo "=============================="
+echo "  Flannel Pod 기동 대기 (최대 5분)..."
 $CSSH$M1_PUB "
-  kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/tigera-operator.yaml
-  kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/custom-resources.yaml
-
-  kubectl wait --for=condition=Ready nodes --all --timeout=300s
+  for i in \$(seq 1 60); do
+    READY=\$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready' || true)
+    TOTAL=\$(kubectl get nodes --no-headers 2>/dev/null | grep -c '.' || true)
+    echo \"  [\$i/60] Ready: \$READY/\$TOTAL\"
+    [ \"\$READY\" -gt 0 ] && [ \"\$READY\" -eq \"\$TOTAL\" ] && break
+    sleep 5
+  done
   kubectl get nodes -o wide
 "
 
 echo "=============================="
-echo " Step 4-6: NSD taint"
+echo " Step 4-5: Worker 노드 레이블"
 echo "=============================="
 $CSSH$M1_PUB "
-  kubectl taint nodes nsd-1 dedicated=gpfs-nsd:NoSchedule || true
-  kubectl taint nodes nsd-2 dedicated=gpfs-nsd:NoSchedule || true
-  kubectl label nodes nsd-1 role=nsd
-  kubectl label nodes nsd-2 role=nsd
-  kubectl get nodes
+  kubectl label nodes worker-1 worker-2 worker-3 worker-4 role=worker
+  kubectl get nodes --show-labels
 "
 
+echo "=============================="
+echo " Step 4-6: kubeconfig 로컬 저장"
+echo "=============================="
+mkdir -p ~/.kube
 scp $SSH_OPTS ubuntu@$M1_PUB:~/.kube/config ~/.kube/config-k8s-storage-lab
 echo ""
 echo "✅ Step 4 완료 - kubeconfig → ~/.kube/config-k8s-storage-lab"
-echo "   다음: scripts/05_csi_ceph.sh"
+echo "   다음: scripts/01_ceph_install.sh"
