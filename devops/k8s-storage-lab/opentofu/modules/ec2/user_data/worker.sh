@@ -32,6 +32,13 @@ apt-get install -y \
 
 systemctl enable --now chrony
 
+# ── iptables-legacy (K8s 1.29 kube-proxy는 nftables 백엔드 미지원) ──
+apt-get install -y iptables arptables ebtables
+update-alternatives --set iptables /usr/sbin/iptables-legacy
+update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+update-alternatives --set arptables /usr/sbin/arptables-legacy
+update-alternatives --set ebtables /usr/sbin/ebtables-legacy
+
 # ── containerd (rook-ceph OSD도 containerd 사용) ──
 apt-get install -y containerd
 mkdir -p /etc/containerd

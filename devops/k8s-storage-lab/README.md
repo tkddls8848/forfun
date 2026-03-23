@@ -6,8 +6,8 @@ AWS 위에 Kubernetes + Ceph(rook-ceph) + IBM Spectrum Scale(GPFS) 스토리지 
 
 | 역할 | 노드 수 | 인스턴스 | 서브넷 | 주요 구성 |
 |------|---------|----------|--------|-----------|
-| K8s Master | 1 | t3.xlarge | 10.0.1.0/24 | kubeadm, etcd, Flannel(VXLAN) |
-| K8s Worker (HCI) | 4 | t3.large | 10.0.1.0/24 | k8s 워크로드 + Ceph OSD×2 |
+| K8s Master | 1 | m5.xlarge | 10.0.1.0/24 | kubeadm, etcd, Flannel(VXLAN) |
+| K8s Worker (HCI) | 4 | m5.large | 10.0.1.0/24 | k8s 워크로드 + Ceph OSD×2 |
 | NSD (GPFS) | 2 | t3.medium | 10.0.2.0/24 | Spectrum Scale NSD 서버 |
 
 **총 7대 EC2** / EBS: GPFS LUN 2개 + Ceph OSD 8개(worker당 2개)
@@ -177,14 +177,40 @@ tofu apply
 | Ceph mon | count=1 | 단일 master 환경에서 mon 3개는 API server/etcd 과부하 유발 |
 | Ceph replication | size=2 | mon 1개 실습 환경 기준, size=3은 PG undersized 경고 발생 |
 | master 노드 수 | 1개 | 실습 환경, etcd 쿼럼 불필요 (3개 필요 시 kubespray 고려) |
-| master 인스턴스 | t3.xlarge (4 vCPU, 16GB) | rook-ceph watch 20+개 처리 시 apiserver+etcd CPU 경합 → 2 vCPU(t3.large)로는 etcd liveness probe timeout 발생 |
-| worker 인스턴스 | t3.large (2 vCPU, 8GB) | CSI+OSD×2+시스템 실사용 ~2.5GB, HCI 워크로드 안정성 확보 |
+| master 인스턴스 | m5.xlarge (4 vCPU, 16GB) | t3 burstable은 rook-ceph watch 20+개 sustained 부하에서 CPU 크레딧 고갈 → apiserver/etcd crash. m5는 크레딧 없이 고정 성능 제공 |
+| worker 인스턴스 | m5.large (2 vCPU, 8GB) | Ceph OSD는 24/7 sustained I/O → t3 burstable은 CPU 크레딧 고갈 위험. m5 고정 성능으로 안정적 운영 |
 | nsd 인스턴스 | t3.medium (2 vCPU, 4GB) | GPFS NSD 서버 안정 운영 |
 | EBS 디바이스명 | nvme1n1, nvme2n1 | t3 계열(Nitro)은 EBS를 NVMe 인터페이스로 연결 → OS에서 xvd* 아님 |
+| iptables 백엔드 | iptables-legacy | Ubuntu 22.04+는 nftables 백엔드가 기본 → K8s 1.29 kube-proxy와 충돌. user_data에서 iptables-legacy로 전환 (K8s 1.31+부터 nftables 네이티브 지원) |
 
 ---
 
 ## 트러블슈팅
+
+### kube-proxy CrashLoopBackOff (iptables nftables 충돌)
+
+Ubuntu 22.04+는 iptables 기본 백엔드가 nftables이며, K8s 1.29 kube-proxy와 충돌합니다.
+`iptables --version` 에서 `nf_tables` 가 출력되면 해당 문제입니다.
+
+user_data(`common.sh`, `worker.sh`)에서 인스턴스 초기화 시 자동 전환되도록 설정되어 있습니다.
+기존 노드에 수동 적용이 필요한 경우:
+
+```bash
+source scripts/.env
+SSH_OPTS="-o StrictHostKeyChecking=no -i $SSH_KEY"
+
+for ip in $M1_PUB $W1_PUB $W2_PUB $W3_PUB $W4_PUB; do
+  ssh $SSH_OPTS ubuntu@$ip "
+    sudo apt-get install -y iptables arptables ebtables
+    sudo update-alternatives --set iptables /usr/sbin/iptables-legacy
+    sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+    sudo update-alternatives --set arptables /usr/sbin/arptables-legacy
+    sudo update-alternatives --set ebtables /usr/sbin/ebtables-legacy
+  "
+done
+```
+
+---
 
 ### kube-apiserver CrashLoopBackOff / connection refused
 

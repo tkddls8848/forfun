@@ -8,7 +8,7 @@ locals {
 resource "aws_instance" "master" {
   count                  = 1
   ami                    = var.ami_id
-  instance_type          = "t3.xlarge"
+  instance_type          = "m5.xlarge"
   key_name               = var.key_name
   subnet_id              = var.subnet_k8s_id
   vpc_security_group_ids = [var.sg_k8s_id]
@@ -30,7 +30,7 @@ resource "aws_instance" "master" {
 resource "aws_instance" "worker" {
   count                  = 4
   ami                    = var.ami_id
-  instance_type          = "t3.large"
+  instance_type          = "m5.large"
   key_name               = var.key_name
   subnet_id              = var.subnet_k8s_id
   vpc_security_group_ids = [var.sg_k8s_id]

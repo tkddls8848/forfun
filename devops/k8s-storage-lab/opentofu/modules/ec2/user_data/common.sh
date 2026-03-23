@@ -27,6 +27,13 @@ apt-get install -y \
   python3 python3-pip \
   net-tools iputils-ping
 
+# ── iptables-legacy (K8s 1.29 kube-proxy는 nftables 백엔드 미지원) ──
+apt-get install -y iptables arptables ebtables
+update-alternatives --set iptables /usr/sbin/iptables-legacy
+update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+update-alternatives --set arptables /usr/sbin/arptables-legacy
+update-alternatives --set ebtables /usr/sbin/ebtables-legacy
+
 apt-get install -y containerd
 mkdir -p /etc/containerd
 containerd config default > /etc/containerd/config.toml
