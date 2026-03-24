@@ -11,6 +11,17 @@ CEPH_IMAGE="quay.io/ceph/ceph:v18"
 
 WORKER_COUNT=${#WORKER_PUBS[@]}
 
+# 카운트다운 표시 함수
+countdown() {
+  local sec=$1
+  local msg=$2
+  for s in $(seq $sec -1 1); do
+    printf "\r  [대기] %s - %2ds 남음..." "$msg" $s
+    sleep 1
+  done
+  printf "\r  [완료] %s                    \n" "$msg"
+}
+
 echo "=============================="
 echo " Step 1: Helm 설치 (master-1)"
 echo "=============================="
@@ -32,20 +43,17 @@ echo "=============================="
 echo " Step 1-2: rook-ceph Operator 배포"
 echo "=============================="
 $CSSH$M1_PUB "helm upgrade --install rook-ceph rook-release/rook-ceph --namespace rook-ceph --version $ROOK_VERSION"
-echo "  Operator Pod 기동 대기..."
+echo "  [대기] rook-ceph-operator Deployment rollout 완료 대기 (최대 300s)..."
 $CSSH$M1_PUB "kubectl -n rook-ceph rollout status deployment/rook-ceph-operator --timeout=300s"
 
-# [안정화 대기] operator의 CRD watch 연결(20+개)이 안정화될 시간 확보
+# operator의 CRD watch 연결(20+개)이 안정화될 시간 확보
 # 바로 CephCluster를 배포하면 watch 폭풍 + reconcile 루프로 etcd 과부하 발생
-echo "  CRD watch 안정화 대기 (60초)..."
-sleep 60
+countdown 60 "rook-ceph-operator CRD watch 안정화"
 $CSSH$M1_PUB "kubectl -n rook-ceph get pods"
 
 echo "=============================="
 echo " Step 1-2-1: 워커 노드 rbd 모듈 로드 확인"
 echo "=============================="
-# rbd 모듈이 로드되지 않으면 Ceph CSI의 RBD 볼륨 마운트 실패
-# linux-modules-extra-aws와 커널 버전 불일치로 user_data에서 로드 실패했을 경우 대비
 for i in $(seq 0 $((WORKER_COUNT - 1))); do
   NODE_IP="${WORKER_PUBS[$i]}"
   NODE_NAME="worker-$((i + 1))"
@@ -63,9 +71,6 @@ done
 echo "=============================="
 echo " Step 1-3: CephCluster CR 배포 (워커별 순차 OSD 초기화)"
 echo "=============================="
-# NVMe OSD 일제 초기화 시 I/O 스파이크 → API server 과부하 방지를 위해 노드별 순차 추가
-# useAllDevices: true: 미포맷 블록 디바이스 자동 감지 (디바이스명 하드코딩 제거)
-# mon count=3: quorum 구성 (mon 과반수 이상 생존 시 클러스터 정상 운영)
 
 # OSD Running 수가 최솟값에 도달한 뒤 연속 3회 안정 확인 후 반환 (최대 8분)
 wait_osd_running() {
@@ -74,17 +79,17 @@ wait_osd_running() {
     STABLE=0
     for i in \$(seq 1 48); do
       UP=\$(kubectl -n rook-ceph get pods -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -c Running || true)
-      echo \"  [\$i/48] OSD Running: \$UP (목표: >= $min_count)\"
+      echo \"  [대기] OSD 기동 확인 [\$i/48] Running: \$UP / 목표: >= $min_count\"
       if [ \"\$UP\" -ge $min_count ]; then
         STABLE=\$((STABLE + 1))
-        [ \"\$STABLE\" -ge 3 ] && echo '  OSD 안정 확인 (3회 연속)' && break
+        [ \"\$STABLE\" -ge 3 ] && echo '  ✅ OSD 안정 확인 (3회 연속)' && break
       else
         STABLE=0
       fi
       sleep 10
     done
   "
-  sleep 45  # OSD I/O 초기화 + API server 안정화 버퍼
+  countdown 45 "OSD I/O 초기화 및 API server 안정화"
 }
 
 # 워커를 1대씩 순차 추가하는 CephCluster CR 생성 함수
@@ -122,6 +127,10 @@ spec:
             - matchExpressions:
                 - key: node-role.kubernetes.io/control-plane
                   operator: DoesNotExist
+  cephConfig:
+    global:
+      osd_pool_default_size: "2"
+      osd_pool_default_min_size: "1"
   storage:
     useAllNodes: false
     useAllDevices: true
@@ -145,18 +154,24 @@ done
 echo "=============================="
 echo " Step 1-4: Ceph 클러스터 HEALTH_OK 대기"
 echo "=============================="
-echo "  (mon 3개 + OSD 초기화 포함 최대 15분 소요)"
 $CSSH$M1_PUB "
   for i in \$(seq 1 90); do
     STATUS=\$(kubectl -n rook-ceph get cephcluster rook-ceph \
       -o jsonpath='{.status.ceph.health}' 2>/dev/null || echo 'PENDING')
-    echo \"  [\$i/90] Ceph 상태: \$STATUS\"
-    [ \"\$STATUS\" = 'HEALTH_OK' ] && break
+    echo \"  [대기] Ceph 클러스터 상태 확인 [\$i/90]: \$STATUS\"
+    [ \"\$STATUS\" = 'HEALTH_OK' ] && echo '  ✅ HEALTH_OK 달성' && break
     sleep 10
   done
   kubectl -n rook-ceph get cephcluster rook-ceph
   kubectl -n rook-ceph get pods -o wide
 "
+
+echo "=============================="
+echo " Step 1-4-1: rook-ceph-tools 배포"
+echo "=============================="
+$CSSH$M1_PUB "kubectl apply -f https://raw.githubusercontent.com/rook/rook/v1.13.0/deploy/examples/toolbox.yaml"
+echo "  [대기] rook-ceph-tools 기동 대기..."
+$CSSH$M1_PUB "kubectl -n rook-ceph rollout status deploy/rook-ceph-tools --timeout=120s"
 
 echo "=============================="
 echo " Step 1-5: CephBlockPool + StorageClass (RBD)"

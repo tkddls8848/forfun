@@ -1,4 +1,4 @@
-# 04. 트러블슈팅 & FAQ
+# 04. 트러블슈팅
 
 ---
 
@@ -8,247 +8,162 @@
 ```
 Error: InvalidKeyPair.NotFound
 ```
-
-**원인**: `terraform.tfvars`의 `key_name`이 해당 리전에 존재하지 않음
-
-**해결**:
+`terraform.tfvars`의 `key_name`이 해당 리전에 없음.
 ```bash
-# 현재 리전의 Key Pair 목록 확인
 aws ec2 describe-key-pairs --region ap-northeast-2 --query 'KeyPairs[].KeyName'
-
-# terraform.tfvars 수정
-key_name = "실제-존재하는-키-이름"
 ```
 
-### EC2 인스턴스 제한 초과
-```
-Error: InstanceLimitExceeded
-```
-
-**해결**: AWS 콘솔 → Service Quotas → EC2 → Running On-Demand Standard instances → 한도 증가 요청
-
-### user_data 스크립트 실행 실패
+### user_data 실행 실패
 ```bash
-# 해당 인스턴스에 SSH 접속 후 로그 확인
+ssh -i ~/.ssh/storage-lab.pem ubuntu@<ip>
 sudo cat /var/log/cloud-init-output.log
-sudo cat /var/log/cloud-init.log
 ```
 
 ---
 
-## SSH 연결
+## SSH / 부팅
 
-### `00_hosts_setup.sh`에서 SSH 타임아웃
-
-**원인**: 인스턴스 부팅 미완료 또는 Security Group 문제
-
-**해결**:
+### SSH 타임아웃 (00_hosts_setup.sh)
+인스턴스 부팅 미완료 또는 SG 문제. `start_k8s.sh`는 60초 대기 후 SSH 루프를 돌며 자동 대기.
+수동 확인:
 ```bash
-# 인스턴스 상태 확인
 aws ec2 describe-instances \
   --filters "Name=tag:Name,Values=k8s-storage-lab-*" \
   --query 'Reservations[].Instances[].[Tags[?Key==`Name`].Value|[0],State.Name,PublicIpAddress]' \
   --output table
-
-# SG에서 22번 포트가 0.0.0.0/0으로 열려있는지 확인
-aws ec2 describe-security-groups \
-  --group-ids <sg-id> \
-  --query 'SecurityGroups[].IpPermissions'
 ```
 
-### Permission denied (publickey)
+### cloud-init 완료 후에도 K8s 설치 실패
+user_data에서 reboot 발생 시 cloud-init 상태가 "running"으로 유지될 수 있음.
+`01_k8s_install.sh`의 SSH 재연결 루프가 처리함. 수동 확인:
 ```bash
-# 올바른 키 파일인지 확인
-ssh -i ~/.ssh/your-key.pem -v ubuntu@<ip>
-
-# 키 파일 권한 확인 (600이어야 함)
-chmod 600 ~/.ssh/your-key.pem
-```
-
----
-
-## Ceph
-
-### `ceph status`에서 HEALTH_WARN
-
-일반적인 WARN 메시지와 대응:
-
-| 경고 | 원인 | 대응 |
-|------|------|------|
-| `too few PGs per OSD` | PG 수 부족 | `ceph osd pool set <pool> pg_num 64` |
-| `no active mgr` | MGR 데몬 미시작 | `ceph orch apply mgr 3` → 대기 |
-| `clock skew` | 노드 간 시간 차이 | 각 노드에서 `sudo chronyc makestep` |
-| `OSD near full` | 디스크 용량 부족 | EBS 볼륨 크기 증가 후 `ceph osd reweight` |
-
-### OSD가 생성되지 않음
-```bash
-# 사용 가능한 디바이스 확인
-sudo ceph orch device ls
-
-# 디바이스에 파티션/파일시스템이 있으면 OSD 생성 불가
-# 강제 정리 후 재시도
-sudo ceph orch device zap <host> /dev/xvdb --force
-sudo ceph orch apply osd --all-available-devices
-```
-
-### CephFS MDS가 시작되지 않음
-```bash
-sudo ceph orch apply mds labfs --placement=3
-sudo ceph fs status
-```
-
----
-
-## GPFS
-
-### `mmbuildgpl` 실패
-
-**원인**: 커널 헤더 버전 불일치
-```bash
-# 현재 커널과 헤더 버전 확인
-uname -r
-dpkg -l | grep linux-headers
-
-# 일치하지 않으면 재설치
-sudo apt-get install -y linux-headers-$(uname -r)
-sudo /usr/lpp/mmfs/bin/mmbuildgpl
-```
-
-### `mmstartup` 후 노드가 active 되지 않음
-```bash
-# 상태 확인
-sudo /usr/lpp/mmfs/bin/mmgetstate -a
-
-# 로그 확인
-sudo tail -100 /var/mmfs/gen/mmfslog
-
-# SSH 연결 확인 (GPFS는 SSH로 노드 간 통신)
-ssh nsd-1 hostname
-ssh nsd-2 hostname
-```
-
-### NSD 디스크 인식 실패
-```bash
-# EBS 디바이스 확인
-lsblk
-ls -la /dev/xvd*
-
-# Nitro 인스턴스에서는 /dev/nvme* 로 표시될 수 있음
-ls -la /dev/nvme*
-# 이 경우 NSDFile의 device 경로를 /dev/nvme1n1 등으로 변경
+ssh ubuntu@<ip> "cloud-init status"
 ```
 
 ---
 
 ## Kubernetes
 
-### kubeadm init 실패
-```bash
-# 로그 확인
-sudo cat /tmp/kubeadm-init.log
+### kube-proxy CrashLoopBackOff (exit code 2)
+**원인**: Ubuntu 24.04 nftables 환경에서 kube-proxy iptables 모드 기동 시
+Flannel과 `/run/xtables.lock` 경합 → 클러스터 네트워킹 붕괴.
 
-# 흔한 원인: containerd 미실행
-sudo systemctl status containerd
+**현재 구성**: `01_k8s_install.sh`에서 `KubeProxyConfiguration mode: nftables`를 기본 적용하므로 재발하지 않음.
+
+기동 중인 클러스터에 수동 적용:
+```bash
+kubectl -n kube-system get configmap kube-proxy -o yaml \
+  | sed 's/mode: ""/mode: "nftables"/' \
+  | kubectl apply -f -
+kubectl -n kube-system rollout restart daemonset kube-proxy
+```
+
+### API server 응답 없음 (connection refused)
+```bash
+ssh -i ~/.ssh/storage-lab.pem ubuntu@<master-ip> \
+  "sudo systemctl restart kubelet"
+```
+
+### kubeadm init 실패 (etcd context deadline)
+containerd 미실행 또는 cloud-init 미완료 상태에서 init 시도.
+`01_k8s_install.sh`는 cloud-init 완료 대기 후 설치 진행.
+
+수동 재설치:
+```bash
+ssh ubuntu@<master-ip>
+sudo kubeadm reset -f
+sudo rm -rf /etc/cni /etc/kubernetes /var/lib/kubelet /var/lib/etcd ~/.kube
 sudo systemctl restart containerd
-
-# swap이 켜져있으면 실패
-free -h   # Swap이 0이어야 함
-sudo swapoff -a
+# 로컬에서
+bash scripts/01_k8s_install.sh
 ```
 
-### Node가 NotReady 상태
+### Flannel Pod Pending / 노드 NotReady
 ```bash
-# Calico Pod 상태 확인
-kubectl get pods -n calico-system
-
-# kubelet 로그 확인
-ssh ubuntu@<node-ip> "sudo journalctl -u kubelet --no-pager -n 50"
+kubectl delete -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+kubectl apply  -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
 ```
 
-### Master join 실패 (token 만료)
+### Worker join 실패 (token 만료)
 ```bash
-# Master-1에서 새 token 생성
-ssh ubuntu@<master-1-ip>
-sudo kubeadm token create --print-join-command
-sudo kubeadm init phase upload-certs --upload-certs
+ssh ubuntu@<master-ip> "sudo kubeadm token create --print-join-command"
 ```
 
 ---
 
-## CSI Driver
+## rook-ceph
 
-### Ceph CSI Pod가 CrashLoopBackOff
+### OSD Pod가 생성되지 않음
+
+rbd 모듈 미로드 확인:
 ```bash
-# Pod 로그 확인
-kubectl logs -n ceph-csi-rbd <pod-name> -c csi-rbdplugin
-
-# 흔한 원인: Ceph 키 또는 FSID 불일치
-# 값 재확인
-ssh ubuntu@<ceph-1-ip> "sudo ceph fsid"
-ssh ubuntu@<ceph-1-ip> "sudo ceph auth get-key client.k8s"
+ssh ubuntu@<worker-ip> "lsmod | grep rbd"
+# 없으면
+ssh ubuntu@<worker-ip> "sudo modprobe rbd"
 ```
 
-### PVC가 Pending 상태에서 멈춤
+디스크에 기존 파티션/시그니처가 남아있는 경우:
 ```bash
-# PVC 이벤트 확인
+# destroy_ceph.sh 실행 후 재설치
+bash destroy_ceph.sh && bash start_ceph.sh
+```
+
+### Ceph HEALTH_WARN TOO_FEW_OSDS
+`osd_pool_default_size`가 실제 OSD 수보다 크면 발생.
+현재 구성(`osd_pool_default_size: "2"`, replication `size: 2`)에서는 OSD 4개 이상이면 정상.
+
+### rook-ceph-tools에서 확인
+```bash
+export KUBECONFIG=~/.kube/config-k8s-storage-lab
+kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph status
+kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph osd tree
+kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph df
+```
+
+### rook-ceph 재설치
+```bash
+bash destroy_ceph.sh
+bash start_ceph.sh
+```
+
+---
+
+## GPFS
+
+### `mmbuildgpl` 실패 (커널 헤더 불일치)
+```bash
+uname -r
+dpkg -l | grep linux-headers
+sudo apt-get install -y linux-headers-$(uname -r)
+sudo /usr/lpp/mmfs/bin/mmbuildgpl
+```
+
+### NSD 디스크 인식 실패
+Nitro 기반 인스턴스에서 `/dev/nvme*`로 표시될 수 있음.
+```bash
+lsblk
+ls /dev/xvd* /dev/nvme* 2>/dev/null
+```
+
+### mmstartup 후 노드 미활성
+```bash
+sudo /usr/lpp/mmfs/bin/mmgetstate -a
+sudo tail -100 /var/mmfs/gen/mmfslog
+```
+
+---
+
+## PVC / CSI
+
+### PVC Pending 상태 지속
+```bash
 kubectl describe pvc <pvc-name>
-
-# CSI provisioner 로그 확인
-kubectl logs -n ceph-csi-rbd <provisioner-pod> -c csi-provisioner
-
-# StorageClass 확인
-kubectl get sc -o yaml
+kubectl logs -n rook-ceph deploy/rook-ceph-operator | tail -50
 ```
 
-### GPFS CSI에서 REST API 접속 실패
+### StorageClass 없음
 ```bash
-# GUI 서비스 상태 확인
-ssh ubuntu@<nsd-1-ip>
-sudo /usr/lpp/mmfs/gui/bin/guiserver status
-
-# 포트 확인
-sudo netstat -tlnp | grep 443
-
-# Secret 값 확인
-kubectl get secret scale-secret -n ibm-spectrum-scale-csi-driver -o jsonpath='{.data.username}' | base64 -d
+kubectl get storageclass
+# ceph-rbd, ceph-cephfs 없으면 02_ceph_install.sh 재실행
+bash start_ceph.sh
 ```
-
----
-
-## 비용 관련
-
-### 예상 월간 비용 (ap-northeast-2 기준, 2024년 참고가)
-
-| 리소스 | 수량 | 단가(시간) | 월간(730h) |
-|--------|------|-----------|-----------|
-| t3.medium | 8대 | ~$0.052 | ~$303 |
-| t3.large | 3대 | ~$0.104 | ~$228 |
-| EBS gp3 20GB | 11개 | ~$1.60/월 | ~$18 |
-| EBS gp2 10GB | 2개 | ~$1.00/월 | ~$2 |
-| EBS gp2 20GB | 6개 | ~$2.00/월 | ~$12 |
-| **합계** | | | **~$563/월** |
-
-**비용 절감 팁**:
-- 사용하지 않을 때 `./stop.sh snapshot`으로 EC2 중지 (EBS 비용만 발생)
-- 실습 완료 후 `./stop.sh destroy`로 전체 삭제
-- Spot Instance 사용 시 60~80% 절감 가능 (단, 중단 위험)
-
----
-
-## FAQ
-
-**Q: GPFS 없이 Ceph만 사용할 수 있나요?**
-
-네. Step 0 → Step 1 → Step 4 → Step 5 → Step 7(ceph 테스트만) 순서로 실행하면 됩니다. NSD 노드 2대를 생략하려면 `modules/ec2/main.tf`에서 `aws_instance.nsd` 블록과 관련 EBS를 제거하세요.
-
-**Q: K8s 버전을 변경하려면?**
-
-`scripts/04_k8s_install.sh`의 `K8S_VERSION="1.29"` 값을 원하는 버전으로 변경합니다. Calico 버전도 호환성을 확인하세요.
-
-**Q: 노드 수를 늘리거나 줄이려면?**
-
-`modules/ec2/main.tf`의 각 `count` 값을 변경 후 `tofu apply`를 다시 실행합니다. 스크립트의 IP 수집 부분도 함께 수정해야 합니다.
-
-**Q: 다른 리전에서 사용 가능한가요?**
-
-`terraform.tfvars`에서 `aws_region`을 변경하면 됩니다. AMI는 `data.aws_ami`로 자동 조회되므로 별도 수정이 필요 없습니다.
