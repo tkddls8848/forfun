@@ -11,32 +11,36 @@ echo " Step 0: IP 수집 (tofu output)"
 echo "=============================="
 
 M1_PUB=$(tofu -chdir=opentofu output -json master_public_ips  | jq -r '.[0]')
-W1_PUB=$(tofu -chdir=opentofu output -json worker_public_ips  | jq -r '.[0]')
-W2_PUB=$(tofu -chdir=opentofu output -json worker_public_ips  | jq -r '.[1]')
-W3_PUB=$(tofu -chdir=opentofu output -json worker_public_ips  | jq -r '.[2]')
-W4_PUB=$(tofu -chdir=opentofu output -json worker_public_ips  | jq -r '.[3]')
-N1_PUB=$(tofu -chdir=opentofu output -json nsd_public_ips     | jq -r '.[0]')
-N2_PUB=$(tofu -chdir=opentofu output -json nsd_public_ips     | jq -r '.[1]')
-
 M1_PRIV=$(tofu -chdir=opentofu output -json master_private_ips | jq -r '.[0]')
-W1_PRIV=$(tofu -chdir=opentofu output -json worker_private_ips | jq -r '.[0]')
-W2_PRIV=$(tofu -chdir=opentofu output -json worker_private_ips | jq -r '.[1]')
-W3_PRIV=$(tofu -chdir=opentofu output -json worker_private_ips | jq -r '.[2]')
-W4_PRIV=$(tofu -chdir=opentofu output -json worker_private_ips | jq -r '.[3]')
-N1_PRIV=$(tofu -chdir=opentofu output -json nsd_private_ips    | jq -r '.[0]')
-N2_PRIV=$(tofu -chdir=opentofu output -json nsd_private_ips    | jq -r '.[1]')
 
-ALL_PUB=($M1_PUB $W1_PUB $W2_PUB $W3_PUB $W4_PUB $N1_PUB $N2_PUB)
+# 워커 수를 tofu output에서 동적으로 수집
+WORKER_COUNT=$(tofu -chdir=opentofu output -json worker_public_ips | jq 'length')
+WORKER_PUBS=()
+WORKER_PRIVS=()
+for i in $(seq 0 $((WORKER_COUNT - 1))); do
+  WORKER_PUBS+=($(tofu -chdir=opentofu output -json worker_public_ips  | jq -r ".[$i]"))
+  WORKER_PRIVS+=($(tofu -chdir=opentofu output -json worker_private_ips | jq -r ".[$i]"))
+done
 
-cat > scripts/.env <<EOF
-M1_PUB=$M1_PUB
-W1_PUB=$W1_PUB; W2_PUB=$W2_PUB; W3_PUB=$W3_PUB; W4_PUB=$W4_PUB
-N1_PUB=$N1_PUB; N2_PUB=$N2_PUB
-M1_PRIV=$M1_PRIV
-W1_PRIV=$W1_PRIV; W2_PRIV=$W2_PRIV; W3_PRIV=$W3_PRIV; W4_PRIV=$W4_PRIV
-N1_PRIV=$N1_PRIV; N2_PRIV=$N2_PRIV
-SSH_KEY=$SSH_KEY
-EOF
+N1_PUB=$(tofu -chdir=opentofu output -json nsd_public_ips  | jq -r '.[0]')
+N2_PUB=$(tofu -chdir=opentofu output -json nsd_public_ips  | jq -r '.[1]')
+N1_PRIV=$(tofu -chdir=opentofu output -json nsd_private_ips | jq -r '.[0]')
+N2_PRIV=$(tofu -chdir=opentofu output -json nsd_private_ips | jq -r '.[1]')
+
+ALL_PUB=($M1_PUB "${WORKER_PUBS[@]}" $N1_PUB $N2_PUB)
+
+# .env 생성 (배열 포함)
+{
+  echo "M1_PUB=$M1_PUB"
+  echo "M1_PRIV=$M1_PRIV"
+  echo "WORKER_PUBS=(${WORKER_PUBS[*]})"
+  echo "WORKER_PRIVS=(${WORKER_PRIVS[*]})"
+  echo "N1_PUB=$N1_PUB; N2_PUB=$N2_PUB"
+  echo "N1_PRIV=$N1_PRIV; N2_PRIV=$N2_PRIV"
+  echo "SSH_KEY=$SSH_KEY"
+} > scripts/.env
+
+echo "  수집된 워커: ${WORKER_PUBS[*]}"
 
 echo "=============================="
 echo " Step 0-1: 노드 부팅 대기"
@@ -52,20 +56,14 @@ done
 echo "=============================="
 echo " Step 0-2: /etc/hosts 배포"
 echo "=============================="
-HOSTS=$(cat <<EOF
-# k8s-storage-lab
-$M1_PRIV  master-1
-$W1_PRIV  worker-1
-$W2_PRIV  worker-2
-$W3_PRIV  worker-3
-$W4_PRIV  worker-4
-$N1_PRIV  nsd-1
-$N2_PRIV  nsd-2
-EOF
-)
+HOSTS_LINES="# k8s-storage-lab\n$M1_PRIV  master-1"
+for i in $(seq 0 $((WORKER_COUNT - 1))); do
+  HOSTS_LINES+="\n${WORKER_PRIVS[$i]}  worker-$((i + 1))"
+done
+HOSTS_LINES+="\n$N1_PRIV  nsd-1\n$N2_PRIV  nsd-2"
 
 for ip in "${ALL_PUB[@]}"; do
-  ssh $SSH_OPTS ubuntu@$ip "echo '$HOSTS' | sudo tee -a /etc/hosts > /dev/null"
+  ssh $SSH_OPTS ubuntu@$ip "printf '$HOSTS_LINES\n' | sudo tee -a /etc/hosts > /dev/null"
   echo "  /etc/hosts 업데이트: $ip"
 done
 
@@ -86,4 +84,4 @@ for ip in "${ALL_PUB[@]}"; do
 done
 
 echo ""
-echo "✅ Step 0 완료 - 다음: scripts/04_k8s_install.sh"
+echo "✅ Step 0 완료 - 다음: scripts/01_k8s_install.sh"

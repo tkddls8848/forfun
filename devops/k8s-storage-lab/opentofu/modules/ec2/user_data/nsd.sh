@@ -10,7 +10,7 @@ apt-get install -y \
   curl wget vim jq \
   ksh perl \
   python3 python3-pip \
-  libaio1 libssl-dev \
+  libaio1t64 libssl-dev \
   net-tools iputils-ping \
   build-essential \
   linux-headers-$(uname -r)

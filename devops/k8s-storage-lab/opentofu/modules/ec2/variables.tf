@@ -5,3 +5,4 @@ variable "subnet_k8s_id" { type = string }
 variable "subnet_nsd_id" { type = string }
 variable "sg_k8s_id"     { type = string }
 variable "sg_nsd_id"     { type = string }
+variable "worker_count" { type = number }

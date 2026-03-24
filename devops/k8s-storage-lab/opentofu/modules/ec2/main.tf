@@ -26,9 +26,9 @@ resource "aws_instance" "master" {
   }
 }
 
-# ── Worker 노드 4대 (HCI: k8s + Ceph OSD) ──
+# ── Worker 노드 (HCI: k8s + Ceph OSD) ──
 resource "aws_instance" "worker" {
-  count                  = 4
+  count                  = var.worker_count
   ami                    = var.ami_id
   instance_type          = "m5.large"
   key_name               = var.key_name

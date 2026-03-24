@@ -18,7 +18,7 @@ data "aws_ami" "ubuntu" {
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
   }
   filter {
     name   = "virtualization-type"
@@ -49,6 +49,7 @@ module "ec2" {
   subnet_nsd_id = module.vpc.subnet_nsd_id
   sg_k8s_id     = module.security_group.sg_k8s_id
   sg_nsd_id     = module.security_group.sg_nsd_id
+  worker_count  = var.worker_count
 }
 
 module "ebs" {
@@ -58,4 +59,5 @@ module "ebs" {
   nsd1_instance_id    = module.ec2.nsd1_instance_id
   nsd2_instance_id    = module.ec2.nsd2_instance_id
   worker_instance_ids = module.ec2.worker_instance_ids
+  worker_count        = var.worker_count
 }

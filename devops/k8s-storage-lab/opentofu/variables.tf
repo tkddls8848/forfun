@@ -20,3 +20,8 @@ variable "key_name" {
   description = "AWS EC2 Key Pair 이름 (terraform.tfvars에서 설정)"
   type        = string
 }
+
+variable "worker_count" {
+  description = "K8s Worker(HCI) 노드 수"
+  type        = number
+}

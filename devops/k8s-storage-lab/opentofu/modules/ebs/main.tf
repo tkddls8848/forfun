@@ -28,25 +28,25 @@ resource "aws_volume_attachment" "gpfs_nsd2" {
   force_detach = true
 }
 
-# ── Ceph OSD: worker 노드당 2개 × 4노드 = 8개 ──
+# ── Ceph OSD: worker 노드당 2개 × 3노드 = 6개 ──
 resource "aws_ebs_volume" "ceph_osd_a" {
-  count             = 4
+  count             = var.worker_count
   availability_zone = var.availability_zone
-  size              = 20
+  size              = 10
   type              = "gp2"
   tags              = { Name = "${var.project_name}-ceph-osd-${count.index + 1}-a" }
 }
 
 resource "aws_ebs_volume" "ceph_osd_b" {
-  count             = 4
+  count             = var.worker_count
   availability_zone = var.availability_zone
-  size              = 20
+  size              = 10
   type              = "gp2"
   tags              = { Name = "${var.project_name}-ceph-osd-${count.index + 1}-b" }
 }
 
 resource "aws_volume_attachment" "ceph_osd_a" {
-  count        = 4
+  count        = 3
   device_name  = "/dev/xvdb"
   volume_id    = aws_ebs_volume.ceph_osd_a[count.index].id
   instance_id  = var.worker_instance_ids[count.index]
@@ -54,7 +54,7 @@ resource "aws_volume_attachment" "ceph_osd_a" {
 }
 
 resource "aws_volume_attachment" "ceph_osd_b" {
-  count        = 4
+  count        = 3
   device_name  = "/dev/xvdc"
   volume_id    = aws_ebs_volume.ceph_osd_b[count.index].id
   instance_id  = var.worker_instance_ids[count.index]

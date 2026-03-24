@@ -9,6 +9,8 @@ CSSH="ssh $SSH_OPTS ubuntu@"
 ROOK_VERSION="v1.13.0"
 CEPH_IMAGE="quay.io/ceph/ceph:v18"
 
+WORKER_COUNT=${#WORKER_PUBS[@]}
+
 echo "=============================="
 echo " Step 1: Helm 설치 (master-1)"
 echo "=============================="
@@ -33,21 +35,63 @@ $CSSH$M1_PUB "helm upgrade --install rook-ceph rook-release/rook-ceph --namespac
 echo "  Operator Pod 기동 대기..."
 $CSSH$M1_PUB "kubectl -n rook-ceph rollout status deployment/rook-ceph-operator --timeout=300s"
 
-# [안정화 대기 1] operator의 CRD watch 연결(20+개)이 안정화될 시간 확보
+# [안정화 대기] operator의 CRD watch 연결(20+개)이 안정화될 시간 확보
 # 바로 CephCluster를 배포하면 watch 폭풍 + reconcile 루프로 etcd 과부하 발생
 echo "  CRD watch 안정화 대기 (60초)..."
 sleep 60
 $CSSH$M1_PUB "kubectl -n rook-ceph get pods"
 
 echo "=============================="
-echo " Step 1-3: CephCluster CR 배포 (HCI: worker-1~4)"
+echo " Step 1-2-1: 워커 노드 rbd 모듈 로드 확인"
 echo "=============================="
-# mon count=1 (실습 환경 최적화)
-# - mon 3개: mon pod × 3 + mgr + OSD × 8 + CSI × 12 → API server 과부하
-# - mon 1개: API server 연결 수 대폭 감소, 단일 master 환경에 적합
-# - replication size=2로 조정 (mon 1개에서 size=3은 PG undersized 경고 발생)
-$CSSH$M1_PUB "
-cat <<'EOF' | kubectl apply -f -
+# rbd 모듈이 로드되지 않으면 Ceph CSI의 RBD 볼륨 마운트 실패
+# linux-modules-extra-aws와 커널 버전 불일치로 user_data에서 로드 실패했을 경우 대비
+for i in $(seq 0 $((WORKER_COUNT - 1))); do
+  NODE_IP="${WORKER_PUBS[$i]}"
+  NODE_NAME="worker-$((i + 1))"
+  $CSSH$NODE_IP "
+    if lsmod | grep -q '^rbd'; then
+      echo '  ✅ rbd 모듈 로드됨: $NODE_NAME'
+    else
+      echo '  rbd 모듈 로드 시도: $NODE_NAME'
+      sudo modprobe rbd
+      lsmod | grep -q '^rbd' && echo '  ✅ rbd 로드 성공' || echo '  ❌ rbd 로드 실패 - linux-modules-extra-aws 확인 필요'
+    fi
+  "
+done
+
+echo "=============================="
+echo " Step 1-3: CephCluster CR 배포 (워커별 순차 OSD 초기화)"
+echo "=============================="
+# NVMe OSD 일제 초기화 시 I/O 스파이크 → API server 과부하 방지를 위해 노드별 순차 추가
+# useAllDevices: true: 미포맷 블록 디바이스 자동 감지 (디바이스명 하드코딩 제거)
+# mon count=3: quorum 구성 (mon 과반수 이상 생존 시 클러스터 정상 운영)
+
+# OSD Running 수가 최솟값에 도달한 뒤 연속 3회 안정 확인 후 반환 (최대 8분)
+wait_osd_running() {
+  local min_count=$1
+  $CSSH$M1_PUB "
+    STABLE=0
+    for i in \$(seq 1 48); do
+      UP=\$(kubectl -n rook-ceph get pods -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -c Running || true)
+      echo \"  [\$i/48] OSD Running: \$UP (목표: >= $min_count)\"
+      if [ \"\$UP\" -ge $min_count ]; then
+        STABLE=\$((STABLE + 1))
+        [ \"\$STABLE\" -ge 3 ] && echo '  OSD 안정 확인 (3회 연속)' && break
+      else
+        STABLE=0
+      fi
+      sleep 10
+    done
+  "
+  sleep 45  # OSD I/O 초기화 + API server 안정화 버퍼
+}
+
+# 워커를 1대씩 순차 추가하는 CephCluster CR 생성 함수
+apply_ceph_cluster() {
+  local node_list="$1"
+  $CSSH$M1_PUB "
+cat <<'CREOF' | kubectl apply -f -
 apiVersion: ceph.rook.io/v1
 kind: CephCluster
 metadata:
@@ -60,7 +104,7 @@ spec:
   dataDirHostPath: /var/lib/rook
   skipUpgradeChecks: false
   mon:
-    count: 1
+    count: 3
     allowMultiplePerNode: false
   mgr:
     count: 1
@@ -80,41 +124,33 @@ spec:
                   operator: DoesNotExist
   storage:
     useAllNodes: false
-    useAllDevices: false
+    useAllDevices: true
     nodes:
-      - name: worker-1
-        devices:
-          - name: nvme1n1
-          - name: nvme2n1
-      - name: worker-2
-        devices:
-          - name: nvme1n1
-          - name: nvme2n1
-      - name: worker-3
-        devices:
-          - name: nvme1n1
-          - name: nvme2n1
-      - name: worker-4
-        devices:
-          - name: nvme1n1
-          - name: nvme2n1
-EOF
+$node_list
+CREOF
 "
+}
 
-# [안정화 대기 2] CephCluster CR 적용 후 CSI DaemonSet 배포가 시작됨
-# CSI pod들이 일제히 API server 연결을 맺기 전에 잠시 대기
-echo "  CSI 배포 시작 대기 (30초)..."
-sleep 30
+# 워커를 1대씩 순차 추가
+NODE_LIST=""
+for i in $(seq 0 $((WORKER_COUNT - 1))); do
+  PHASE=$((i + 1))
+  NODE_NAME="worker-$((i + 1))"
+  NODE_LIST+="      - name: $NODE_NAME\n"
+  echo "  [Phase $PHASE/$WORKER_COUNT] $NODE_NAME OSD 초기화..."
+  apply_ceph_cluster "$(printf "$NODE_LIST")"
+  wait_osd_running $PHASE
+done
 
 echo "=============================="
 echo " Step 1-4: Ceph 클러스터 HEALTH_OK 대기"
 echo "=============================="
-echo "  (mon 1개 + OSD 초기화 포함 최대 10분 소요)"
+echo "  (mon 3개 + OSD 초기화 포함 최대 15분 소요)"
 $CSSH$M1_PUB "
-  for i in \$(seq 1 60); do
+  for i in \$(seq 1 90); do
     STATUS=\$(kubectl -n rook-ceph get cephcluster rook-ceph \
       -o jsonpath='{.status.ceph.health}' 2>/dev/null || echo 'PENDING')
-    echo \"  [\$i/60] Ceph 상태: \$STATUS\"
+    echo \"  [\$i/90] Ceph 상태: \$STATUS\"
     [ \"\$STATUS\" = 'HEALTH_OK' ] && break
     sleep 10
   done
@@ -125,7 +161,6 @@ $CSSH$M1_PUB "
 echo "=============================="
 echo " Step 1-5: CephBlockPool + StorageClass (RBD)"
 echo "=============================="
-# replication size=2: mon 1개 환경에서 size=3은 PG undersized 경고 유발
 $CSSH$M1_PUB "
 cat <<'EOF' | kubectl apply -f -
 apiVersion: ceph.rook.io/v1
@@ -217,4 +252,4 @@ kubectl -n rook-ceph get pods -o wide
 
 echo ""
 echo "✅ Step 1 완료 - StorageClass: ceph-rbd, ceph-cephfs"
-echo "   다음: scripts/02_gpfs_install.sh (IBM 패키지 필요)"
+echo "   다음: scripts/04_gpfs_install.sh (IBM 패키지 필요)"

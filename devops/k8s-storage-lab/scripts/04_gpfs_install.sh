@@ -53,4 +53,4 @@ $CSSH$N1_PUB "
 "
 
 echo ""
-echo "✅ Step 2 완료 - 다음: scripts/03_nsd_setup.sh"
+echo "✅ Step 4 완료 - 다음: scripts/05_nsd_setup.sh"
