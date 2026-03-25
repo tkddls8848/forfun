@@ -1,0 +1,43 @@
+- name: Docker GPG 키 등록
+  shell: |
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+    | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  args:
+    creates: /etc/apt/keyrings/docker.gpg
+
+- name: Docker apt 저장소 추가
+  apt_repository:
+    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+    filename: docker
+
+- name: containerd.io 설치
+  apt:
+    name: containerd.io
+    state: present
+    update_cache: yes
+
+- name: containerd 기본 설정 생성
+  shell: containerd config default > /etc/containerd/config.toml
+  args:
+    creates: /etc/containerd/config.toml
+
+- name: SystemdCgroup 활성화
+  replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup = false'
+    replace: 'SystemdCgroup = true'
+  notify: restart containerd
+
+- name: sandbox_image pause 버전 설정 (K8s 1.31)
+  replace:
+    path: /etc/containerd/config.toml
+    regexp: 'sandbox_image = "registry.k8s.io/pause:.*"'
+    replace: 'sandbox_image = "registry.k8s.io/pause:3.10"'
+  notify: restart containerd
+
+- name: containerd 활성화
+  systemd:
+    name: containerd
+    enabled: yes
+    state: started

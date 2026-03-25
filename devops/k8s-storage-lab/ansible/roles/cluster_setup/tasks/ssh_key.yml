@@ -1,0 +1,19 @@
+- name: master SSH 키 생성
+  openssh_keypair:
+    path: /home/ubuntu/.ssh/id_rsa
+    owner: ubuntu
+  delegate_to: "{{ groups['master'][0] }}"
+  run_once: true
+
+- name: master 공개키 수집
+  slurp:
+    src: /home/ubuntu/.ssh/id_rsa.pub
+  delegate_to: "{{ groups['master'][0] }}"
+  run_once: true
+  register: master_pubkey
+
+- name: 전 노드에 공개키 배포
+  authorized_key:
+    user: ubuntu
+    key: "{{ master_pubkey.content | b64decode }}"
+    state: present

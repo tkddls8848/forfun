@@ -1,0 +1,4 @@
+- import_tasks: init.yml
+- import_tasks: kubeconfig.yml
+- import_tasks: verify.yml
+- import_tasks: token.yml

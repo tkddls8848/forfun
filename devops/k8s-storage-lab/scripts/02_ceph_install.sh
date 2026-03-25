@@ -1,13 +1,32 @@
 #!/bin/bash
 set -e
+
+# Lock 파일 확인 - 동시 실행 방지
+LOCK_FILE="/tmp/ceph-setup.lock"
+if [ -f "$LOCK_FILE" ]; then
+  echo "❌ 다른 프로세스가 Ceph 설정 중입니다 (lock: $LOCK_FILE)"
+  exit 1
+fi
+
 source scripts/.env
 
 export KUBECONFIG=~/.kube/config-k8s-storage-lab
 SSH_OPTS="-o StrictHostKeyChecking=no -i $SSH_KEY"
 CSSH="ssh $SSH_OPTS ubuntu@"
 
-ROOK_VERSION="v1.13.0"
-CEPH_IMAGE="quay.io/ceph/ceph:v18"
+# K8s 클러스터 존재 확인
+if ! kubectl cluster-info &>/dev/null; then
+  echo "❌ K8s 클러스터에 접근할 수 없습니다."
+  echo "   먼저 start_k8s.sh 또는 scripts/01_k8s_install.sh를 실행하세요."
+  exit 1
+fi
+
+ROOK_VERSION="v1.16.6"
+CEPH_IMAGE="quay.io/ceph/ceph:v19.2.3"
+
+# Lock 파일 생성 및 trap 설정
+touch "$LOCK_FILE"
+trap 'rm -f "$LOCK_FILE"' EXIT
 
 WORKER_COUNT=${#WORKER_PUBS[@]}
 
@@ -169,7 +188,7 @@ $CSSH$M1_PUB "
 echo "=============================="
 echo " Step 1-4-1: rook-ceph-tools 배포"
 echo "=============================="
-$CSSH$M1_PUB "kubectl apply -f https://raw.githubusercontent.com/rook/rook/v1.13.0/deploy/examples/toolbox.yaml"
+$CSSH$M1_PUB "kubectl apply -f https://raw.githubusercontent.com/rook/rook/$ROOK_VERSION/deploy/examples/toolbox.yaml"
 echo "  [대기] rook-ceph-tools 기동 대기..."
 $CSSH$M1_PUB "kubectl -n rook-ceph rollout status deploy/rook-ceph-tools --timeout=120s"
 

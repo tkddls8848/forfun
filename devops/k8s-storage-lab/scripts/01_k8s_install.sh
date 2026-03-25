@@ -1,5 +1,25 @@
 #!/bin/bash
 set -e
+
+# Lock 파일 확인 - Ansible과 동시 실행 방지
+LOCK_FILE="/tmp/k8s-setup.lock"
+if [ -f "$LOCK_FILE" ]; then
+  echo "❌ 다른 프로세스가 K8s 설정 중입니다 (lock: $LOCK_FILE)"
+  echo "   Ansible playbook 또는 다른 스크립트가 실행 중입니다."
+  exit 1
+fi
+
+# Ansible 완료 확인
+if [ -f "/tmp/ansible-k8s-complete" ]; then
+  echo "⚠️  Ansible로 이미 K8s 클러스터가 구성되었습니다."
+  echo "   이 스크립트는 Ansible을 사용하지 않은 경우에만 실행하세요."
+  read -p "계속 진행하시겠습니까? (yes/no): " answer
+  if [ "$answer" != "yes" ]; then
+    echo "종료합니다."
+    exit 0
+  fi
+fi
+
 source scripts/.env
 
 SSH_OPTS="-o StrictHostKeyChecking=no -i $SSH_KEY"
@@ -7,6 +27,10 @@ CSSH="ssh $SSH_OPTS ubuntu@"
 
 K8S_VERSION="1.31"
 POD_CIDR="10.244.0.0/16"   # Flannel 기본 CIDR
+
+# Lock 파일 생성 및 trap 설정
+touch "$LOCK_FILE"
+trap 'rm -f "$LOCK_FILE"' EXIT
 
 WORKER_COUNT=${#WORKER_PUBS[@]}
 ALL_K8S_PUB=($M1_PUB "${WORKER_PUBS[@]}")

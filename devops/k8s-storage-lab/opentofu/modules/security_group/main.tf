@@ -1,14 +1,34 @@
-# HCI SG: k8s + Ceph 포트 통합 (master-1, worker-1~4)
-resource "aws_security_group" "k8s" {
-  name   = "${var.project_name}-sg-k8s"
+# Bastion SG — 외부 SSH 유일 진입점
+resource "aws_security_group" "bastion" {
+  name   = "${var.project_name}-sg-bastion"
   vpc_id = var.vpc_id
 
-  # SSH
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = { Name = "${var.project_name}-sg-bastion" }
+}
+
+# HCI SG: k8s + Ceph 포트 통합 (master-1, worker-1~N)
+resource "aws_security_group" "k8s" {
+  name   = "${var.project_name}-sg-k8s"
+  vpc_id = var.vpc_id
+
+  # SSH — Bastion에서만 허용
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.bastion.id]
   }
   # k8s API server
   ingress {
@@ -84,7 +104,7 @@ resource "aws_security_group" "k8s" {
     from_port   = 8080
     to_port     = 8443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.vpc_cidr]
   }
   # VPC 내부 전체 허용 (k8s 노드간 통신)
   ingress {
@@ -99,7 +119,6 @@ resource "aws_security_group" "k8s" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   tags = { Name = "${var.project_name}-sg-k8s" }
 }
 
@@ -108,11 +127,12 @@ resource "aws_security_group" "nsd" {
   name   = "${var.project_name}-sg-nsd"
   vpc_id = var.vpc_id
 
+  # SSH — Bastion에서만 허용
   ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.bastion.id]
   }
   # GPFS 데몬 포트
   ingress {
@@ -147,9 +167,9 @@ resource "aws_security_group" "nsd" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   tags = { Name = "${var.project_name}-sg-nsd" }
 }
 
-output "sg_k8s_id" { value = aws_security_group.k8s.id }
-output "sg_nsd_id" { value = aws_security_group.nsd.id }
+output "sg_bastion_id" { value = aws_security_group.bastion.id }
+output "sg_k8s_id"     { value = aws_security_group.k8s.id }
+output "sg_nsd_id"     { value = aws_security_group.nsd.id }

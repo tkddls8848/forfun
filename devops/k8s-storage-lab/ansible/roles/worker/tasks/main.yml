@@ -1,0 +1,28 @@
+- name: worker 추가 패키지 설치
+  apt:
+    name: "{{ extra_packages }}"
+    state: present
+    update_cache: yes
+  retries: 3
+  delay: 5
+  register: apt_result
+  until: apt_result is succeeded
+
+- name: chrony 활성화
+  systemd:
+    name: chrony
+    enabled: yes
+    state: started
+
+- name: Ceph 커널 모듈 등록
+  lineinfile:
+    path: /etc/modules-load.d/k8s.conf
+    line: "{{ item }}"
+  loop: "{{ ceph_modules }}"
+
+- name: Ceph 커널 모듈 즉시 로드
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ ceph_modules }}"
+  ignore_errors: yes

@@ -1,0 +1,9 @@
+- name: swap off
+  command: swapoff -a
+  when: ansible_facts["swaptotal_mb"] > 0
+
+- name: swap fstab 제거
+  lineinfile:
+    path: /etc/fstab
+    regexp: '\sswap\s'
+    state: absent

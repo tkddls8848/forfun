@@ -1,0 +1,49 @@
+---
+- name: OS 기반 설정
+  hosts: master:worker:nsd
+  become: yes
+  roles:
+    - common
+
+- name: Worker 추가 설정
+  hosts: worker
+  become: yes
+  roles:
+    - worker
+
+- name: NSD 추가 설정
+  hosts: nsd
+  become: yes
+  roles:
+    - nsd
+
+- name: 클러스터 공통 설정
+  hosts: master:worker:nsd
+  become: yes
+  roles:
+    - cluster_setup
+
+- name: K8s 패키지 설치
+  hosts: master:worker
+  become: yes
+  roles:
+    - kubernetes_common
+
+- name: Master 초기화
+  hosts: master
+  become: yes
+  roles:
+    - kubernetes_master
+
+- name: CNI 설치 (Flannel)
+  hosts: master
+  become: no
+  roles:
+    - cni
+
+- name: Worker join
+  hosts: worker
+  become: yes
+  serial: 1
+  roles:
+    - kubernetes_worker

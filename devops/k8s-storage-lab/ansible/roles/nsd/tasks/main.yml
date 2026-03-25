@@ -1,0 +1,9 @@
+- name: GPFS 의존 패키지 설치
+  apt:
+    name: "{{ gpfs_packages }}"
+    state: present
+    update_cache: yes
+  retries: 3
+  delay: 5
+  register: apt_result
+  until: apt_result is succeeded

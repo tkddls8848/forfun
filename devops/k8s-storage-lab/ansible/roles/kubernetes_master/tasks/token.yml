@@ -1,0 +1,7 @@
+- name: join 명령어 생성
+  command: kubeadm token create --print-join-command
+  register: join_command
+
+- name: join 명령어 fact 저장
+  set_fact:
+    worker_join_command: "{{ join_command.stdout }}"

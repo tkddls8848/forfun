@@ -26,6 +26,43 @@ data "aws_ami" "ubuntu" {
   }
 }
 
+# ── Bastion IAM Role (동적 인벤토리용 최소 권한) ──
+resource "aws_iam_role" "bastion" {
+  name = "${var.project_name}-bastion-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "bastion_ec2_read" {
+  name = "ec2-describe"
+  role = aws_iam_role.bastion.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ec2:DescribeInstances",
+        "ec2:DescribeRegions",
+        "ec2:DescribeTags"
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_iam_instance_profile" "bastion" {
+  name = "${var.project_name}-bastion-profile"
+  role = aws_iam_role.bastion.name
+}
+
 module "vpc" {
   source       = "./modules/vpc"
   project_name = var.project_name
@@ -41,15 +78,18 @@ module "security_group" {
 }
 
 module "ec2" {
-  source        = "./modules/ec2"
-  project_name  = var.project_name
-  ami_id        = data.aws_ami.ubuntu.id
-  key_name      = var.key_name
-  subnet_k8s_id = module.vpc.subnet_k8s_id
-  subnet_nsd_id = module.vpc.subnet_nsd_id
-  sg_k8s_id     = module.security_group.sg_k8s_id
-  sg_nsd_id     = module.security_group.sg_nsd_id
-  worker_count  = var.worker_count
+  source              = "./modules/ec2"
+  project_name        = var.project_name
+  ami_id              = data.aws_ami.ubuntu.id
+  key_name            = var.key_name
+  subnet_bastion_id   = module.vpc.subnet_bastion_id
+  subnet_k8s_id       = module.vpc.subnet_k8s_id
+  subnet_nsd_id       = module.vpc.subnet_nsd_id
+  sg_bastion_id       = module.security_group.sg_bastion_id
+  sg_k8s_id           = module.security_group.sg_k8s_id
+  sg_nsd_id           = module.security_group.sg_nsd_id
+  worker_count        = var.worker_count
+  bastion_iam_profile = aws_iam_instance_profile.bastion.name
 }
 
 module "ebs" {

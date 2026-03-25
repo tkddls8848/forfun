@@ -1,0 +1,7 @@
+gpfs_packages:
+  - ksh
+  - perl
+  - libaio1t64
+  - libssl-dev
+  - build-essential
+  - dkms
