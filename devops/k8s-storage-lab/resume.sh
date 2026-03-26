@@ -2,7 +2,7 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SSH_KEY="${SSH_KEY_PATH:-$HOME/.ssh/storage-lab.pem}"
-SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=15 -i $SSH_KEY"
+SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -i $SSH_KEY"
 AWS_REGION="${AWS_REGION:-ap-northeast-2}"
 TAG_FILTER="Name=tag:Name,Values=k8s-storage-lab-*"
 

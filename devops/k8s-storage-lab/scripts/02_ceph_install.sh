@@ -88,10 +88,10 @@ for i in $(seq 0 $((WORKER_COUNT - 1))); do
 done
 
 echo "=============================="
-echo " Step 1-3: CephCluster CR 배포 (워커별 순차 OSD 초기화)"
+echo " Step 1-3: CephCluster CR 배포"
 echo "=============================="
 
-# OSD Running 수가 최솟값에 도달한 뒤 연속 3회 안정 확인 후 반환 (최대 8분)
+# OSD Running 수가 목표에 도달한 뒤 연속 3회 안정 확인 후 반환 (최대 8분)
 wait_osd_running() {
   local min_count=$1
   $CSSH$M1_PUB "
@@ -111,10 +111,8 @@ wait_osd_running() {
   countdown 45 "OSD I/O 초기화 및 API server 안정화"
 }
 
-# 워커를 1대씩 순차 추가하는 CephCluster CR 생성 함수
-apply_ceph_cluster() {
-  local node_list="$1"
-  $CSSH$M1_PUB "
+# CephCluster CR 배포 (useAllNodes: true — K8s 노드명에 무관하게 control-plane 제외 전체 적용)
+$CSSH$M1_PUB "
 cat <<'CREOF' | kubectl apply -f -
 apiVersion: ceph.rook.io/v1
 kind: CephCluster
@@ -148,27 +146,18 @@ spec:
                   operator: DoesNotExist
   cephConfig:
     global:
-      osd_pool_default_size: "2"
-      osd_pool_default_min_size: "1"
+      osd_pool_default_size: \"2\"
+      osd_pool_default_min_size: \"1\"
   storage:
-    useAllNodes: false
+    useAllNodes: true
     useAllDevices: true
-    nodes:
-$node_list
 CREOF
 "
-}
 
-# 워커를 1대씩 순차 추가
-NODE_LIST=""
-for i in $(seq 0 $((WORKER_COUNT - 1))); do
-  PHASE=$((i + 1))
-  NODE_NAME="worker-$((i + 1))"
-  NODE_LIST+="      - name: $NODE_NAME\n"
-  echo "  [Phase $PHASE/$WORKER_COUNT] $NODE_NAME OSD 초기화..."
-  apply_ceph_cluster "$(printf "$NODE_LIST")"
-  wait_osd_running $PHASE
-done
+# 워커당 2개 OSD (nvme1n1, nvme2n1) 기준 목표 수
+OSD_TARGET=$((WORKER_COUNT * 2))
+echo "  OSD 목표: $OSD_TARGET (워커 $WORKER_COUNT 대 × 디스크 2개)"
+wait_osd_running $OSD_TARGET
 
 echo "=============================="
 echo " Step 1-4: Ceph 클러스터 HEALTH_OK 대기"

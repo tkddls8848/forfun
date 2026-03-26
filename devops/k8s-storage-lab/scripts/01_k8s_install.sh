@@ -34,6 +34,7 @@ trap 'rm -f "$LOCK_FILE"' EXIT
 
 WORKER_COUNT=${#WORKER_PUBS[@]}
 ALL_K8S_PUB=($M1_PUB "${WORKER_PUBS[@]}")
+ALL_K8S_PRIV=($M1_PRIV "${WORKER_PRIVS[@]}")
 
 echo "=============================="
 echo " Step 4-0: 노드 hostname 설정"
@@ -87,7 +88,7 @@ echo "=============================="
 # iptables 모드(기본값)는 Flannel과 lock 경합 → 전체 클러스터 네트워킹 붕괴
 $CSSH$M1_PUB "
 cat <<'EOF' | sudo tee /tmp/kubeadm-config.yaml
-apiVersion: kubeadm.k8s.io/v1beta3
+apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
 networking:
   podSubnet: $POD_CIDR

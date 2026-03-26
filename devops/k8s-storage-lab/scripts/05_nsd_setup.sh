@@ -5,6 +5,7 @@ source scripts/.env
 SSH_OPTS="-o StrictHostKeyChecking=no -i $SSH_KEY"
 CSSH="ssh $SSH_OPTS ubuntu@"
 
+WORKER_COUNT=${#WORKER_PUBS[@]}
 CLUSTER_NAME="gpfslab"
 FS_NAME="gpfs0"
 MOUNT_POINT="/gpfs/gpfs0"
@@ -12,16 +13,16 @@ MOUNT_POINT="/gpfs/gpfs0"
 echo "=============================="
 echo " Step 3: GPFS 클러스터 생성"
 echo "=============================="
+NODEFILE_WORKERS=""
+for i in $(seq 1 $WORKER_COUNT); do
+  NODEFILE_WORKERS+="worker-$i:\n"
+done
+CLIENT_LIST="master-1"
+for i in $(seq 1 $WORKER_COUNT); do CLIENT_LIST+=",worker-$i"; done
+
 $CSSH$N1_PUB "
-  sudo tee /tmp/NodeFile <<EOF
-nsd-1:quorum-manager
-nsd-2:quorum-manager
-master-1:quorum
-worker-1:
-worker-2:
-worker-3:
-worker-4:
-EOF
+  printf 'nsd-1:quorum-manager\nnsd-2:quorum-manager\nmaster-1:quorum\n${NODEFILE_WORKERS}' \
+    | sudo tee /tmp/NodeFile
 
   sudo /usr/lpp/mmfs/bin/mmcrcluster \
     -N /tmp/NodeFile \
@@ -29,10 +30,8 @@ EOF
     -p nsd-1 \
     -s nsd-2
 
-  sudo /usr/lpp/mmfs/bin/mmchlicense client --accept \
-    -N master-1,worker-1,worker-2,worker-3,worker-4
-  sudo /usr/lpp/mmfs/bin/mmchlicense server --accept \
-    -N nsd-1,nsd-2
+  sudo /usr/lpp/mmfs/bin/mmchlicense client --accept -N $CLIENT_LIST
+  sudo /usr/lpp/mmfs/bin/mmchlicense server --accept -N nsd-1,nsd-2
 
   echo '--- 클러스터 확인 ---'
   sudo /usr/lpp/mmfs/bin/mmlscluster
@@ -81,7 +80,7 @@ $CSSH$N1_PUB "
 echo "=============================="
 echo " Step 3-3: GPFS 데몬 시작 및 마운트"
 echo "=============================="
-ALL_GPFS_PUB=($N1_PUB $N2_PUB $M1_PUB $W1_PUB $W2_PUB $W3_PUB $W4_PUB)
+ALL_GPFS_PUB=($N1_PUB $N2_PUB $M1_PUB "${WORKER_PUBS[@]}")
 
 for ip in "${ALL_GPFS_PUB[@]}"; do
   $CSSH$ip "sudo /usr/lpp/mmfs/bin/mmstartup"

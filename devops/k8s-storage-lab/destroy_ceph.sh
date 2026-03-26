@@ -1,12 +1,61 @@
 #!/bin/bash
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/scripts/.env"
+SSH_KEY="${SSH_KEY_PATH:-$HOME/.ssh/storage-lab.pem}"
+SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -i $SSH_KEY"
 
+echo "=============================="
+echo " [1/3] 인프라 정보 수집"
+echo "=============================="
+cd "$SCRIPT_DIR/opentofu"
+BASTION_IP=$(tofu output -raw bastion_public_ip)
+MASTER_IP=$(tofu output -json master_private_ips | jq -r '.[0]')
+WORKER_IPS=($(tofu output -json worker_private_ips | jq -r '.[]'))
+N1_IP=$(tofu output -json nsd_private_ips | jq -r '.[0]')
+N2_IP=$(tofu output -json nsd_private_ips | jq -r '.[1]')
+cd "$SCRIPT_DIR"
+
+echo "  Bastion : $BASTION_IP"
+echo "  Master  : $MASTER_IP"
+echo "  Workers : ${WORKER_IPS[*]}"
+
+echo "=============================="
+echo " [2/3] Bastion 환경 준비"
+echo "=============================="
+# .env 생성 (start_ceph.sh와 동일)
+ssh $SSH_OPTS ubuntu@$BASTION_IP "mkdir -p ~/scripts"
+printf "SSH_KEY=~/.ssh/storage-lab.pem
+M1_PUB=%s
+M1_PRIV=%s
+WORKER_PUBS=(%s)
+WORKER_PRIVS=(%s)
+N1_PUB=%s; N2_PUB=%s
+N1_PRIV=%s; N2_PRIV=%s
+" \
+  "$MASTER_IP" "$MASTER_IP" \
+  "${WORKER_IPS[*]}" "${WORKER_IPS[*]}" \
+  "$N1_IP" "$N2_IP" \
+  "$N1_IP" "$N2_IP" \
+  | ssh $SSH_OPTS ubuntu@$BASTION_IP "cat > ~/scripts/.env"
+
+# kubectl 설치 (없는 경우)
+ssh $SSH_OPTS ubuntu@$BASTION_IP "
+  if ! command -v kubectl &>/dev/null; then
+    curl -sLO https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl
+    sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+    rm -f kubectl
+  fi
+"
+
+echo "=============================="
+echo " [3/3] rook-ceph 삭제 (Bastion에서 실행)"
+echo "=============================="
+ssh $SSH_OPTS ubuntu@$BASTION_IP << 'REMOTE'
+set -e
 export KUBECONFIG=~/.kube/config-k8s-storage-lab
+source ~/scripts/.env
 SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=15 -i $SSH_KEY"
 CSSH="ssh $SSH_OPTS ubuntu@"
-
 WORKER_COUNT=${#WORKER_PUBS[@]}
 
 echo "=============================="
@@ -88,3 +137,4 @@ done
 echo ""
 echo "✅ rook-ceph 삭제 완료"
 echo "   재설치: bash start_ceph.sh"
+REMOTE

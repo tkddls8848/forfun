@@ -47,3 +47,39 @@
   serial: 1
   roles:
     - kubernetes_worker
+
+- name: 클러스터 Addon 설치 (Metrics Server, Dashboard, Prometheus, Grafana)
+  hosts: master
+  become: no
+  roles:
+    - addons
+
+- name: 배스천 /etc/hosts 및 SSH config 설정
+  hosts: localhost
+  connection: local
+  become: yes
+  tasks:
+    - name: 노드 /etc/hosts 등록
+      lineinfile:
+        path: /etc/hosts
+        line: >-
+          {{ hostvars[item]['ansible_host'] }}
+          {{ hostvars[item]['ec2_tags']['Name'] | regex_replace('k8s-storage-lab-', '') }}
+        state: present
+      loop: "{{ groups['all'] }}"
+
+    - name: SSH config 등록
+      become: no
+      blockinfile:
+        path: /home/ubuntu/.ssh/config
+        create: yes
+        mode: '0600'
+        marker: "# {mark} k8s-storage-lab"
+        block: |
+          {% for host in groups['all'] %}
+          Host {{ hostvars[host]['ec2_tags']['Name'] | regex_replace('k8s-storage-lab-', '') }}
+            HostName {{ hostvars[host]['ansible_host'] }}
+            User ubuntu
+            IdentityFile ~/.ssh/storage-lab.pem
+            StrictHostKeyChecking no
+          {% endfor %}

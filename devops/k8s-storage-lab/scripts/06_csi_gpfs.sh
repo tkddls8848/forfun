@@ -6,8 +6,14 @@ export KUBECONFIG=~/.kube/config-k8s-storage-lab
 SSH_OPTS="-o StrictHostKeyChecking=no -i $SSH_KEY"
 CSSH="ssh $SSH_OPTS ubuntu@"
 
+WORKER_COUNT=${#WORKER_PUBS[@]}
 GPFS_MOUNT="/gpfs/gpfs0"
 GPFS_GUI_HOST="nsd-1"
+
+NODE_MAPPING="  - k8sNode: \"master-1\"\n    spectrumscaleNode: \"master-1\""
+for i in $(seq 1 $WORKER_COUNT); do
+  NODE_MAPPING+="\n  - k8sNode: \"worker-$i\"\n    spectrumscaleNode: \"worker-$i\""
+done
 
 echo "=============================="
 echo " Step 6: Spectrum Scale GUI 활성화"
@@ -52,16 +58,7 @@ clusters:
       primaryFs: \"gpfs0\"
 
 nodeMapping:
-  - k8sNode: \"master-1\"
-    spectrumscaleNode: \"master-1\"
-  - k8sNode: \"worker-1\"
-    spectrumscaleNode: \"worker-1\"
-  - k8sNode: \"worker-2\"
-    spectrumscaleNode: \"worker-2\"
-  - k8sNode: \"worker-3\"
-    spectrumscaleNode: \"worker-3\"
-  - k8sNode: \"worker-4\"
-    spectrumscaleNode: \"worker-4\"
+$(printf "$NODE_MAPPING")
 EOF
 
 kubectl create secret generic scale-secret \

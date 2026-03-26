@@ -15,8 +15,9 @@ if [ ! -d "$GPFS_PKG_DIR" ]; then
   exit 1
 fi
 
-# GPFS 클라이언트: master-1, worker-1~4 / GPFS 서버: nsd-1, nsd-2
-ALL_NODES_PUB=($M1_PUB $W1_PUB $W2_PUB $W3_PUB $W4_PUB $N1_PUB $N2_PUB)
+WORKER_COUNT=${#WORKER_PUBS[@]}
+# GPFS 클라이언트: master-1, worker-1~N / GPFS 서버: nsd-1, nsd-2
+ALL_NODES_PUB=($M1_PUB "${WORKER_PUBS[@]}" $N1_PUB $N2_PUB)
 
 echo "=============================="
 echo " Step 2: GPFS 패키지 전송 및 설치"
@@ -46,8 +47,11 @@ done
 echo "=============================="
 echo " Step 2-1: SSH 접근 확인 (nsd-1 기준)"
 echo "=============================="
+WORKER_NAMES="master-1"
+for i in $(seq 1 $WORKER_COUNT); do WORKER_NAMES+=" worker-$i"; done
+WORKER_NAMES+=" nsd-1 nsd-2"
 $CSSH$N1_PUB "
-  for host in master-1 worker-1 worker-2 worker-3 worker-4 nsd-1 nsd-2; do
+  for host in $WORKER_NAMES; do
     ssh -o StrictHostKeyChecking=no ubuntu@\$host 'echo \$host ok' || echo \"WARN: \$host 접근 실패\"
   done
 "

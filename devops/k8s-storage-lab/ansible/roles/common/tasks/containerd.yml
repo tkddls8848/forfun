@@ -7,7 +7,7 @@
 
 - name: Docker apt 저장소 추가
   apt_repository:
-    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_facts['distribution_release'] }} stable"
     state: present
     filename: docker
 
@@ -19,8 +19,8 @@
 
 - name: containerd 기본 설정 생성
   shell: containerd config default > /etc/containerd/config.toml
-  args:
-    creates: /etc/containerd/config.toml
+  changed_when: true
+  notify: restart containerd
 
 - name: SystemdCgroup 활성화
   replace:
@@ -35,6 +35,9 @@
     regexp: 'sandbox_image = "registry.k8s.io/pause:.*"'
     replace: 'sandbox_image = "registry.k8s.io/pause:3.10"'
   notify: restart containerd
+
+- name: handler 즉시 실행 (config 적용 후 containerd 재시작)
+  meta: flush_handlers
 
 - name: containerd 활성화
   systemd:
