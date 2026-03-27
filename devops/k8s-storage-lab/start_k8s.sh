@@ -57,17 +57,21 @@ echo " [3/5] SSH 키 + Playbook 전송"
 echo "=============================="
 ssh $SSH_OPTS ubuntu@$BASTION_IP "mkdir -p ~/.ssh && chmod 700 ~/.ssh && rm -f ~/.ssh/storage-lab.pem"
 scp $SSH_OPTS "$SSH_KEY" ubuntu@$BASTION_IP:~/.ssh/storage-lab.pem
-ssh $SSH_OPTS ubuntu@$BASTION_IP "chmod 400 ~/.ssh/storage-lab.pem && rm -rf ~/ansible"
-scp -O $SSH_OPTS -r "$SCRIPT_DIR/ansible" ubuntu@$BASTION_IP:~/
+ssh $SSH_OPTS ubuntu@$BASTION_IP "chmod 400 ~/.ssh/storage-lab.pem && rm -rf ~/ansible ~/manifests"
+scp -O $SSH_OPTS -r "$SCRIPT_DIR/ansible"    ubuntu@$BASTION_IP:~/
+scp -O $SSH_OPTS -r "$SCRIPT_DIR/manifests"  ubuntu@$BASTION_IP:~/
 
 echo "=============================="
 echo " [4/5] 나머지 노드 부팅 대기"
 echo "=============================="
-NODE_IPS=$(tofu output -json master_private_ips worker_private_ips nsd_private_ips \
-  | jq -rs '[.[]]|flatten[]')
+NODE_IPS=$(
+  tofu output -json master_private_ips | jq -r '.[]'
+  tofu output -json worker_private_ips | jq -r '.[]'
+  tofu output -json nsd_private_ips    | jq -r '.[]'
+)
 for IP in $NODE_IPS; do
   echo -n "  $IP 대기 중..."
-  until ssh $SSH_OPTS -o ProxyJump=ubuntu@$BASTION_IP ubuntu@$IP "echo ok" &>/dev/null; do
+  until ssh $SSH_OPTS -o "ProxyCommand=ssh $SSH_OPTS -W %h:%p ubuntu@$BASTION_IP" ubuntu@$IP "echo ok" &>/dev/null; do
     echo -n "."; sleep 5
   done
   echo " ✓"

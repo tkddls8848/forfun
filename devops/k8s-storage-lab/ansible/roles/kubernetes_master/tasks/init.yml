@@ -1,3 +1,4 @@
+---
 - name: kubeadm config 작성
   copy:
     dest: /tmp/kubeadm-config.yaml

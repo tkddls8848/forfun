@@ -1,4 +1,9 @@
+- name: master-1 hostname 설정
+  hostname:
+    name: master-1
+
 - import_tasks: init.yml
 - import_tasks: kubeconfig.yml
+- import_tasks: manifests.yml
 - import_tasks: verify.yml
 - import_tasks: token.yml

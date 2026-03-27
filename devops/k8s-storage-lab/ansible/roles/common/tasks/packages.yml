@@ -1,3 +1,4 @@
+---
 - name: cloud-init 완료 대기
   command: cloud-init status --wait
   changed_when: false
@@ -19,9 +20,19 @@
       - nfs-common
       - open-iscsi
       - python3
+      - python3.12
       - conntrack
       - socat
+      - nftables
     state: present
     update_cache: yes
   environment:
     DEBIAN_FRONTEND: noninteractive
+
+# Ubuntu 24.04 기본값은 nftables → K8s와 호환되므로 별도 전환 불필요
+# nftables 서비스 활성화 (kube-proxy nftables 모드 사전 준비)
+- name: nftables 서비스 활성화
+  systemd:
+    name: nftables
+    enabled: yes
+    state: started

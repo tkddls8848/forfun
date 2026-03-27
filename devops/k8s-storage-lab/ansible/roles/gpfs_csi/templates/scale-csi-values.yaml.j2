@@ -1,0 +1,23 @@
+primaryCluster:
+  id: "{{ gpfs_cluster_name }}"
+  primaryFs: "{{ gpfs_fs_name }}"
+  guiHost: "{{ hostvars[gpfs_gui_host].ansible_host }}"
+  guiPort: 443
+  secret: scale-secret
+  cacert: ""
+  secureSslMode: false
+
+clusters:
+  - id: "{{ gpfs_cluster_name }}"
+    secrets: "scale-secret"
+    secureSslMode: false
+    primary:
+      primaryFs: "{{ gpfs_fs_name }}"
+
+nodeMapping:
+  - k8sNode: "master-1"
+    spectrumscaleNode: "master-1"
+{% for host in groups['worker'] %}
+  - k8sNode: "{{ hostvars[host].ec2_tags.Name | regex_replace('k8s-storage-lab-', '') }}"
+    spectrumscaleNode: "{{ hostvars[host].ec2_tags.Name | regex_replace('k8s-storage-lab-', '') }}"
+{% endfor %}

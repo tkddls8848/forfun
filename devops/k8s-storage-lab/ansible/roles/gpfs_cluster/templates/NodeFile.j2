@@ -1,0 +1,6 @@
+{{ gpfs_primary_server }}:quorum-manager
+{{ gpfs_secondary_server }}:quorum-manager
+master-1:quorum
+{% for host in groups['worker'] %}
+{{ hostvars[host].ec2_tags.Name | regex_replace('k8s-storage-lab-', '') }}
+{% endfor %}

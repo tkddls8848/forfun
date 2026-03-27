@@ -1,0 +1,21 @@
+---
+- name: HAProxy 설치
+  apt:
+    name: haproxy
+    state: present
+    update_cache: yes
+
+- name: HAProxy 설정 배포
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart haproxy
+
+- name: HAProxy 활성화 및 시작
+  systemd:
+    name: haproxy
+    enabled: yes
+    state: started

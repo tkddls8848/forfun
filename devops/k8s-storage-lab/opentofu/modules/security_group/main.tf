@@ -1,4 +1,4 @@
-# Bastion SG — 외부 SSH 유일 진입점
+# Bastion SG — 외부 SSH 유일 진입점 + HAProxy K8s API
 resource "aws_security_group" "bastion" {
   name   = "${var.project_name}-sg-bastion"
   vpc_id = var.vpc_id
@@ -8,6 +8,20 @@ resource "aws_security_group" "bastion" {
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+  # HAProxy K8s API (외부 kubectl 접근)
+  ingress {
+    from_port   = 6443
+    to_port     = 6443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  # HAProxy 통계 페이지 (VPC 내부만)
+  ingress {
+    from_port   = 9000
+    to_port     = 9000
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
   egress {
     from_port   = 0

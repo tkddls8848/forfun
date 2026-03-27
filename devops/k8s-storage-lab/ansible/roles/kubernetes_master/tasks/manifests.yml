@@ -1,0 +1,16 @@
+---
+- name: manifests 디렉토리 생성
+  file:
+    path: /home/ubuntu/manifests
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: '0755'
+
+- name: manifests 업로드
+  copy:
+    src: "{{ playbook_dir }}/../../manifests/"
+    dest: /home/ubuntu/manifests/
+    owner: ubuntu
+    group: ubuntu
+    mode: '0644'

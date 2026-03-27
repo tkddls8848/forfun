@@ -9,3 +9,6 @@
 
 - import_tasks: prometheus_grafana.yml
   when: addon_prometheus_grafana | bool
+
+- import_tasks: metallb.yml
+  when: addon_metallb | bool

@@ -101,4 +101,4 @@ $CSSH$N1_PUB "
 
 echo ""
 echo "✅ Step 3 완료 - 마운트 포인트: $MOUNT_POINT"
-echo "   다음: scripts/06_csi_gpfs.sh"
+echo "   다음: scripts/install/03_csi_gpfs.sh"

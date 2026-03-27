@@ -52,8 +52,9 @@ echo " ✓"
 echo "=============================="
 echo " Playbook 재전송 (IP 갱신 반영)"
 echo "=============================="
-ssh $SSH_OPTS ubuntu@$BASTION_IP "rm -rf ~/ansible"
-scp -O $SSH_OPTS -r "$SCRIPT_DIR/ansible" ubuntu@$BASTION_IP:~/
+ssh $SSH_OPTS ubuntu@$BASTION_IP "rm -rf ~/ansible ~/manifests"
+scp -O $SSH_OPTS -r "$SCRIPT_DIR/ansible"   ubuntu@$BASTION_IP:~/
+scp -O $SSH_OPTS -r "$SCRIPT_DIR/manifests" ubuntu@$BASTION_IP:~/
 
 echo ""
 echo "=============================="

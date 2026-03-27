@@ -1,0 +1,133 @@
+---
+# ── 클러스터 생성 (nsd-1에서 실행) ──────────────────────────────
+- name: 클러스터 이미 존재하는지 확인
+  command: /usr/lpp/mmfs/bin/mmlscluster
+  register: cluster_check
+  failed_when: false
+  changed_when: false
+
+- name: NodeFile 생성
+  template:
+    src: NodeFile.j2
+    dest: /tmp/NodeFile
+    mode: '0644'
+  when: cluster_check.rc != 0
+
+- name: GPFS 클러스터 생성
+  command: >
+    /usr/lpp/mmfs/bin/mmcrcluster
+    -N /tmp/NodeFile
+    -C {{ gpfs_cluster_name }}
+    -p {{ gpfs_primary_server }}
+    -s {{ gpfs_secondary_server }}
+  when: cluster_check.rc != 0
+
+- name: NSD 노드 server 라이선스 수락
+  command: >
+    /usr/lpp/mmfs/bin/mmchlicense server --accept
+    -N {{ gpfs_primary_server }},{{ gpfs_secondary_server }}
+  when: cluster_check.rc != 0
+
+- name: K8s 노드 client 라이선스 수락
+  command: >
+    /usr/lpp/mmfs/bin/mmchlicense client --accept
+    -N {{ gpfs_client_nodes }}
+  when: cluster_check.rc != 0
+
+- name: 클러스터 확인
+  command: /usr/lpp/mmfs/bin/mmlscluster
+  register: cluster_info
+  changed_when: false
+
+- name: 클러스터 정보 출력
+  debug:
+    msg: "{{ cluster_info.stdout_lines }}"
+
+# ── NSD 정의 ────────────────────────────────────────────────────
+- name: NSD 이미 정의되어 있는지 확인
+  command: /usr/lpp/mmfs/bin/mmlsnsd
+  register: nsd_check
+  failed_when: false
+  changed_when: false
+
+- name: NSDFile 생성
+  template:
+    src: NSDFile.j2
+    dest: /tmp/NSDFile
+    mode: '0644'
+  when: "'nsd1disk' not in nsd_check.stdout"
+
+- name: NSD 생성
+  command: /usr/lpp/mmfs/bin/mmcrnsd -F /tmp/NSDFile
+  when: "'nsd1disk' not in nsd_check.stdout"
+
+- name: NSD 확인
+  command: /usr/lpp/mmfs/bin/mmlsnsd
+  register: nsd_info
+  changed_when: false
+
+- name: NSD 정보 출력
+  debug:
+    msg: "{{ nsd_info.stdout_lines }}"
+
+# ── 파일시스템 생성 ──────────────────────────────────────────────
+- name: 파일시스템 이미 존재하는지 확인
+  command: /usr/lpp/mmfs/bin/mmlsfs {{ gpfs_fs_name }}
+  register: fs_check
+  failed_when: false
+  changed_when: false
+
+- name: GPFS 파일시스템 생성
+  command: >
+    /usr/lpp/mmfs/bin/mmcrfs {{ gpfs_fs_name }}
+    -F /tmp/NSDFile
+    -A yes
+    -B {{ gpfs_block_size }}
+    -m {{ gpfs_data_replicas }}
+    -M {{ gpfs_data_replicas }}
+    -r {{ gpfs_metadata_replicas }}
+    -R {{ gpfs_metadata_replicas }}
+  when: fs_check.rc != 0
+
+- name: 파일시스템 확인
+  command: /usr/lpp/mmfs/bin/mmlsfs {{ gpfs_fs_name }}
+  register: fs_info
+  changed_when: false
+
+- name: 파일시스템 정보 출력
+  debug:
+    msg: "{{ fs_info.stdout_lines }}"
+
+# ── 데몬 시작 + 마운트 ───────────────────────────────────────────
+- name: 모든 GPFS 노드에서 mmstartup
+  command: /usr/lpp/mmfs/bin/mmstartup -a
+  register: startup_result
+  failed_when: false
+
+- name: GPFS 데몬 Active 대기 (최대 60초)
+  command: /usr/lpp/mmfs/bin/mmgetstate -a
+  register: state_check
+  retries: 12
+  delay: 5
+  until: "'active' in state_check.stdout"
+  changed_when: false
+
+- name: 마운트 포인트 생성
+  file:
+    path: "{{ gpfs_mount_point }}"
+    state: directory
+    mode: '0755'
+
+- name: GPFS 파일시스템 마운트
+  command: /usr/lpp/mmfs/bin/mmmount {{ gpfs_fs_name }} -a
+  register: mount_result
+  failed_when: false
+
+- name: 마운트 확인
+  command: /usr/lpp/mmfs/bin/mmlsmount {{ gpfs_fs_name }} -L
+  register: mount_info
+  changed_when: false
+
+- name: 마운트 정보 출력
+  debug:
+    msg: "{{ mount_info.stdout_lines }}"

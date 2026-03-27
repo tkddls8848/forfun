@@ -98,4 +98,4 @@ kubectl get storageclass
 
 echo ""
 echo "✅ Step 6 완료 - StorageClass: gpfs-scale"
-echo "   다음: scripts/99_test_pvc.sh"
+echo "   테스트: kubectl apply -f manifests/test-pvc/"

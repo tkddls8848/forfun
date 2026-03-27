@@ -1,0 +1,37 @@
+---
+- name: 이미 join 됐는지 확인
+  stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubelet_conf
+
+- name: K8s 등록 노드명 결정
+  set_fact:
+    nsd_node_name: >-
+      {{ hostvars[inventory_hostname]['ec2_tags']['Name'] | regex_replace('k8s-storage-lab-', '')
+         if not kubelet_conf.stat.exists
+         else ansible_facts['hostname'] }}
+
+- name: NSD 호스트명 설정
+  hostname:
+    name: "{{ nsd_node_name }}"
+  when: not kubelet_conf.stat.exists
+
+- name: NSD K8s join
+  command: >
+    {{ hostvars[groups['master'][0]].worker_join_command }}
+    --node-name {{ nsd_node_name }}
+  when: not kubelet_conf.stat.exists
+
+- name: NSD 레이블 설정 (role=gpfs-nsd)
+  command: kubectl label node {{ nsd_node_name }} role=gpfs-nsd --overwrite
+  delegate_to: "{{ groups['master'][0] }}"
+  environment:
+    KUBECONFIG: /home/ubuntu/.kube/config
+  ignore_errors: yes
+
+- name: NSD taint 설정 (일반 Pod 스케줄링 차단)
+  command: kubectl taint node {{ nsd_node_name }} role=gpfs-nsd:NoSchedule --overwrite
+  delegate_to: "{{ groups['master'][0] }}"
+  environment:
+    KUBECONFIG: /home/ubuntu/.kube/config
+  ignore_errors: yes

@@ -1,3 +1,9 @@
+---
+# Ubuntu 24.04 기본 방화벽: nftables
+# - overlay    : containerd overlay 파일시스템
+# - br_netfilter: bridge 트래픽을 netfilter(nftables)로 처리 (CNI 필수)
+# - nf_tables   : nftables 커널 모듈 (kube-proxy nftables 모드 필수)
+# - nft_masq    : nftables MASQUERADE 지원 (Pod→외부 SNAT 필수)
 - name: 커널 모듈 등록 (modules-load.d)
   copy:
     dest: /etc/modules-load.d/k8s.conf

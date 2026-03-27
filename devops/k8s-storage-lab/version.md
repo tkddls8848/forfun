@@ -13,9 +13,9 @@
 
   위치: opentofu/modules/ec2/main.tf
   - Bastion: t3.small (Ansible 제어 노드)
-  - Master: m5.large (2 vCPU, 8GB RAM)
+  - Master: t3.large (2 vCPU, 8GB RAM)
   - Worker: m5.large (2 vCPU, 8GB RAM) - HCI 구성
-  - NSD: t3.medium (2 vCPU, 4GB RAM) - GPFS 전용
+  - NSD: t3.large (2 vCPU, 8GB RAM) - GPFS 전용
 
   3. 스토리지 구성
 
@@ -26,7 +26,7 @@
 
   4. Kubernetes 스택
 
-  위치: scripts/01_k8s_install.sh:8
+  위치: ansible/inventory/group_vars/all.yml
   - Kubernetes: 1.31
   - kubeadm API: kubeadm.k8s.io/v1beta3
   - kube-proxy:
@@ -43,7 +43,7 @@
 
   5. Ceph 스토리지 스택
 
-  위치: scripts/02_ceph_install.sh:9-10
+  위치: scripts/install/01_ceph_install.sh:9-10
   - Rook-Ceph Operator: v1.16.6
     - Helm repository: https://charts.rook.io/release
     - Chart: rook-release/rook-ceph
@@ -63,7 +63,7 @@
 
   6. IBM Spectrum Scale (GPFS)
 
-  위치: scripts/04_gpfs_install.sh, scripts/06_csi_gpfs.sh
+  위치: ansible/roles/gpfs_install/, scripts/install/03_csi_gpfs.sh
   - IBM Spectrum Scale: Developer Edition
   - 패키지 형식: .deb (Ubuntu용)
     - gpfs.base
@@ -128,7 +128,7 @@
   - GPFS 의존성:
     - ksh
     - perl
-    - libaio1
+    - libaio1t64
     - libssl-dev
     - linux-headers-$(uname -r)
     - build-essential

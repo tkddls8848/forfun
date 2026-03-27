@@ -17,7 +17,7 @@ CSSH="ssh $SSH_OPTS ubuntu@"
 # K8s 클러스터 존재 확인
 if ! kubectl cluster-info &>/dev/null; then
   echo "❌ K8s 클러스터에 접근할 수 없습니다."
-  echo "   먼저 start_k8s.sh 또는 scripts/01_k8s_install.sh를 실행하세요."
+  echo "   먼저 start_k8s.sh 를 실행하세요."
   exit 1
 fi
 
@@ -91,20 +91,22 @@ echo "=============================="
 echo " Step 1-3: CephCluster CR 배포"
 echo "=============================="
 
-# OSD Running 수가 목표에 도달한 뒤 연속 3회 안정 확인 후 반환 (최대 8분)
+# OSD 수가 더 이상 늘지 않고 연속 5회 동일할 때 안정으로 판단 (최대 8분)
+# useAllDevices: true 이므로 목표 수를 하드코딩하지 않음
 wait_osd_running() {
-  local min_count=$1
   $CSSH$M1_PUB "
+    PREV=0
     STABLE=0
     for i in \$(seq 1 48); do
       UP=\$(kubectl -n rook-ceph get pods -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -c Running || true)
-      echo \"  [대기] OSD 기동 확인 [\$i/48] Running: \$UP / 목표: >= $min_count\"
-      if [ \"\$UP\" -ge $min_count ]; then
+      echo \"  [대기] OSD 기동 확인 [\$i/48] Running: \$UP\"
+      if [ \"\$UP\" -gt 0 ] && [ \"\$UP\" -eq \"\$PREV\" ]; then
         STABLE=\$((STABLE + 1))
-        [ \"\$STABLE\" -ge 3 ] && echo '  ✅ OSD 안정 확인 (3회 연속)' && break
+        [ \"\$STABLE\" -ge 5 ] && echo \"  ✅ OSD 안정 확인 (5회 연속 \$UP 개)\" && break
       else
         STABLE=0
       fi
+      PREV=\$UP
       sleep 10
     done
   "
@@ -154,10 +156,8 @@ spec:
 CREOF
 "
 
-# 워커당 2개 OSD (nvme1n1, nvme2n1) 기준 목표 수
-OSD_TARGET=$((WORKER_COUNT * 2))
-echo "  OSD 목표: $OSD_TARGET (워커 $WORKER_COUNT 대 × 디스크 2개)"
-wait_osd_running $OSD_TARGET
+echo "  useAllDevices: true — 가용 디바이스 자동 감지 후 OSD 안정화 대기"
+wait_osd_running
 
 echo "=============================="
 echo " Step 1-4: Ceph 클러스터 HEALTH_OK 대기"
@@ -273,6 +273,30 @@ echo "=============================="
 kubectl get storageclass
 kubectl -n rook-ceph get pods -o wide
 
+echo "=============================="
+echo " Step 1-8: rook-ceph 상태 확인"
+echo "=============================="
+echo "--- CephCluster 상태 ---"
+kubectl -n rook-ceph get cephcluster rook-ceph \
+  -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,HEALTH:.status.ceph.health
+
 echo ""
-echo "✅ Step 1 완료 - StorageClass: ceph-rbd, ceph-cephfs"
-echo "   다음: scripts/04_gpfs_install.sh (IBM 패키지 필요)"
+echo "--- CSI 드라이버 ---"
+kubectl get csidrivers
+
+echo "=============================="
+echo " Step 1-9: Ceph Dashboard 접속 정보"
+echo "=============================="
+$CSSH$M1_PUB "
+  NODE_PORT=\$(kubectl -n rook-ceph get svc rook-ceph-mgr-dashboard \
+    -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo 'NodePort 없음')
+  ADMIN_PASS=\$(kubectl -n rook-ceph get secret rook-ceph-dashboard-password \
+    -o jsonpath='{.data.password}' | base64 --decode)
+  echo \"Dashboard NodePort : \$NODE_PORT\"
+  echo \"접속 URL           : http://<worker-IP>:\$NODE_PORT\"
+  echo \"Dashboard 비밀번호 : \$ADMIN_PASS\"
+"
+
+echo ""
+echo "✅ Ceph 설치 완료 - StorageClass: ceph-rbd, ceph-cephfs"
+echo "   다음 (GPFS): ansible-playbook -i ansible/inventory/ ansible/playbooks/gpfs.yml"

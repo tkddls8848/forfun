@@ -1,0 +1,6 @@
+---
+gpfs_cluster_name: "gpfslab"
+gpfs_fs_name: "gpfs0"
+gpfs_gui_host: "nsd-1"
+gpfs_gui_user: "k8sadmin"
+gpfs_gui_password: "Admin12345!"
