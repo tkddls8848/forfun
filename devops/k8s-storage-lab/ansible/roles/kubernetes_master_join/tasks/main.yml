@@ -18,6 +18,7 @@
 
 # Read control-plane join command saved by master-1
 - name: Read control-plane join command from local file
+  become: false
   set_fact:
     cp_join_cmd: "{{ lookup('file', '/tmp/cp-join-command') }}"
   when: not k8s_admin_conf.stat.exists

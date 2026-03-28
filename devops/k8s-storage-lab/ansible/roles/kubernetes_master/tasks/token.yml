@@ -13,6 +13,7 @@
 
 # Save control-plane join command to local file for master-2/3 to read
 - name: Save control-plane join command to local file
+  become: false
   local_action:
     module: copy
     content: >-
@@ -20,4 +21,4 @@
       --control-plane
       --certificate-key {{ upload_certs_output.stdout_lines | last }}
     dest: /tmp/cp-join-command
-    mode: '0600'
+    mode: '0640'
