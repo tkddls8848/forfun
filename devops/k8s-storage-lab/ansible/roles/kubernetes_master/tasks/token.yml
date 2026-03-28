@@ -7,9 +7,14 @@
   command: kubeadm init phase upload-certs --upload-certs
   register: upload_certs_output
 
-- name: Store worker join command as fact
-  set_fact:
-    worker_join_command: "{{ join_command_output.stdout }}"
+# Save worker join command to local file for worker nodes to read
+- name: Save worker join command to local file
+  become: false
+  local_action:
+    module: copy
+    content: "{{ join_command_output.stdout }}"
+    dest: /tmp/worker-join-command
+    mode: '0640'
 
 # Save control-plane join command to local file for master-2/3 to read
 - name: Save control-plane join command to local file
