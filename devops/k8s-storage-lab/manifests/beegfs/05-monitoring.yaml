@@ -20,12 +20,14 @@ data:
     import time
     from http.server import HTTPServer, BaseHTTPRequestHandler
 
+    import os
     BEEGFS_CTL = "/host/opt/beegfs/sbin/beegfs-ctl"
+    MGMTD_HOST = os.environ.get("BEEGFS_MGMTD_HOST", "beegfs-mgmtd.beegfs-system")
 
     def run_beegfs_ctl(*args):
         try:
             result = subprocess.run(
-                [BEEGFS_CTL] + list(args),
+                [BEEGFS_CTL, f"--mgmtdhost={MGMTD_HOST}"] + list(args),
                 capture_output=True, text=True, timeout=10
             )
             return result.stdout, result.returncode
@@ -147,6 +149,9 @@ spec:
             - |
               cp /scripts/exporter.py /tmp/exporter.py
               exec python3 /tmp/exporter.py 9100
+          env:
+            - name: BEEGFS_MGMTD_HOST
+              value: "beegfs-mgmtd.beegfs-system"
           ports:
             - containerPort: 9100
               name: metrics

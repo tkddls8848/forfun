@@ -31,7 +31,7 @@ spec:
             - /bin/bash
             - -c
             - |
-              if [ ! -x /host/usr/sbin/beegfs-meta ]; then
+              if [ ! -x /host/opt/beegfs/sbin/beegfs-meta ]; then
                 echo "=== beegfs-meta not found — running apt-get on host ==="
                 chroot /host /bin/bash -c "apt-get update 2>&1 && apt-get install -y beegfs-meta beegfs-utils 2>&1" || {
                   echo "ERROR: apt-get install failed (exit $?)"

@@ -5,7 +5,7 @@
 | 역할 | 수 | 인스턴스 | 서브넷 |
 |------|----|----------|--------|
 | Bastion | 1 | t3.small | 10.0.0.0/24 (public) |
-| K8s Master (HA) | master_count (기본 3) | t3.large | 10.0.1.0/24 (private) |
+| K8s Master (HA) | master_count (기본 3) | t3.medium | 10.0.1.0/24 (private) |
 | K8s Worker (HCI) | worker_count | m5.large | 10.0.1.0/24 (private) |
 
 > Worker는 K8s 컴퓨트 + Ceph OSD×2 + BeeGFS storaged를 동시에 담당하는 HCI 구조.
@@ -40,7 +40,7 @@ resource "aws_instance" "bastion" {
 # Master: master_count대 (기본 3, HA)
 resource "aws_instance" "master" {
   count         = var.master_count
-  instance_type = "t3.large"
+  instance_type = "t3.medium"
   subnet_id     = var.subnet_k8s_id
 }
 
@@ -57,7 +57,7 @@ resource "aws_instance" "worker" {
 | 노드 | 타입 | 이유 |
 |------|------|------|
 | Bastion | t3.small | HAProxy + Ansible, 상시 부하 낮음 |
-| Master | t3.large (8GB) | etcd 3노드 quorum: ~1GB/노드 + API server ~500MB |
+| Master | t3.medium (4GB) | etcd 3노드 quorum + Ceph CSI Provisioner 배치 — worker CPU 여유 확보 |
 | Worker | m5.large (8GB) | Ceph OSD 지속 I/O → t3 버스트 크레딧 고갈 위험 |
 
 ---

@@ -17,8 +17,7 @@ spec:
     spec:
       hostNetwork: true
       hostPID: true
-      nodeSelector:
-        node-role.kubernetes.io/control-plane: ""
+      nodeName: master-1
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists

@@ -18,17 +18,18 @@ Internet
     ┌──────┴──────┐
     ▼             ▼
 master-1/2/3   worker-1/2/3 ...
-t3.large×3     m5.large×N
+t3.medium×3    m5.large×N
 etcd HA        K8s 워크로드
 K8s API        Ceph OSD×2 (10GB×2)
 BeeGFS         BeeGFS storaged (8GB)
 mgmtd/meta
+Ceph CSI Provisioner
 ```
 
 | 역할 | 수 | 인스턴스 | 서브넷 | 주요 구성 |
 |------|----|----------|--------|-----------|
 | Bastion | 1 | t3.small | 10.0.0.0/24 (public) | Ansible, HAProxy(6443/9000) |
-| K8s Master (HA) | 3 | t3.large | 10.0.1.0/24 (private) | etcd, kubeadm, BeeGFS mgmtd/meta |
+| K8s Master (HA) | 3 | t3.medium | 10.0.1.0/24 (private) | etcd, kubeadm, BeeGFS mgmtd/meta, Ceph CSI Provisioner |
 | K8s Worker (HCI) | N | m5.large | 10.0.1.0/24 (private) | K8s 워크로드 + Ceph OSD×2 + BeeGFS storaged |
 
 **EBS 구성 (워커당):** Ceph OSD-a 10GB + Ceph OSD-b 10GB + BeeGFS 8GB
@@ -51,7 +52,7 @@ mgmtd/meta
 |-------------|--------|-------------|------|
 | `ceph-rbd` | Ceph RBD (rook-ceph) | RWO | 블록 스토리지 (DB, 단일 Pod) |
 | `ceph-cephfs` | CephFS (rook-ceph) | RWX | 파일 공유 (다중 Pod 동시 접근) |
-| `beegfs-scratch` | BeeGFS 7.4 CSI | RWX | 고성능 병렬 파일시스템 |
+| `beegfs-scratch` | BeeGFS 7.4.6 CSI | RWX | 고성능 병렬 파일시스템 |
 
 ## 디렉토리 구조
 
@@ -94,7 +95,9 @@ k8s-storage-lab/
 │   │   ├── 01-mgmtd.yaml         # mgmtd Deployment (master-1)
 │   │   ├── 02-meta.yaml          # meta Deployment (master-1)
 │   │   ├── 03-storage.yaml       # storaged DaemonSet (workers)
-│   │   └── 04-storageclass.yaml  # beegfs-scratch StorageClass
+│   │   ├── 04-storageclass.yaml  # beegfs-scratch StorageClass
+│   │   ├── 05-monitoring.yaml    # beegfs-exporter (python:3.12-slim, Prometheus)
+│   │   └── 06-grafana-dashboard.yaml  # Grafana 대시보드 자동 import
 │   ├── test-pvc/                 # StorageClass별 PVC 테스트 YAML
 │   └── metallb-nginx/            # MetalLB + nginx LoadBalancer 예시
 ├── scripts/
@@ -103,8 +106,9 @@ k8s-storage-lab/
 ├── start_k8s.sh                  # 인프라 + K8s HA 클러스터 구성
 ├── start_ceph.sh                 # rook-ceph 구성
 ├── start_beegfs.sh               # BeeGFS 구성
+├── destroy_beegfs.sh             # BeeGFS 삭제 (beegfs-system 네임스페이스)
 ├── destroy_ceph.sh               # rook-ceph 삭제 + OSD 초기화
-├── destroy.sh                    # 전체 AWS 리소스 삭제
+├── destroy_k8s.sh                # 전체 AWS 리소스 삭제 (tofu destroy)
 ├── worker_add.sh                 # HCI Worker 노드 1대 추가 (스케일 아웃)
 ├── worker_remove.sh              # HCI Worker 노드 1대 제거 (스케일 인)
 ├── pause.sh                      # EC2 중지 (비용 절감)
@@ -157,8 +161,11 @@ bash worker_remove.sh
 # rook-ceph 재설치
 bash destroy_ceph.sh && bash start_ceph.sh
 
+# BeeGFS 재설치
+bash destroy_beegfs.sh && bash start_beegfs.sh
+
 # 전체 삭제
-bash destroy.sh
+bash destroy_k8s.sh
 ```
 
 ## HAProxy 리버스 프록시
@@ -190,11 +197,12 @@ Ceph는 `useAllDevices: true`로 새 노드의 OSD 디스크를 자동 감지합
 | OS | Ubuntu 24.04 (Noble) | BeeGFS 7.4 공식 지원, nftables 네이티브 |
 | K8s 버전 | 1.31 | stable, nftables 모드 지원 |
 | Master HA | 3식 (etcd quorum) | 1대 장애 허용, HAProxy 자동 failover |
-| Master 타입 | t3.large (8GB) | etcd 3노드 quorum 메모리 안정성 |
+| Master 타입 | t3.medium (4GB) | etcd 3노드 quorum + Ceph CSI Provisioner 배치 |
 | Worker 타입 | m5.large (8GB) | Ceph OSD 지속 I/O → t3 버스트 크레딧 고갈 위험 |
 | kube-proxy 모드 | nftables | Ubuntu 24.04 환경, Flannel iptables lock 경합 방지 |
 | CNI | Flannel VXLAN | 경량 DaemonSet, AWS SG VXLAN 포트 허용 |
 | Ceph 배포 | rook-ceph operator | HCI 환경 K8s 단일 제어면, CSI 자동 설치 |
-| BeeGFS 배포 | K8s 컨테이너 (DaemonSet/Deployment) | HCI: chroot 방식으로 호스트 바이너리 실행 |
+| BeeGFS 배포 | K8s 컨테이너 (DaemonSet/Deployment) | HCI: chroot 방식으로 호스트 바이너리 실행 (`/opt/beegfs/sbin/`) |
+| Ceph CSI Provisioner | master 노드 배치 | worker CPU 여유 확보 (HCI 환경) |
 | BeeGFS 디스크 | 8GB gp2 EBS (`/dev/xvdd`) | Ceph OSD와 디바이스 분리, XFS 포맷 |
 | HAProxy | Bastion Ansible 자동 구성 | master_count 변경 시 자동 반영 |

@@ -22,7 +22,7 @@ bash start_k8s.sh          ← 인프라 + K8s HA 3식 + HAProxy (약 25~30분)
        ↓
 bash start_ceph.sh         ← rook-ceph (약 15~20분)
        ↓
-bash start_beegfs.sh       ← BeeGFS 7.4 (약 10~15분)
+bash start_beegfs.sh       ← BeeGFS 7.4.6 (약 10~15분)
        ↓
 kubectl apply -f manifests/test-pvc/
 ```
@@ -90,7 +90,8 @@ bash start_ceph.sh
 4. CephCluster CR 배포 (`useAllDevices: true` — BeeGFS 디스크 nvme3n1은 XFS 마운트로 자동 제외)
 5. OSD 안정화 대기 (5회 연속 동일 수)
 6. HEALTH_OK 대기
-7. StorageClass 생성 (ceph-rbd, ceph-cephfs)
+7. CSI Provisioner → master 노드 재배치 (worker CPU 여유 확보)
+8. StorageClass 생성 (ceph-rbd, ceph-cephfs)
 
 완료 후 확인:
 ```bash
@@ -109,7 +110,7 @@ bash start_beegfs.sh
 
 1. ansible/manifests 재전송
 2. `ansible-playbook beegfs.yml`:
-   - BeeGFS 7.4 APT 저장소 + 패키지 설치
+   - BeeGFS 7.4.6 APT 저장소 + 패키지 설치 (noble 공식 지원)
    - Master: `/mnt/beegfs/mgmtd`, `/mnt/beegfs/meta` 디렉토리 생성
    - Worker: `/dev/nvme3n1` XFS 포맷 → `/mnt/beegfs/storage` 마운트
    - 설정 파일 조정 (`sysMgmtdHost`, 스토리지 경로)
@@ -153,12 +154,11 @@ bash worker_remove.sh
 # rook-ceph 재설치
 bash destroy_ceph.sh && bash start_ceph.sh
 
-# BeeGFS 재설치 (beegfs-system 네임스페이스 삭제 후)
-kubectl delete namespace beegfs-system
-bash start_beegfs.sh
+# BeeGFS 재설치
+bash destroy_beegfs.sh && bash start_beegfs.sh
 
 # 전체 삭제
-bash destroy.sh
+bash destroy_k8s.sh
 ```
 
 ---
@@ -177,11 +177,11 @@ bash resume.sh   # EC2 재시작 + 최신 playbook 재전송
 | 리소스 | 수량 | 시간당 |
 |--------|------|--------|
 | t3.small (bastion × 1) | 1 | ~$0.026 |
-| t3.large (master × 3) | 3 | ~$0.250 |
+| t3.medium (master × 3) | 3 | ~$0.125 |
 | m5.large (worker × 3) | 3 | ~$0.288 |
 | EBS gp2 20GB (루트 × 7) | 7 | 미미 |
 | EBS gp2 10GB (Ceph OSD × 6) | 6 | 미미 |
 | EBS gp2 8GB (BeeGFS × 3) | 3 | 미미 |
-| **합계** | | **~$0.56/h** |
+| **합계** | | **~$0.44/h** |
 
 > 미사용 시 `bash pause.sh` 또는 `bash destroy.sh`.

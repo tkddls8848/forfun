@@ -128,29 +128,53 @@ kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph osd tree
 
 ## BeeGFS
 
-### beegfs-mgmtd/meta Pod CrashLoopBackOff
-패키지가 설치되지 않았거나 config 파일 미설정.
+### beegfs-mgmtd/meta Pod CrashLoopBackOff (Exit Code 127)
+바이너리 경로 오류. BeeGFS 7.4.6은 `/opt/beegfs/sbin/`에 설치됨.
 ```bash
 kubectl -n beegfs-system logs deploy/beegfs-mgmtd
-# master-1에서
-ls /usr/sbin/beegfs-mgmtd
-cat /etc/beegfs/beegfs-mgmtd.conf | grep storeMgmt
+# master-1에서 바이너리 위치 확인
+find /opt/beegfs/sbin -name 'beegfs-mgmtd'
+# 설치 여부 확인
+ls /opt/beegfs/sbin/
+```
+
+### beegfs-mgmtd/meta/storage Pod CrashLoopBackOff (Exit Code 3)
+`connDisableAuthentication` 미설정. 기존 패키지 기본값은 `false`.
+```bash
+kubectl -n beegfs-system logs deploy/beegfs-mgmtd
+# 오류 예시: "No connAuthFile configured... set connDisableAuthentication to true"
+# master-1에서 conf 확인
+grep connDisableAuthentication /etc/beegfs/beegfs-mgmtd.conf
+# fix: ansible beegfs.yml 재실행 (force: yes로 conf 덮어쓰기)
+```
+
+### beegfs-exporter OOMKilled
+exporter가 ubuntu:24.04에서 python3 apt-get 설치 시 메모리 초과.
+현재 구성: `python:3.12-slim` 이미지 사용 (apt-get 불필요).
+```bash
+kubectl -n beegfs-system describe pod <exporter-pod>
+# limits.memory: 128Mi 확인
 ```
 
 ### storaged DaemonSet Pod Pending (node selector 불일치)
-Worker 노드에 `node-role.kubernetes.io/worker` 레이블 확인:
+Worker 노드에 `role=worker` 레이블 확인:
 ```bash
 kubectl get nodes --show-labels | grep worker
 # 레이블이 없으면
-kubectl label node worker-1 node-role.kubernetes.io/worker=""
+kubectl label node worker-1 role=worker
 ```
 
 ### BeeGFS 스토리지 디스크 마운트 실패
 ```bash
-ssh ubuntu@<worker-ip>
+ssh -i ~/.ssh/storage-lab.pem ubuntu@<worker-ip>
 lsblk                     # nvme3n1 확인
 sudo blkid /dev/nvme3n1   # 파일시스템 확인
 mount | grep beegfs       # 마운트 여부 확인
+```
+
+### BeeGFS 재설치
+```bash
+bash destroy_beegfs.sh && bash start_beegfs.sh
 ```
 
 ---
