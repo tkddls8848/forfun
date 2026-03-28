@@ -1,17 +1,17 @@
 ---
-- name: cloud-init 완료 대기
+- name: Wait for cloud-init to complete
   command: cloud-init status --wait
   changed_when: false
   failed_when: false
 
-- name: unattended-upgrades 비활성화
+- name: Disable unattended-upgrades
   systemd:
     name: unattended-upgrades
     state: stopped
     enabled: no
   failed_when: false
 
-- name: 공통 패키지 설치
+- name: Install common packages
   apt:
     name:
       - curl
@@ -29,9 +29,9 @@
   environment:
     DEBIAN_FRONTEND: noninteractive
 
-# Ubuntu 24.04 기본값은 nftables → K8s와 호환되므로 별도 전환 불필요
-# nftables 서비스 활성화 (kube-proxy nftables 모드 사전 준비)
-- name: nftables 서비스 활성화
+# Ubuntu 24.04 default is nftables — compatible with K8s, no switch needed
+# Enable nftables service as pre-requisite for kube-proxy nftables mode
+- name: Enable nftables service
   systemd:
     name: nftables
     enabled: yes

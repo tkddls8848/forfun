@@ -1,55 +1,82 @@
 ---
-- name: 노드 부팅 및 SSH 연결 대기
-  hosts: master:worker:nsd
+# ── 0. Wait for SSH ──
+- name: Wait for nodes to boot and accept SSH
+  hosts: master:worker
   gather_facts: false
   tasks:
-    - name: SSH 연결 대기 (최대 5분)
+    - name: Wait for SSH connection (up to 5 min)
       wait_for_connection:
         timeout: 300
         sleep: 5
 
-- name: OS 기반 설정
-  hosts: master:worker:nsd
+# ── 1. Bastion HAProxy setup (must exist before control-plane-endpoint is used) ──
+- name: Configure HAProxy on Bastion
+  hosts: localhost
+  connection: local
+  become: yes
+  roles:
+    - haproxy
+
+# ── 2. OS base configuration ──
+- name: OS base configuration
+  hosts: master:worker
   become: yes
   roles:
     - common
 
-- name: Worker 추가 설정
+# ── 3. HCI node extra setup (worker only) ──
+- name: HCI node extra setup
   hosts: worker
   become: yes
   roles:
-    - worker
+    - hci_node
 
-- name: NSD 추가 설정 (GPFS 의존 패키지)
-  hosts: nsd
-  become: yes
-  roles:
-    - nsd
-
-- name: 클러스터 공통 설정
-  hosts: master:worker:nsd
+# ── 4. Cluster-wide common setup ──
+- name: Cluster-wide common setup
+  hosts: master:worker
   become: yes
   roles:
     - cluster_setup
 
-- name: K8s 패키지 설치
-  hosts: master:worker:nsd
+# ── 5. K8s package install ──
+- name: Install K8s packages
+  hosts: master:worker
   become: yes
   roles:
     - kubernetes_common
 
-- name: Master 초기화
+# ── 6. Master-1 init ──
+- name: Master-1 kubeadm init
   hosts: master
   become: yes
   roles:
-    - kubernetes_master
+    - role: kubernetes_master
+      when: >-
+        hostvars[inventory_hostname]['ec2_tags']['Name']
+        == project_name + '-master-1'
 
-- name: CNI 설치 (Flannel)
+# ── 7. CNI install (master-1 only) ──
+- name: Install CNI (Flannel)
   hosts: master
   become: no
   roles:
-    - cni
+    - role: cni
+      when: >-
+        hostvars[inventory_hostname]['ec2_tags']['Name']
+        == project_name + '-master-1'
 
+# ── 8. Master-2/3 control-plane join ──
+- name: Master-2/3 control-plane join
+  hosts: master
+  become: yes
+  serial: 1
+  roles:
+    - role: kubernetes_master_join
+      when: >-
+        hostvars[inventory_hostname]['ec2_tags']['Name']
+        != project_name + '-master-1'
+
+# ── 9. Worker join ──
 - name: Worker join
   hosts: worker
   become: yes
@@ -57,25 +84,23 @@
   roles:
     - kubernetes_worker
 
-- name: "NSD join (taint: role=gpfs-nsd:NoSchedule)"
-  hosts: nsd
-  become: yes
-  serial: 1
-  roles:
-    - kubernetes_nsd
-
-- name: 클러스터 Addon 설치 (Metrics Server, Dashboard, Prometheus, Grafana)
+# ── 10. Cluster addons (master-1 only) ──
+- name: Install cluster addons
   hosts: master
   become: no
   roles:
-    - addons
+    - role: addons
+      when: >-
+        hostvars[inventory_hostname]['ec2_tags']['Name']
+        == project_name + '-master-1'
 
-- name: 배스천 /etc/hosts 및 SSH config 설정
+# ── 11. Bastion /etc/hosts and SSH config ──
+- name: Configure Bastion /etc/hosts and SSH config
   hosts: localhost
   connection: local
   become: yes
   tasks:
-    - name: 노드 /etc/hosts 등록
+    - name: Register nodes in /etc/hosts
       lineinfile:
         path: /etc/hosts
         line: >-
@@ -84,7 +109,7 @@
         state: present
       loop: "{{ groups['all'] }}"
 
-    - name: SSH config 등록
+    - name: Register SSH config entries
       become: no
       blockinfile:
         path: /home/ubuntu/.ssh/config

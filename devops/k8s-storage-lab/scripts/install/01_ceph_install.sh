@@ -299,4 +299,4 @@ $CSSH$M1_PUB "
 
 echo ""
 echo "✅ Ceph 설치 완료 - StorageClass: ceph-rbd, ceph-cephfs"
-echo "   다음 (GPFS): ansible-playbook -i ansible/inventory/ ansible/playbooks/gpfs.yml"
+echo "   다음 (BeeGFS): bash start_beegfs.sh"

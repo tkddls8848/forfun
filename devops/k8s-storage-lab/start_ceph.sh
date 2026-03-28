@@ -29,35 +29,27 @@ cd "$SCRIPT_DIR/opentofu"
 BASTION_IP=$(tofu output -raw bastion_public_ip)
 MASTER_IP=$(tofu output -json master_private_ips | jq -r '.[0]')
 WORKER_IPS=($(tofu output -json worker_private_ips | jq -r '.[]'))
-N1_IP=$(tofu output -json nsd_private_ips | jq -r '.[0]')
-N2_IP=$(tofu output -json nsd_private_ips | jq -r '.[1]')
 cd "$SCRIPT_DIR"
 
 echo "  Bastion : $BASTION_IP"
 echo "  Master  : $MASTER_IP"
 echo "  Workers : ${WORKER_IPS[*]}"
-echo "  NSD     : $N1_IP  $N2_IP"
 
 echo "=============================="
 echo " [2/4] Bastion 환경 준비"
 echo "=============================="
-# scripts 전송
 ssh $SSH_OPTS ubuntu@$BASTION_IP "rm -rf ~/scripts && mkdir -p ~/scripts"
 scp -O $SSH_OPTS -r "$SCRIPT_DIR/scripts" ubuntu@$BASTION_IP:~/
 
-# .env 생성 (프라이빗 IP 사용 — 배스천에서 직접 접근 가능)
+# .env 생성 (배스천에서 scripts/01_ceph_install.sh가 참조)
 printf "SSH_KEY=~/.ssh/storage-lab.pem
 M1_PUB=%s
 M1_PRIV=%s
 WORKER_PUBS=(%s)
 WORKER_PRIVS=(%s)
-N1_PUB=%s; N2_PUB=%s
-N1_PRIV=%s; N2_PRIV=%s
 " \
   "$MASTER_IP" "$MASTER_IP" \
   "${WORKER_IPS[*]}" "${WORKER_IPS[*]}" \
-  "$N1_IP" "$N2_IP" \
-  "$N1_IP" "$N2_IP" \
   | ssh $SSH_OPTS ubuntu@$BASTION_IP "cat > ~/scripts/.env"
 
 # kubectl 설치 (배스천에 없는 경우)
@@ -83,16 +75,13 @@ echo "=============================="
 echo " [4/4] 안내"
 echo "=============================="
 echo ""
-echo "⚠️  GPFS는 IBM 패키지 수동 다운로드 후 진행 필요:"
-echo "   1. ./gpfs-packages/ 에 .deb 파일 배치"
-echo "   2. ansible-playbook -i ansible/inventory/ ansible/playbooks/gpfs.yml"
-echo "   3. bash scripts/install/02_nsd_setup.sh"
-echo "   4. bash scripts/install/03_csi_gpfs.sh"
-echo "   5. kubectl apply -f manifests/test-pvc/"
-echo ""
 echo "✅ 인프라, K8s, Ceph(rook) 구성 완료!"
 echo "   StorageClass: ceph-rbd, ceph-cephfs"
 echo "   kubeconfig  : ~/.kube/config-k8s-storage-lab (배스천)"
+echo ""
+echo "⚠️  BeeGFS 설치는 별도 실행 필요:"
+echo "   1. bash start_beegfs.sh"
+echo "   2. kubectl apply -f manifests/test-pvc/test-pvc-beegfs.yaml"
 echo ""
 echo "   rook-ceph만 재설치 필요 시:"
 echo "   bash destroy_ceph.sh && bash start_ceph.sh"

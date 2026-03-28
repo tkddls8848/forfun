@@ -16,16 +16,13 @@
 ## 실행 흐름 요약
 
 ```
-terraform.tfvars 수정
+terraform.tfvars 수정 (key_name, worker_count)
        ↓
-bash start_k8s.sh          ← 인프라 + K8s + NSD 편입 (약 20~25분)
+bash start_k8s.sh          ← 인프라 + K8s HA 3식 + HAProxy (약 25~30분)
        ↓
 bash start_ceph.sh         ← rook-ceph (약 15~20분)
        ↓
-ansible-playbook haproxy.yml   ← Bastion HAProxy (선택)
-       ↓
-(선택) GPFS 수동 설치
-ansible-playbook gpfs.yml
+bash start_beegfs.sh       ← BeeGFS 7.4 (약 10~15분)
        ↓
 kubectl apply -f manifests/test-pvc/
 ```
@@ -35,44 +32,48 @@ kubectl apply -f manifests/test-pvc/
 ## Step 0: 사전 준비
 
 ```bash
-# 1. Key Pair 확인
 ls ~/.ssh/storage-lab.pem
 chmod 400 ~/.ssh/storage-lab.pem
 
-# 2. terraform.tfvars 수정
 vi opentofu/terraform.tfvars
 # key_name     = "storage-lab"
 # worker_count = 3
+# master_count = 3   # 기본값, 생략 가능
 ```
 
 ---
 
-## Step 1: 인프라 + K8s 구성
+## Step 1: 인프라 + K8s HA 구성
 
 ```bash
 bash start_k8s.sh
 ```
 
 내부 실행 순서:
-1. `[0/5]` 사전 요구사항 확인 (tofu, aws, jq, ssh)
-2. `[1/5]` `tofu init` + `tofu apply` → EC2 7대 + EBS 8개 생성
+1. `[0/5]` 사전 요구사항 확인
+2. `[1/5]` `tofu apply` → Bastion + Master×3 + Worker×N + EBS 생성
+   - BASTION_PRIVATE_IP 수집 (HAProxy endpoint)
 3. `[2/5]` Bastion SSH 대기
 4. `[3/5]` SSH 키 + ansible/ + manifests/ 전송
-5. `[4/5]` 전체 노드 부팅 대기 (ProxyJump 통해 확인)
-6. `[5/5]` `ansible-playbook k8s.yml` 실행:
-   - common → worker → nsd → cluster_setup
-   - kubernetes_common (master + worker + **nsd**)
-   - kubernetes_master → CNI → kubernetes_worker
-   - **kubernetes_nsd** (NSD K8s join + taint)
+5. `[4/5]` 모든 노드 부팅 대기 (ProxyJump 확인)
+6. `[5/5]` `ansible-playbook k8s.yml --extra-vars "control_plane_endpoint=BASTION_PRIVATE_IP"`:
+   - **HAProxy 설정** (Bastion, master×3 backend 자동 생성)
+   - common → worker → cluster_setup → kubernetes_common
+   - **master-1 kubeadm init** (`--control-plane-endpoint BASTION_PRIVATE_IP:6443 --upload-certs`)
+   - CNI (Flannel VXLAN)
+   - **master-2/3 control-plane join** (serial: 1)
+   - worker join
    - addons (Metrics Server, Dashboard, Prometheus, Grafana, MetalLB)
+   - Bastion /etc/hosts + SSH config 등록
 
 완료 후 확인 (Bastion에서):
 ```bash
 export KUBECONFIG=~/.kube/config-k8s-storage-lab
 kubectl get nodes -o wide
-# master-1, worker-1~3, nsd-1~2 모두 Ready
-# nsd 노드에 taint: role=gpfs-nsd:NoSchedule 확인
-kubectl describe node nsd-1 | grep Taint
+# master-1/2/3, worker-1~N  모두 Ready
+
+# HAProxy stats
+curl http://localhost:9000/stats | grep -i backend
 ```
 
 ---
@@ -83,16 +84,13 @@ kubectl describe node nsd-1 | grep Taint
 bash start_ceph.sh
 ```
 
-내부 실행 순서:
 1. Helm 설치 (master-1)
 2. rook-ceph operator 배포 + 안정화 대기(60s)
 3. rbd 커널 모듈 확인
-4. CephCluster CR 배포 (useAllDevices: true, OSD 자동 감지)
+4. CephCluster CR 배포 (`useAllDevices: true` — BeeGFS 디스크 nvme3n1은 XFS 마운트로 자동 제외)
 5. OSD 안정화 대기 (5회 연속 동일 수)
 6. HEALTH_OK 대기
-7. rook-ceph-tools 배포
-8. StorageClass 생성 (ceph-rbd, ceph-cephfs)
-9. Dashboard 접속 정보 출력
+7. StorageClass 생성 (ceph-rbd, ceph-cephfs)
 
 완료 후 확인:
 ```bash
@@ -103,74 +101,61 @@ kubectl get storageclass
 
 ---
 
-## Step 3: HAProxy 설치 (선택)
-
-K8s API 서버 단일 진입점 구성. master 증설 시 backend 자동 반영.
-
-Bastion에서:
-```bash
-cd ~/ansible
-/home/ubuntu/.local/bin/ansible-playbook \
-  -i inventory/aws_ec2.yml playbooks/haproxy.yml
-```
-
-완료 후:
-- `https://<bastion_public_ip>:6443` 으로 kubectl 접근 가능
-- `http://<bastion_public_ip>:9000/stats` 통계 페이지 (admin/admin)
-
-로컬 kubeconfig 설정:
-```bash
-kubectl config set-cluster k8s-storage-lab \
-  --server=https://<bastion_public_ip>:6443
-```
-
----
-
-## Step 4: GPFS 설치 (IBM 패키지 필요)
+## Step 3: BeeGFS 구성
 
 ```bash
-# 1. IBM Developer Edition .deb 패키지를 gpfs-packages/ 에 배치
-ls gpfs-packages/
-
-# 2. Bastion에서 실행
-ansible-playbook -i ansible/inventory/ ansible/playbooks/gpfs.yml
+bash start_beegfs.sh
 ```
 
-내부 실행 순서:
-1. GPFS 패키지 설치 (master + worker + nsd 전체)
-2. GPFS 클러스터 생성 (mmcrcluster, mmcrnsd, mmcrfs, mmmount)
-3. **GPFS DaemonSet 배포** (`manifests/gpfs/gpfs-daemonset.yaml`) — K8s가 GPFS 데몬 관리
-4. IBM Spectrum Scale CSI Helm 설치
-5. StorageClass 생성 (gpfs-scale)
+1. ansible/manifests 재전송
+2. `ansible-playbook beegfs.yml`:
+   - BeeGFS 7.4 APT 저장소 + 패키지 설치
+   - Master: `/mnt/beegfs/mgmtd`, `/mnt/beegfs/meta` 디렉토리 생성
+   - Worker: `/dev/nvme3n1` XFS 포맷 → `/mnt/beegfs/storage` 마운트
+   - 설정 파일 조정 (`sysMgmtdHost`, 스토리지 경로)
+   - K8s 매니페스트 적용 (namespace, mgmtd/meta Deployment, storaged DaemonSet, StorageClass)
 
 완료 후 확인:
 ```bash
-kubectl get pods -n gpfs-system
-# gpfs-daemon-xxxxx Running (nsd-1, nsd-2)
+kubectl -n beegfs-system get pods -o wide
 kubectl get storageclass
-# gpfs-scale 확인
+# beegfs-scratch 확인
 ```
 
 ---
 
-## Step 5: PVC 테스트
+## Step 4: PVC 테스트
 
 ```bash
-kubectl apply -f manifests/test-pvc/
+kubectl apply -f manifests/test-pvc/test-pvc-rbd.yaml
+kubectl apply -f manifests/test-pvc/test-pvc-cephfs.yaml
+kubectl apply -f manifests/test-pvc/test-pvc-beegfs.yaml
 kubectl get pvc
-# ceph-rbd-pvc, ceph-cephfs-pvc, gpfs-pvc 모두 Bound
 ```
 
 ---
 
-## 재설치 및 삭제
+## Worker 스케일 아웃/인
 
 ```bash
-# rook-ceph만 재설치
+# Worker 1대 추가 (K8s + Ceph + BeeGFS 자동 구성)
+bash worker_add.sh
+
+# Worker 1대 제거 (안전 drain → Ceph OSD purge → delete → tofu 축소)
+bash worker_remove.sh
+```
+
+---
+
+## 재설치
+
+```bash
+# rook-ceph 재설치
 bash destroy_ceph.sh && bash start_ceph.sh
 
-# GPFS 해체
-bash destroy_gpfs.sh
+# BeeGFS 재설치 (beegfs-system 네임스페이스 삭제 후)
+kubectl delete namespace beegfs-system
+bash start_beegfs.sh
 
 # 전체 삭제
 bash destroy.sh
@@ -181,11 +166,8 @@ bash destroy.sh
 ## EC2 중지/재시작 (비용 절감)
 
 ```bash
-# 중지 (OSD 스냅샷 후 EC2 중지)
-bash pause.sh
-
-# 재시작 (IP 갱신 후 ansible + manifests 재전송)
-bash resume.sh
+bash pause.sh    # OSD 스냅샷 후 EC2 중지
+bash resume.sh   # EC2 재시작 + 최신 playbook 재전송
 ```
 
 ---
@@ -195,12 +177,11 @@ bash resume.sh
 | 리소스 | 수량 | 시간당 |
 |--------|------|--------|
 | t3.small (bastion × 1) | 1 | ~$0.026 |
-| t3.large (master × 1) | 1 | ~$0.083 |
+| t3.large (master × 3) | 3 | ~$0.250 |
 | m5.large (worker × 3) | 3 | ~$0.288 |
-| t3.large (nsd × 2) | 2 | ~$0.166 |
-| EBS gp2 10GB (루트 × 7) | 7 | 미미 |
-| EBS gp2 10GB (OSD × 6) | 6 | 미미 |
-| EBS gp2 10GB (GPFS × 2) | 2 | 미미 |
+| EBS gp2 20GB (루트 × 7) | 7 | 미미 |
+| EBS gp2 10GB (Ceph OSD × 6) | 6 | 미미 |
+| EBS gp2 8GB (BeeGFS × 3) | 3 | 미미 |
 | **합계** | | **~$0.56/h** |
 
-> 사용하지 않을 때 `bash pause.sh`로 중지하거나 `bash destroy.sh`로 삭제.
+> 미사용 시 `bash pause.sh` 또는 `bash destroy.sh`.

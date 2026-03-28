@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NODE_IPS=()
 if [ -f "$SCRIPT_DIR/scripts/.env" ]; then
   source "$SCRIPT_DIR/scripts/.env"
-  NODE_IPS=($M1_PUB "${WORKER_PUBS[@]}" $N1_PUB $N2_PUB)
+  NODE_IPS=($M1_PUB "${WORKER_PUBS[@]}")
 fi
 
 # AWS 인프라 삭제

@@ -1,7 +1,23 @@
-- name: join 명령어 생성
+- name: Generate worker join command
   command: kubeadm token create --print-join-command
-  register: join_command
+  register: join_command_output
 
-- name: join 명령어 fact 저장
+# Upload certs so master-2/3 can join as control-plane
+- name: Upload certs and capture certificate key
+  command: kubeadm init phase upload-certs --upload-certs
+  register: upload_certs_output
+
+- name: Store worker join command as fact
   set_fact:
-    worker_join_command: "{{ join_command.stdout }}"
+    worker_join_command: "{{ join_command_output.stdout }}"
+
+# Save control-plane join command to local file for master-2/3 to read
+- name: Save control-plane join command to local file
+  local_action:
+    module: copy
+    content: >-
+      {{ join_command_output.stdout }}
+      --control-plane
+      --certificate-key {{ upload_certs_output.stdout_lines | last }}
+    dest: /tmp/cp-join-command
+    mode: '0600'

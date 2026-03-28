@@ -1,11 +1,11 @@
 ---
-- name: HAProxy 설치
+- name: Install HAProxy
   apt:
     name: haproxy
     state: present
     update_cache: yes
 
-- name: HAProxy 설정 배포
+- name: Deploy HAProxy config from template
   template:
     src: haproxy.cfg.j2
     dest: /etc/haproxy/haproxy.cfg
@@ -14,7 +14,7 @@
     mode: '0644'
   notify: restart haproxy
 
-- name: HAProxy 활성화 및 시작
+- name: Enable and start HAProxy
   systemd:
     name: haproxy
     enabled: yes

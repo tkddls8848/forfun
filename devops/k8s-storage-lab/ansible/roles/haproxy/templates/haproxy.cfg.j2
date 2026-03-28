@@ -12,7 +12,7 @@ defaults
     timeout client  30s
     timeout server  30s
 
-# K8s API 서버 (6443)
+# K8s API server (6443)
 frontend k8s_api
     bind *:{{ haproxy_k8s_api_port }}
     default_backend k8s_masters
@@ -24,7 +24,7 @@ backend k8s_masters
     server {{ host }} {{ hostvars[host]['ansible_host'] }}:{{ haproxy_k8s_api_port }} check
 {% endfor %}
 
-# 통계 페이지
+# Stats page
 frontend stats
     bind *:{{ haproxy_stats_port }}
     mode http

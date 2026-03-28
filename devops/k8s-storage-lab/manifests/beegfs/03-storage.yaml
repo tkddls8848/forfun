@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: beegfs-storage
+  namespace: beegfs-system
+  labels:
+    app: beegfs-storage
+spec:
+  selector:
+    matchLabels:
+      app: beegfs-storage
+  template:
+    metadata:
+      labels:
+        app: beegfs-storage
+    spec:
+      hostNetwork: true
+      hostPID: true
+      nodeSelector:
+        node-role.kubernetes.io/worker: ""
+      containers:
+        - name: beegfs-storage
+          image: ubuntu:24.04
+          command:
+            - chroot
+            - /host
+            - /usr/sbin/beegfs-storage
+            - cfgFile=/etc/beegfs/beegfs-storage.conf
+            - runDaemonized=false
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: host-root
+              mountPath: /host
+            # /mnt/beegfs/storage는 별도 XFS 마운트이므로 명시적으로 주입
+            - name: storage-data
+              mountPath: /host/mnt/beegfs/storage
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+      volumes:
+        - name: host-root
+          hostPath:
+            path: /
+        - name: storage-data
+          hostPath:
+            path: /mnt/beegfs/storage

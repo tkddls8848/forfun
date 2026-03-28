@@ -5,45 +5,26 @@
 | 역할 | 수 | 인스턴스 | 서브넷 |
 |------|----|----------|--------|
 | Bastion | 1 | t3.small | 10.0.0.0/24 (public) |
-| K8s Master | 1 | t3.large | 10.0.1.0/24 (private) |
-| K8s Worker (HCI) | worker_count (기본 3) | m5.large | 10.0.1.0/24 (private) |
-| NSD (GPFS, K8s 편입) | 2 | t3.large | 10.0.2.0/24 (private) |
+| K8s Master (HA) | master_count (기본 3) | t3.large | 10.0.1.0/24 (private) |
+| K8s Worker (HCI) | worker_count | m5.large | 10.0.1.0/24 (private) |
 
-> Worker는 K8s 컴퓨트 + Ceph OSD를 동시에 담당하는 HCI 구조.
-> NSD 노드는 K8s 클러스터에 편입되어 taint(`role=gpfs-nsd:NoSchedule`)로 격리,
-> GPFS 데몬을 privileged DaemonSet으로 실행.
-
----
-
-## opentofu/main.tf
-
-```hcl
-terraform {
-  required_version = ">= 1.6.0"
-  required_providers {
-    aws = { source = "hashicorp/aws"; version = "~> 5.0" }
-  }
-}
-
-provider "aws" { region = var.region }
-
-data "aws_ami" "ubuntu" {
-  most_recent = true
-  owners      = ["099720109477"]
-  filter { name = "name";               values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"] }
-  filter { name = "virtualization-type"; values = ["hvm"] }
-}
-```
+> Worker는 K8s 컴퓨트 + Ceph OSD×2 + BeeGFS storaged를 동시에 담당하는 HCI 구조.
+> Master는 3식 HA 구성으로 etcd quorum 유지, HAProxy(Bastion)가 K8s API를 로드밸런싱.
 
 ---
 
 ## modules/security_group
 
-SG 3개: Bastion / K8s HCI / NSD.
+SG 2개: Bastion / K8s HCI.
 
 - **Bastion SG**: 외부 SSH(22), HAProxy K8s API(6443), HAProxy stats(9000)
-- **K8s SG**: VPC 내부 전체 허용 + K8s/Ceph/Flannel 포트
-- **NSD SG**: VPC 내부 전체 허용 + GPFS(1191), GUI(443)
+- **K8s SG**: VPC 내부 전체 허용 + K8s/Ceph/Flannel/BeeGFS 포트
+
+BeeGFS 포트:
+- mgmtd: 8008/tcp
+- meta: 8005/tcp
+- storage: 8003/tcp
+- client/helperd: 8004/tcp
 
 ---
 
@@ -56,9 +37,9 @@ resource "aws_instance" "bastion" {
   subnet_id     = var.subnet_bastion_id
 }
 
-# Master: 1대
+# Master: master_count대 (기본 3, HA)
 resource "aws_instance" "master" {
-  count         = 1
+  count         = var.master_count
   instance_type = "t3.large"
   subnet_id     = var.subnet_k8s_id
 }
@@ -69,13 +50,6 @@ resource "aws_instance" "worker" {
   instance_type = "m5.large"
   subnet_id     = var.subnet_k8s_id
 }
-
-# NSD: 2대 (K8s 편입 + GPFS NSD 서버)
-resource "aws_instance" "nsd" {
-  count         = 2
-  instance_type = "t3.large"
-  subnet_id     = var.subnet_nsd_id
-}
 ```
 
 ### 인스턴스 타입 선정 근거
@@ -83,25 +57,26 @@ resource "aws_instance" "nsd" {
 | 노드 | 타입 | 이유 |
 |------|------|------|
 | Bastion | t3.small | HAProxy + Ansible, 상시 부하 낮음 |
-| Master | t3.large | control plane 실사용 ~2.5GB, m5 불필요 |
-| Worker | m5.large | Ceph OSD 지속 I/O → t3 버스트 크레딧 고갈 위험 |
-| NSD | t3.large | GPFS GUI(Java) + kubelet 동시 실행, 4GB OOM 위험 |
+| Master | t3.large (8GB) | etcd 3노드 quorum: ~1GB/노드 + API server ~500MB |
+| Worker | m5.large (8GB) | Ceph OSD 지속 I/O → t3 버스트 크레딧 고갈 위험 |
 
 ---
 
 ## modules/ebs
 
 ```hcl
-# Worker OSD: worker_count × 2개 (각 10GB gp2)
-resource "aws_ebs_volume" "ceph_osd_a" { count = var.worker_count; size = 10 }
-resource "aws_ebs_volume" "ceph_osd_b" { count = var.worker_count; size = 10 }
+# Worker BeeGFS 스토리지: worker_count × 1개 (8GB gp2, /dev/xvdd → nvme3n1)
+resource "aws_ebs_volume" "beegfs_storage" { count = var.worker_count; size = 8 }
 
-# NSD GPFS LUN: NSD당 1개 (10GB gp2)
-resource "aws_ebs_volume" "gpfs_nsd1" { size = 10 }
-resource "aws_ebs_volume" "gpfs_nsd2" { size = 10 }
+# Worker Ceph OSD: worker_count × 2개 (각 10GB gp2)
+resource "aws_ebs_volume" "ceph_osd_a" { count = var.worker_count; size = 10 }  # /dev/xvdb → nvme1n1
+resource "aws_ebs_volume" "ceph_osd_b" { count = var.worker_count; size = 10 }  # /dev/xvdc → nvme2n1
 ```
 
-장치명: NSD → `/dev/xvdb`(Nitro: `/dev/nvme1n1`), Worker OSD → `/dev/xvdb`, `/dev/xvdc`
+**Nitro 인스턴스 장치명 매핑:**
+- `/dev/xvdb` → `/dev/nvme1n1` (Ceph OSD-a)
+- `/dev/xvdc` → `/dev/nvme2n1` (Ceph OSD-b)
+- `/dev/xvdd` → `/dev/nvme3n1` (BeeGFS storaged, XFS 포맷)
 
 ---
 
@@ -110,6 +85,16 @@ resource "aws_ebs_volume" "gpfs_nsd2" { size = 10 }
 | 파일 | 대상 | 주요 내용 |
 |------|------|-----------|
 | `bastion.sh` | Bastion | Python, pipx, ansible-core, galaxy collections 설치 |
-| `common.sh` | Master | swap off, sysctl, containerd, 커널 모듈, reboot |
+| `common.sh` | Master | swap off, sysctl, containerd, 커널 모듈 |
 | `worker.sh` | Worker | common + lvm2, chrony, linux-modules-extra-aws, rbd/ceph 모듈 |
-| `nsd.sh` | NSD | common + GPFS 의존 패키지 준비 |
+
+---
+
+## variables.tf 주요 변수
+
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `aws_region` | ap-northeast-2 | AWS 리전 |
+| `master_count` | 3 | Master HA 노드 수 (etcd quorum) |
+| `worker_count` | - | Worker HCI 노드 수 (tfvars 필수) |
+| `key_name` | - | EC2 Key Pair 이름 (tfvars 필수) |

@@ -11,8 +11,6 @@ cd "$SCRIPT_DIR/opentofu"
 BASTION_IP=$(tofu output -raw bastion_public_ip)
 MASTER_IP=$(tofu output -json master_private_ips | jq -r '.[0]')
 WORKER_IPS=($(tofu output -json worker_private_ips | jq -r '.[]'))
-N1_IP=$(tofu output -json nsd_private_ips | jq -r '.[0]')
-N2_IP=$(tofu output -json nsd_private_ips | jq -r '.[1]')
 cd "$SCRIPT_DIR"
 
 echo "  Bastion : $BASTION_IP"
@@ -22,20 +20,15 @@ echo "  Workers : ${WORKER_IPS[*]}"
 echo "=============================="
 echo " [2/3] Bastion 환경 준비"
 echo "=============================="
-# .env 생성 (start_ceph.sh와 동일)
 ssh $SSH_OPTS ubuntu@$BASTION_IP "mkdir -p ~/scripts"
 printf "SSH_KEY=~/.ssh/storage-lab.pem
 M1_PUB=%s
 M1_PRIV=%s
 WORKER_PUBS=(%s)
 WORKER_PRIVS=(%s)
-N1_PUB=%s; N2_PUB=%s
-N1_PRIV=%s; N2_PRIV=%s
 " \
   "$MASTER_IP" "$MASTER_IP" \
   "${WORKER_IPS[*]}" "${WORKER_IPS[*]}" \
-  "$N1_IP" "$N2_IP" \
-  "$N1_IP" "$N2_IP" \
   | ssh $SSH_OPTS ubuntu@$BASTION_IP "cat > ~/scripts/.env"
 
 # kubectl 설치 (없는 경우)
@@ -85,7 +78,7 @@ echo "=============================="
 if $API_OK; then
   kubectl -n rook-ceph delete cephfilesystem labfs --ignore-not-found
   kubectl -n rook-ceph delete cephblockpool replicapool --ignore-not-found
-  echo "  [대기] CephFilesystem/BlockPool 삭제 대기 (30s)..."
+  echo "  [대기] 삭제 대기 (30s)..."
   sleep 30
   echo "  ✅ CephFilesystem/BlockPool 삭제 완료"
 else
@@ -93,18 +86,16 @@ else
 fi
 
 echo "=============================="
-echo " [4/5] CephCluster 삭제 (finalizer 강제 제거)"
+echo " [4/5] CephCluster 삭제"
 echo "=============================="
 if $API_OK; then
   kubectl -n rook-ceph patch cephcluster rook-ceph \
     --type merge -p '{"metadata":{"finalizers":[]}}' 2>/dev/null || true
   kubectl -n rook-ceph delete cephcluster rook-ceph --ignore-not-found
-  echo "  [대기] CephCluster 삭제 대기 (30s)..."
   sleep 30
 
   $CSSH$M1_PUB "helm uninstall rook-ceph -n rook-ceph 2>/dev/null || true"
   kubectl delete namespace rook-ceph --ignore-not-found
-  echo "  [대기] namespace 삭제 대기 (20s)..."
   sleep 20
 
   kubectl get crd | grep ceph | awk '{print $1}' | xargs kubectl delete crd --ignore-not-found 2>/dev/null || true
@@ -114,21 +105,20 @@ else
 fi
 
 echo "=============================="
-echo " [5/5] 워커 노드 OSD 디스크 초기화"
+echo " [5/5] Worker OSD 디스크 초기화 (nvme1n1, nvme2n1)"
 echo "=============================="
 for i in $(seq 0 $((WORKER_COUNT - 1))); do
   NODE_IP="${WORKER_PUBS[$i]}"
   NODE_NAME="worker-$((i + 1))"
   echo "  $NODE_NAME ($NODE_IP) 디스크 초기화 중..."
   $CSSH$NODE_IP "
-    for dev in /dev/xvd{b,c} /dev/nvme{1,2}n1; do
+    for dev in /dev/nvme1n1 /dev/nvme2n1 /dev/xvdb /dev/xvdc; do
       [ -b \"\$dev\" ] || continue
       echo \"  wipe: \$dev\"
       sudo sgdisk --zap-all \"\$dev\" 2>/dev/null || true
       sudo dd if=/dev/zero of=\"\$dev\" bs=1M count=100 2>/dev/null || true
     done
     sudo dmsetup remove_all 2>/dev/null || true
-    sudo pvremove -ff /dev/xvd{b,c} 2>/dev/null || true
     sudo rm -rf /var/lib/rook
     echo '  ✅ 디스크 초기화 완료'
   "

@@ -1,34 +1,21 @@
-# ── GPFS LUN: NSD-1용 ──
-resource "aws_ebs_volume" "gpfs_nsd1" {
+# ── BeeGFS 스토리지: worker 노드당 1개 (8GB, /dev/xvdd → nvme3n1) ──
+resource "aws_ebs_volume" "beegfs_storage" {
+  count             = var.worker_count
   availability_zone = var.availability_zone
-  size              = 10
+  size              = 8
   type              = "gp2"
-  tags              = { Name = "${var.project_name}-gpfs-lun-nsd1" }
+  tags              = { Name = "${var.project_name}-beegfs-storage-${count.index + 1}" }
 }
 
-resource "aws_volume_attachment" "gpfs_nsd1" {
-  device_name  = "/dev/xvdb"
-  volume_id    = aws_ebs_volume.gpfs_nsd1.id
-  instance_id  = var.nsd1_instance_id
+resource "aws_volume_attachment" "beegfs_storage" {
+  count        = var.worker_count
+  device_name  = "/dev/xvdd"
+  volume_id    = aws_ebs_volume.beegfs_storage[count.index].id
+  instance_id  = var.worker_instance_ids[count.index]
   force_detach = true
 }
 
-# ── GPFS LUN: NSD-2용 ──
-resource "aws_ebs_volume" "gpfs_nsd2" {
-  availability_zone = var.availability_zone
-  size              = 10
-  type              = "gp2"
-  tags              = { Name = "${var.project_name}-gpfs-lun-nsd2" }
-}
-
-resource "aws_volume_attachment" "gpfs_nsd2" {
-  device_name  = "/dev/xvdb"
-  volume_id    = aws_ebs_volume.gpfs_nsd2.id
-  instance_id  = var.nsd2_instance_id
-  force_detach = true
-}
-
-# ── Ceph OSD: worker 노드당 2개 × 3노드 = 6개 ──
+# ── Ceph OSD: worker 노드당 2개 × N노드 ──
 resource "aws_ebs_volume" "ceph_osd_a" {
   count             = var.worker_count
   availability_zone = var.availability_zone
@@ -46,7 +33,7 @@ resource "aws_ebs_volume" "ceph_osd_b" {
 }
 
 resource "aws_volume_attachment" "ceph_osd_a" {
-  count        = 3
+  count        = var.worker_count
   device_name  = "/dev/xvdb"
   volume_id    = aws_ebs_volume.ceph_osd_a[count.index].id
   instance_id  = var.worker_instance_ids[count.index]
@@ -54,7 +41,7 @@ resource "aws_volume_attachment" "ceph_osd_a" {
 }
 
 resource "aws_volume_attachment" "ceph_osd_b" {
-  count        = 3
+  count        = var.worker_count
   device_name  = "/dev/xvdc"
   volume_id    = aws_ebs_volume.ceph_osd_b[count.index].id
   instance_id  = var.worker_instance_ids[count.index]

@@ -1,8 +1,8 @@
-- name: swap off
+- name: Disable swap
   command: swapoff -a
   when: ansible_facts["swaptotal_mb"] > 0
 
-- name: swap fstab 제거
+- name: Remove swap entry from fstab
   lineinfile:
     path: /etc/fstab
     regexp: '\sswap\s'

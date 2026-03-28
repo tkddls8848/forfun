@@ -16,7 +16,7 @@ INSTANCE_IDS=$(aws ec2 describe-instances \
   --output text | tr '\t' ' ')
 
 if [ -z "$INSTANCE_IDS" ]; then
-  echo "  중지된 인스턴스가 없습니다. (이미 실행 중?)"
+  echo "  중지된 인스턴스가 없습니다."
   aws ec2 describe-instances \
     --region $AWS_REGION \
     --filters "$TAG_FILTER" \
@@ -38,7 +38,9 @@ echo "=============================="
 echo " Bastion IP 갱신"
 echo "=============================="
 BASTION_IP=$(tofu -chdir="$SCRIPT_DIR/opentofu" output -raw bastion_public_ip)
-echo "  Bastion: $BASTION_IP"
+BASTION_PRIVATE_IP=$(tofu -chdir="$SCRIPT_DIR/opentofu" output -raw bastion_private_ip)
+echo "  Bastion Public  : $BASTION_IP"
+echo "  Bastion Private : $BASTION_PRIVATE_IP"
 
 echo "=============================="
 echo " Bastion SSH 대기"
@@ -50,7 +52,7 @@ done
 echo " ✓"
 
 echo "=============================="
-echo " Playbook 재전송 (IP 갱신 반영)"
+echo " Playbook 재전송 (최신 상태 반영)"
 echo "=============================="
 ssh $SSH_OPTS ubuntu@$BASTION_IP "rm -rf ~/ansible ~/manifests"
 scp -O $SSH_OPTS -r "$SCRIPT_DIR/ansible"   ubuntu@$BASTION_IP:~/
@@ -70,6 +72,7 @@ echo ""
 echo "✅ 재시작 완료"
 echo "   Bastion : ssh -i $SSH_KEY ubuntu@$BASTION_IP"
 echo ""
-echo "   Bastion에서 Ansible 재실행:"
-echo "   ssh -i $SSH_KEY ubuntu@$BASTION_IP"
-echo "   cd ~/ansible && /home/ubuntu/.local/bin/ansible-playbook playbooks/k8s.yml"
+echo "   K8s 플레이북 재실행 필요 시 (bastion에서):"
+echo "   cd ~/ansible && /home/ubuntu/.local/bin/ansible-playbook \\"
+echo "     -i inventory/aws_ec2.yml playbooks/k8s.yml \\"
+echo "     --extra-vars \"control_plane_endpoint=$BASTION_PRIVATE_IP\""

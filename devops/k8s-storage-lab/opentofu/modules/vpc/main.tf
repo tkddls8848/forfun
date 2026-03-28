@@ -28,15 +28,6 @@ resource "aws_subnet" "k8s" {
   tags = { Name = "${var.project_name}-subnet-k8s" }
 }
 
-# NSD 서브넷: nsd-1, nsd-2 (프라이빗)
-resource "aws_subnet" "nsd" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.2.0/24"
-  availability_zone       = "${var.aws_region}a"
-  map_public_ip_on_launch = false
-  tags = { Name = "${var.project_name}-subnet-nsd" }
-}
-
 # NAT Gateway용 EIP
 resource "aws_eip" "nat" {
   domain = "vpc"
@@ -61,7 +52,7 @@ resource "aws_route_table" "public" {
   tags = { Name = "${var.project_name}-rt-public" }
 }
 
-# 프라이빗 라우팅 테이블 (k8s, nsd → NAT GW)
+# 프라이빗 라우팅 테이블 (k8s → NAT GW)
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
   route {
@@ -81,12 +72,6 @@ resource "aws_route_table_association" "k8s" {
   route_table_id = aws_route_table.private.id
 }
 
-resource "aws_route_table_association" "nsd" {
-  subnet_id      = aws_subnet.nsd.id
-  route_table_id = aws_route_table.private.id
-}
-
 output "vpc_id"            { value = aws_vpc.main.id }
 output "subnet_bastion_id" { value = aws_subnet.bastion.id }
 output "subnet_k8s_id"     { value = aws_subnet.k8s.id }
-output "subnet_nsd_id"     { value = aws_subnet.nsd.id }

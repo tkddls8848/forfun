@@ -21,6 +21,12 @@ variable "key_name" {
   type        = string
 }
 
+variable "master_count" {
+  description = "K8s Master 노드 수 (etcd HA quorum: 3 권장)"
+  type        = number
+  default     = 3
+}
+
 variable "worker_count" {
   description = "K8s Worker(HCI) 노드 수"
   type        = number

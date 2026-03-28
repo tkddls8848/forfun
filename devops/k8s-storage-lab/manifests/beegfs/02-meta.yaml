@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beegfs-meta
+  namespace: beegfs-system
+  labels:
+    app: beegfs-meta
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: beegfs-meta
+  template:
+    metadata:
+      labels:
+        app: beegfs-meta
+    spec:
+      hostNetwork: true
+      hostPID: true
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      # mgmtd가 먼저 Running 상태여야 meta가 등록 가능
+      initContainers:
+        - name: wait-mgmtd
+          image: ubuntu:24.04
+          command:
+            - sh
+            - -c
+            - |
+              until chroot /host /usr/bin/beegfs-check-servers \
+                --cfgFile=/etc/beegfs/beegfs-mgmtd.conf 2>/dev/null; do
+                echo "mgmtd 대기 중..."; sleep 5
+              done
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: host-root
+              mountPath: /host
+      containers:
+        - name: beegfs-meta
+          image: ubuntu:24.04
+          command:
+            - chroot
+            - /host
+            - /usr/sbin/beegfs-meta
+            - cfgFile=/etc/beegfs/beegfs-meta.conf
+            - runDaemonized=false
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: host-root
+              mountPath: /host
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: host-root
+          hostPath:
+            path: /

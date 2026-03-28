@@ -32,7 +32,7 @@ resource "aws_security_group" "bastion" {
   tags = { Name = "${var.project_name}-sg-bastion" }
 }
 
-# HCI SG: k8s + Ceph 포트 통합 (master-1, worker-1~N)
+# HCI SG: k8s + Ceph + BeeGFS 포트 통합 (master-1, worker-1~N)
 resource "aws_security_group" "k8s" {
   name   = "${var.project_name}-sg-k8s"
   vpc_id = var.vpc_id
@@ -120,6 +120,34 @@ resource "aws_security_group" "k8s" {
     protocol    = "tcp"
     cidr_blocks = [var.vpc_cidr]
   }
+  # BeeGFS mgmtd
+  ingress {
+    from_port   = 8008
+    to_port     = 8008
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+  # BeeGFS meta
+  ingress {
+    from_port   = 8005
+    to_port     = 8005
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+  # BeeGFS storage
+  ingress {
+    from_port   = 8003
+    to_port     = 8003
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+  # BeeGFS client / helperd
+  ingress {
+    from_port   = 8004
+    to_port     = 8004
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
   # VPC 내부 전체 허용 (k8s 노드간 통신)
   ingress {
     from_port   = 0
@@ -136,54 +164,5 @@ resource "aws_security_group" "k8s" {
   tags = { Name = "${var.project_name}-sg-k8s" }
 }
 
-# NSD/GPFS SG (nsd-1, nsd-2 전용)
-resource "aws_security_group" "nsd" {
-  name   = "${var.project_name}-sg-nsd"
-  vpc_id = var.vpc_id
-
-  # SSH — Bastion에서만 허용
-  ingress {
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
-    security_groups = [aws_security_group.bastion.id]
-  }
-  # GPFS 데몬 포트
-  ingress {
-    from_port   = 1191
-    to_port     = 1191
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-  }
-  ingress {
-    from_port   = 1191
-    to_port     = 1191
-    protocol    = "udp"
-    cidr_blocks = [var.vpc_cidr]
-  }
-  # Spectrum Scale GUI
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-  }
-  # VPC 내부 전체 허용
-  ingress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = [var.vpc_cidr]
-  }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  tags = { Name = "${var.project_name}-sg-nsd" }
-}
-
 output "sg_bastion_id" { value = aws_security_group.bastion.id }
 output "sg_k8s_id"     { value = aws_security_group.k8s.id }
-output "sg_nsd_id"     { value = aws_security_group.nsd.id }

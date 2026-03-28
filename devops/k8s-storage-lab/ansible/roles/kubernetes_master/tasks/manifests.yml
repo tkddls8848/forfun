@@ -1,5 +1,5 @@
 ---
-- name: manifests 디렉토리 생성
+- name: Create manifests directory
   file:
     path: /home/ubuntu/manifests
     state: directory
@@ -7,7 +7,7 @@
     group: ubuntu
     mode: '0755'
 
-- name: manifests 업로드
+- name: Upload manifests to master
   copy:
     src: "{{ playbook_dir }}/../../manifests/"
     dest: /home/ubuntu/manifests/

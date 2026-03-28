@@ -40,8 +40,10 @@ tofu init
 tofu apply -auto-approve
 
 BASTION_IP=$(tofu output -raw bastion_public_ip)
+BASTION_PRIVATE_IP=$(tofu output -raw bastion_private_ip)
 echo ""
-echo "  Bastion IP: $BASTION_IP"
+echo "  Bastion Public IP  : $BASTION_IP"
+echo "  Bastion Private IP : $BASTION_PRIVATE_IP (HAProxy endpoint)"
 
 echo "=============================="
 echo " [2/5] Bastion SSH 대기"
@@ -67,7 +69,6 @@ echo "=============================="
 NODE_IPS=$(
   tofu output -json master_private_ips | jq -r '.[]'
   tofu output -json worker_private_ips | jq -r '.[]'
-  tofu output -json nsd_private_ips    | jq -r '.[]'
 )
 for IP in $NODE_IPS; do
   echo -n "  $IP 대기 중..."
@@ -90,14 +91,17 @@ ssh $SSH_OPTS ubuntu@$BASTION_IP \
    touch $LOCK_FILE && \
    trap 'rm -f $LOCK_FILE' EXIT && \
    cd ~/ansible && /home/ubuntu/.local/bin/ansible-playbook \
-     -i inventory/aws_ec2.yml playbooks/k8s.yml && \
+     -i inventory/aws_ec2.yml playbooks/k8s.yml \
+     --extra-vars \"control_plane_endpoint=$BASTION_PRIVATE_IP\" && \
    touch /tmp/ansible-k8s-complete && \
    rm -f $LOCK_FILE"
 
 echo ""
 echo "✅ 완료"
-echo "   Bastion : ssh -i $SSH_KEY ubuntu@$BASTION_IP"
-echo "   Bastion에서 내부 노드 접근: ssh ubuntu@<PRIVATE_IP>"
-echo "   kubeconfig: ~/.kube/config-k8s-storage-lab"
+echo "   Bastion     : ssh -i $SSH_KEY ubuntu@$BASTION_IP"
+echo "   HAProxy     : http://$BASTION_IP:9000/stats  (admin/admin)"
+echo "   kubeconfig  : ~/.kube/config-k8s-storage-lab (배스천)"
 echo ""
-echo "⚠️  주의: scripts/ 디렉토리의 스크립트는 Ansible 완료 후 실행하세요"
+echo "   다음 단계:"
+echo "   1. bash start_ceph.sh    # Ceph(rook) 설치"
+echo "   2. bash start_beegfs.sh  # BeeGFS 설치"

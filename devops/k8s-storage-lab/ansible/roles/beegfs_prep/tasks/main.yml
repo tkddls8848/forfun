@@ -1,0 +1,161 @@
+---
+- name: Register BeeGFS GPG key
+  shell: |
+    wget -q https://www.beegfs.io/release/beegfs_{{ beegfs_version }}/gpg/GPG-KEY-beegfs \
+      -O /tmp/beegfs.gpg
+    gpg --dearmor < /tmp/beegfs.gpg > /etc/apt/trusted.gpg.d/beegfs.gpg
+  args:
+    creates: /etc/apt/trusted.gpg.d/beegfs.gpg
+
+- name: Add BeeGFS APT repository
+  get_url:
+    url: "https://www.beegfs.io/release/beegfs_{{ beegfs_version }}/dists/beegfs-noble.list"
+    dest: /etc/apt/sources.list.d/beegfs.list
+    mode: '0644'
+  register: beegfs_repo
+
+- name: Update APT cache
+  apt:
+    update_cache: yes
+  when: beegfs_repo.changed
+
+# Master: install mgmtd, meta, utils, mon
+- name: Install BeeGFS mgmtd + meta packages (master)
+  apt:
+    name:
+      - beegfs-mgmtd
+      - beegfs-meta
+      - beegfs-utils
+      - beegfs-mon
+    state: present
+  when: "'master' in group_names"
+  retries: 3
+  delay: 5
+
+# Worker: install storage, client, helperd, utils
+- name: Install BeeGFS storage + client packages (worker)
+  apt:
+    name:
+      - beegfs-storage
+      - beegfs-client
+      - beegfs-helperd
+      - beegfs-utils
+    state: present
+  when: "'worker' in group_names"
+  retries: 3
+  delay: 5
+
+# Master: create mgmtd/meta data directories
+- name: Create BeeGFS mgmtd data directory (master)
+  file:
+    path: /mnt/beegfs/mgmtd
+    state: directory
+    mode: '0755'
+  when: "'master' in group_names"
+
+- name: Create BeeGFS meta data directory (master)
+  file:
+    path: /mnt/beegfs/meta
+    state: directory
+    mode: '0755'
+  when: "'master' in group_names"
+
+# Worker: format and mount dedicated 8GB EBS for BeeGFS
+- name: Format BeeGFS storage disk as XFS (worker)
+  filesystem:
+    fstype: xfs
+    dev: "{{ beegfs_storage_device }}"
+  when: "'worker' in group_names"
+
+- name: Create BeeGFS storage mount point (worker)
+  file:
+    path: /mnt/beegfs/storage
+    state: directory
+    mode: '0755'
+  when: "'worker' in group_names"
+
+- name: Mount BeeGFS storage disk (worker)
+  mount:
+    path: /mnt/beegfs/storage
+    src: "{{ beegfs_storage_device }}"
+    fstype: xfs
+    opts: defaults,noatime
+    state: mounted
+  when: "'worker' in group_names"
+
+# Config file adjustments
+- name: Set mgmtd storage directory in beegfs-mgmtd.conf (master)
+  lineinfile:
+    path: /etc/beegfs/beegfs-mgmtd.conf
+    regexp: "^storeMgmtdDirectory"
+    line: "storeMgmtdDirectory = /mnt/beegfs/mgmtd"
+  when: "'master' in group_names"
+
+- name: Set meta data directory in beegfs-meta.conf (master)
+  lineinfile:
+    path: /etc/beegfs/beegfs-meta.conf
+    regexp: "^storeMetaDirectory"
+    line: "storeMetaDirectory = /mnt/beegfs/meta"
+  when: "'master' in group_names"
+
+- name: Set mgmtd host in beegfs-meta.conf (master)
+  lineinfile:
+    path: /etc/beegfs/beegfs-meta.conf
+    regexp: "^sysMgmtdHost"
+    line: "sysMgmtdHost = {{ beegfs_mgmtd_host }}"
+  when: "'master' in group_names"
+
+- name: Set storage data directory in beegfs-storage.conf (worker)
+  lineinfile:
+    path: /etc/beegfs/beegfs-storage.conf
+    regexp: "^storeStorageDirectory"
+    line: "storeStorageDirectory = /mnt/beegfs/storage"
+  when: "'worker' in group_names"
+
+- name: Set mgmtd host in beegfs-storage.conf (worker)
+  lineinfile:
+    path: /etc/beegfs/beegfs-storage.conf
+    regexp: "^sysMgmtdHost"
+    line: "sysMgmtdHost = {{ beegfs_mgmtd_host }}"
+  when: "'worker' in group_names"
+
+- name: Set mgmtd host in beegfs-client.conf (worker)
+  lineinfile:
+    path: /etc/beegfs/beegfs-client.conf
+    regexp: "^sysMgmtdHost"
+    line: "sysMgmtdHost = {{ beegfs_mgmtd_host }}"
+  when: "'worker' in group_names"
+
+# Disable systemd services — managed by K8s DaemonSet/Deployment
+- name: Disable beegfs-mgmtd systemd service (master)
+  systemd:
+    name: beegfs-mgmtd
+    state: stopped
+    enabled: no
+  when: "'master' in group_names"
+  failed_when: false
+
+- name: Disable beegfs-meta systemd service (master)
+  systemd:
+    name: beegfs-meta
+    state: stopped
+    enabled: no
+  when: "'master' in group_names"
+  failed_when: false
+
+- name: Disable beegfs-storage systemd service (worker)
+  systemd:
+    name: beegfs-storage
+    state: stopped
+    enabled: no
+  when: "'worker' in group_names"
+  failed_when: false
+
+# Keep beegfs-helperd running via systemd — required by CSI driver
+- name: Enable and start beegfs-helperd (worker)
+  systemd:
+    name: beegfs-helperd
+    state: started
+    enabled: yes
+  when: "'worker' in group_names"
+  failed_when: false

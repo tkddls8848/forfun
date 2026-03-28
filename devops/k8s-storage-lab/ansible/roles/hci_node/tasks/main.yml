@@ -1,0 +1,28 @@
+- name: Install HCI node extra packages
+  apt:
+    name: "{{ extra_packages }}"
+    state: present
+    update_cache: yes
+  retries: 3
+  delay: 5
+  register: apt_result
+  until: apt_result is succeeded
+
+- name: Enable chrony time sync
+  systemd:
+    name: chrony
+    enabled: yes
+    state: started
+
+- name: Register Ceph kernel modules in modules-load.d
+  lineinfile:
+    path: /etc/modules-load.d/k8s.conf
+    line: "{{ item }}"
+  loop: "{{ ceph_modules }}"
+
+- name: Load Ceph kernel modules immediately
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ ceph_modules }}"
+  ignore_errors: yes

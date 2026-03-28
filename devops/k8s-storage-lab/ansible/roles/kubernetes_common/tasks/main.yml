@@ -1,10 +1,10 @@
-- name: K8s keyrings 디렉토리
+- name: Create K8s keyrings directory
   file:
     path: /etc/apt/keyrings
     state: directory
     mode: '0755'
 
-- name: K8s GPG 키 등록
+- name: Register K8s GPG key
   shell: |
     curl -fsSL \
       https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key \
@@ -13,7 +13,7 @@
   args:
     creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
-- name: K8s apt 저장소 추가
+- name: Add K8s APT repository
   apt_repository:
     repo: >-
       deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg]
@@ -21,19 +21,19 @@
     state: present
     filename: kubernetes
 
-- name: kubeadm kubelet kubectl 설치
+- name: Install kubeadm kubelet kubectl
   apt:
     name: [kubelet, kubeadm, kubectl]
     state: present
     update_cache: yes
 
-- name: 버전 고정
+- name: Hold kubeadm kubelet kubectl versions
   dpkg_selections:
     name: "{{ item }}"
     selection: hold
   loop: [kubelet, kubeadm, kubectl]
 
-- name: kubelet 활성화
+- name: Enable kubelet service
   systemd:
     name: kubelet
     enabled: yes

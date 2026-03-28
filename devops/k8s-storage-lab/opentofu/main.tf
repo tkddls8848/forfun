@@ -84,10 +84,9 @@ module "ec2" {
   key_name            = var.key_name
   subnet_bastion_id   = module.vpc.subnet_bastion_id
   subnet_k8s_id       = module.vpc.subnet_k8s_id
-  subnet_nsd_id       = module.vpc.subnet_nsd_id
   sg_bastion_id       = module.security_group.sg_bastion_id
   sg_k8s_id           = module.security_group.sg_k8s_id
-  sg_nsd_id           = module.security_group.sg_nsd_id
+  master_count        = var.master_count
   worker_count        = var.worker_count
   bastion_iam_profile = aws_iam_instance_profile.bastion.name
 }
@@ -96,8 +95,6 @@ module "ebs" {
   source              = "./modules/ebs"
   project_name        = var.project_name
   availability_zone   = "${var.aws_region}a"
-  nsd1_instance_id    = module.ec2.nsd1_instance_id
-  nsd2_instance_id    = module.ec2.nsd2_instance_id
   worker_instance_ids = module.ec2.worker_instance_ids
   worker_count        = var.worker_count
 }

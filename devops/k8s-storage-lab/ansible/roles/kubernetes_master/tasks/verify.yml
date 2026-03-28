@@ -1,4 +1,5 @@
-- name: kube-proxy nftables 모드 확인 및 패치
+# Patch kube-proxy to nftables mode if not already set
+- name: Verify and patch kube-proxy to nftables mode
   shell: |
     MODE=$(kubectl -n kube-system get configmap kube-proxy \
       -o jsonpath='{.data.config\.conf}' \

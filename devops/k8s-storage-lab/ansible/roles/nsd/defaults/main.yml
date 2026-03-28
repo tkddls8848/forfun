@@ -1,9 +1,0 @@
----
-# Ubuntu 24.04: libaio1t64 (22.04에서 libaio1에서 rename됨)
-gpfs_packages:
-  - ksh
-  - perl
-  - libaio1t64
-  - libssl-dev
-  - build-essential
-  - dkms

@@ -23,8 +23,8 @@ sudo cat /var/log/cloud-init-output.log
 
 ## SSH / 부팅
 
-### SSH 타임아웃 (00_hosts_setup.sh)
-인스턴스 부팅 미완료 또는 SG 문제. `start_k8s.sh`는 60초 대기 후 SSH 루프를 돌며 자동 대기.
+### SSH 타임아웃
+인스턴스 부팅 미완료 또는 SG 문제. `start_k8s.sh`는 SSH 루프로 자동 대기.
 수동 확인:
 ```bash
 aws ec2 describe-instances \
@@ -33,24 +33,17 @@ aws ec2 describe-instances \
   --output table
 ```
 
-### cloud-init 완료 후에도 K8s 설치 실패
-user_data에서 reboot 발생 시 cloud-init 상태가 "running"으로 유지될 수 있음.
-`01_k8s_install.sh`의 SSH 재연결 루프가 처리함. 수동 확인:
-```bash
-ssh ubuntu@<ip> "cloud-init status"
-```
-
 ---
 
 ## Kubernetes
 
 ### kube-proxy CrashLoopBackOff (exit code 2)
 **원인**: Ubuntu 24.04 nftables 환경에서 kube-proxy iptables 모드 기동 시
-Flannel과 `/run/xtables.lock` 경합 → 클러스터 네트워킹 붕괴.
+Flannel과 `/run/xtables.lock` 경합.
 
-**현재 구성**: `01_k8s_install.sh`에서 `KubeProxyConfiguration mode: nftables`를 기본 적용하므로 재발하지 않음.
+**현재 구성**: `kubeadm init` 시 `KubeProxyConfiguration mode: nftables` 기본 적용으로 재발 없음.
 
-기동 중인 클러스터에 수동 적용:
+수동 적용:
 ```bash
 kubectl -n kube-system get configmap kube-proxy -o yaml \
   | sed 's/mode: ""/mode: "nftables"/' \
@@ -58,35 +51,48 @@ kubectl -n kube-system get configmap kube-proxy -o yaml \
 kubectl -n kube-system rollout restart daemonset kube-proxy
 ```
 
-### API server 응답 없음 (connection refused)
-```bash
-ssh -i ~/.ssh/storage-lab.pem ubuntu@<master-ip> \
-  "sudo systemctl restart kubelet"
-```
-
 ### kubeadm init 실패 (etcd context deadline)
-containerd 미실행 또는 cloud-init 미완료 상태에서 init 시도.
-`01_k8s_install.sh`는 cloud-init 완료 대기 후 설치 진행.
-
-수동 재설치:
 ```bash
-ssh ubuntu@<master-ip>
+ssh ubuntu@<master-1-ip>
 sudo kubeadm reset -f
 sudo rm -rf /etc/cni /etc/kubernetes /var/lib/kubelet /var/lib/etcd ~/.kube
 sudo systemctl restart containerd
-# 로컬에서
-bash scripts/01_k8s_install.sh
+```
+이후 `start_k8s.sh` 재실행.
+
+### Master-2/3 control-plane join 실패 (certificate-key 만료)
+kubeadm certificate-key는 2시간 유효. 만료 시:
+```bash
+# master-1에서
+sudo kubeadm init phase upload-certs --upload-certs
+# 출력된 cert-key로 재시도
+sudo kubeadm join BASTION_PRIVATE_IP:6443 \
+  --token <TOKEN> \
+  --discovery-token-ca-cert-hash sha256:<HASH> \
+  --control-plane \
+  --certificate-key <NEW_CERT_KEY> \
+  --node-name master-2
+```
+
+### HAProxy health check 실패 (master backend DOWN)
+```bash
+# bastion에서
+sudo cat /etc/haproxy/haproxy.cfg
+curl http://localhost:9000/stats
+# 특정 master가 DOWN이면 해당 master의 kubelet 확인
+ssh ubuntu@<master-ip> "sudo systemctl status kubelet"
+```
+
+### Worker join 실패 (token 만료)
+```bash
+# master-1에서
+sudo kubeadm token create --print-join-command
 ```
 
 ### Flannel Pod Pending / 노드 NotReady
 ```bash
 kubectl delete -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
 kubectl apply  -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
-```
-
-### Worker join 실패 (token 만료)
-```bash
-ssh ubuntu@<master-ip> "sudo kubeadm token create --print-join-command"
 ```
 
 ---
@@ -97,58 +103,54 @@ ssh ubuntu@<master-ip> "sudo kubeadm token create --print-join-command"
 
 rbd 모듈 미로드 확인:
 ```bash
-ssh ubuntu@<worker-ip> "lsmod | grep rbd"
-# 없으면
-ssh ubuntu@<worker-ip> "sudo modprobe rbd"
+ssh ubuntu@<worker-ip> "lsmod | grep rbd || sudo modprobe rbd"
 ```
 
-디스크에 기존 파티션/시그니처가 남아있는 경우:
+디스크에 기존 시그니처가 남아있는 경우:
 ```bash
-# destroy_ceph.sh 실행 후 재설치
 bash destroy_ceph.sh && bash start_ceph.sh
 ```
 
 ### Ceph HEALTH_WARN TOO_FEW_OSDS
-`osd_pool_default_size`가 실제 OSD 수보다 크면 발생.
-현재 구성(`osd_pool_default_size: "2"`, replication `size: 2`)에서는 OSD 4개 이상이면 정상.
-
-### rook-ceph-tools에서 확인
+`osd_pool_default_size: "2"`에서 OSD 2개 이상이면 정상.
 ```bash
-export KUBECONFIG=~/.kube/config-k8s-storage-lab
-kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph status
 kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph osd tree
-kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph df
 ```
 
-### rook-ceph 재설치
+### rook-ceph-tools 상태 확인
 ```bash
-bash destroy_ceph.sh
-bash start_ceph.sh
+kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph status
+kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph df
+kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph osd tree
 ```
 
 ---
 
-## GPFS
+## BeeGFS
 
-### `mmbuildgpl` 실패 (커널 헤더 불일치)
+### beegfs-mgmtd/meta Pod CrashLoopBackOff
+패키지가 설치되지 않았거나 config 파일 미설정.
 ```bash
-uname -r
-dpkg -l | grep linux-headers
-sudo apt-get install -y linux-headers-$(uname -r)
-sudo /usr/lpp/mmfs/bin/mmbuildgpl
+kubectl -n beegfs-system logs deploy/beegfs-mgmtd
+# master-1에서
+ls /usr/sbin/beegfs-mgmtd
+cat /etc/beegfs/beegfs-mgmtd.conf | grep storeMgmt
 ```
 
-### NSD 디스크 인식 실패
-Nitro 기반 인스턴스에서 `/dev/nvme*`로 표시될 수 있음.
+### storaged DaemonSet Pod Pending (node selector 불일치)
+Worker 노드에 `node-role.kubernetes.io/worker` 레이블 확인:
 ```bash
-lsblk
-ls /dev/xvd* /dev/nvme* 2>/dev/null
+kubectl get nodes --show-labels | grep worker
+# 레이블이 없으면
+kubectl label node worker-1 node-role.kubernetes.io/worker=""
 ```
 
-### mmstartup 후 노드 미활성
+### BeeGFS 스토리지 디스크 마운트 실패
 ```bash
-sudo /usr/lpp/mmfs/bin/mmgetstate -a
-sudo tail -100 /var/mmfs/gen/mmfslog
+ssh ubuntu@<worker-ip>
+lsblk                     # nvme3n1 확인
+sudo blkid /dev/nvme3n1   # 파일시스템 확인
+mount | grep beegfs       # 마운트 여부 확인
 ```
 
 ---
@@ -164,6 +166,9 @@ kubectl logs -n rook-ceph deploy/rook-ceph-operator | tail -50
 ### StorageClass 없음
 ```bash
 kubectl get storageclass
-# ceph-rbd, ceph-cephfs 없으면 02_ceph_install.sh 재실행
+# ceph-rbd, ceph-cephfs 없으면
 bash start_ceph.sh
+
+# beegfs-scratch 없으면
+bash start_beegfs.sh
 ```
