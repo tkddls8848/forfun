@@ -2,4 +2,4 @@
 # Nitro 인스턴스에서 /dev/xvdd → /dev/nvme3n1
 beegfs_storage_device: /dev/nvme3n1
 beegfs_mgmtd_host: master-1
-beegfs_version: "7.4"
+beegfs_version: "beegfs_7.4.6"

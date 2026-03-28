@@ -29,7 +29,7 @@ spec:
           command:
             - chroot
             - /host
-            - /usr/sbin/beegfs-mgmtd
+            - /opt/beegfs/sbin/beegfs-mgmtd
             - cfgFile=/etc/beegfs/beegfs-mgmtd.conf
             - runDaemonized=false
           securityContext:

@@ -28,11 +28,18 @@ spec:
         - name: wait-mgmtd
           image: ubuntu:24.04
           command:
-            - sh
+            - /bin/bash
             - -c
             - |
-              until chroot /host /usr/bin/beegfs-check-servers \
-                --cfgFile=/etc/beegfs/beegfs-mgmtd.conf 2>/dev/null; do
+              if [ ! -x /host/usr/sbin/beegfs-meta ]; then
+                echo "=== beegfs-meta not found — running apt-get on host ==="
+                chroot /host /bin/bash -c "apt-get update 2>&1 && apt-get install -y beegfs-meta beegfs-utils 2>&1" || {
+                  echo "ERROR: apt-get install failed (exit $?)"
+                  exit 1
+                }
+              fi
+              until chroot /host /opt/beegfs/sbin/beegfs-check-servers \
+                --cfgFile=/etc/beegfs/beegfs-meta.conf 2>/dev/null; do
                 echo "mgmtd 대기 중..."; sleep 5
               done
           securityContext:
@@ -46,7 +53,7 @@ spec:
           command:
             - chroot
             - /host
-            - /usr/sbin/beegfs-meta
+            - /opt/beegfs/sbin/beegfs-meta
             - cfgFile=/etc/beegfs/beegfs-meta.conf
             - runDaemonized=false
           securityContext:

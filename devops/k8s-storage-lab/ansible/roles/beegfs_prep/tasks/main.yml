@@ -1,31 +1,44 @@
 ---
+# ── BeeGFS 8.x 잔존 패키지 제거 (있을 경우) ────────────────────────────────
+- name: Remove BeeGFS 8.x packages if present
+  apt:
+    name:
+      - beegfs-mgmtd
+      - beegfs-meta
+      - beegfs-storage
+      - beegfs-client
+      - beegfs-helperd
+      - beegfs-utils
+      - beegfs-mon
+    state: absent
+    purge: yes
+  failed_when: false
+
+# ── GPG key + APT repo (beegfs_7.4) ─────────────────────────────────────────
 - name: Register BeeGFS GPG key
   shell: |
-    wget -q https://www.beegfs.io/release/beegfs_{{ beegfs_version }}/gpg/GPG-KEY-beegfs \
+    wget -q https://www.beegfs.io/release/{{ beegfs_version }}/gpg/GPG-KEY-beegfs \
       -O /tmp/beegfs.gpg
-    # ASCII armored이면 dearmor, 이미 binary이면 그대로 복사
-    if file /tmp/beegfs.gpg | grep -q 'text'; then
+    if grep -q 'BEGIN PGP' /tmp/beegfs.gpg 2>/dev/null; then
       gpg --dearmor < /tmp/beegfs.gpg > /etc/apt/trusted.gpg.d/beegfs.gpg
     else
       cp /tmp/beegfs.gpg /etc/apt/trusted.gpg.d/beegfs.gpg
     fi
-  args:
-    creates: /etc/apt/trusted.gpg.d/beegfs.gpg
+  changed_when: false
 
 - name: Add BeeGFS APT repository
-  get_url:
-    url: "https://www.beegfs.io/release/beegfs_{{ beegfs_version }}/dists/beegfs-noble.list"
+  copy:
     dest: /etc/apt/sources.list.d/beegfs.list
     mode: '0644'
-  register: beegfs_repo
+    content: |
+      deb [signed-by=/etc/apt/trusted.gpg.d/beegfs.gpg] https://www.beegfs.io/release/{{ beegfs_version }}/ noble non-free
 
 - name: Update APT cache
   apt:
     update_cache: yes
-  when: beegfs_repo.changed
 
-# Master: install mgmtd, meta, utils, mon
-- name: Install BeeGFS mgmtd + meta packages (master)
+# ── Package install ──────────────────────────────────────────────────────────
+- name: Install BeeGFS packages (master)
   apt:
     name:
       - beegfs-mgmtd
@@ -33,12 +46,15 @@
       - beegfs-utils
       - beegfs-mon
     state: present
+  environment:
+    DEBIAN_FRONTEND: noninteractive
   when: "'master' in group_names"
+  register: apt_result
+  until: apt_result is succeeded
   retries: 3
   delay: 5
 
-# Worker: install storage, client, helperd, utils
-- name: Install BeeGFS storage + client packages (worker)
+- name: Install BeeGFS packages (worker)
   apt:
     name:
       - beegfs-storage
@@ -46,26 +62,15 @@
       - beegfs-helperd
       - beegfs-utils
     state: present
+  environment:
+    DEBIAN_FRONTEND: noninteractive
   when: "'worker' in group_names"
+  register: apt_result
+  until: apt_result is succeeded
   retries: 3
   delay: 5
 
-# Master: create mgmtd/meta data directories
-- name: Create BeeGFS mgmtd data directory (master)
-  file:
-    path: /mnt/beegfs/mgmtd
-    state: directory
-    mode: '0755'
-  when: "'master' in group_names"
-
-- name: Create BeeGFS meta data directory (master)
-  file:
-    path: /mnt/beegfs/meta
-    state: directory
-    mode: '0755'
-  when: "'master' in group_names"
-
-# Worker: format and mount dedicated 8GB EBS for BeeGFS
+# ── Worker: XFS disk format + mount ─────────────────────────────────────────
 - name: Format BeeGFS storage disk as XFS (worker)
   filesystem:
     fstype: xfs
@@ -88,50 +93,117 @@
     state: mounted
   when: "'worker' in group_names"
 
-# Config file adjustments
-- name: Set mgmtd storage directory in beegfs-mgmtd.conf (master)
-  lineinfile:
-    path: /etc/beegfs/beegfs-mgmtd.conf
-    regexp: "^storeMgmtdDirectory"
-    line: "storeMgmtdDirectory = /mnt/beegfs/mgmtd"
+# ── Master: storage directories ──────────────────────────────────────────────
+- name: Create BeeGFS mgmtd/meta data directories (master)
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /mnt/beegfs/mgmtd
+    - /mnt/beegfs/meta
   when: "'master' in group_names"
 
-- name: Set meta data directory in beegfs-meta.conf (master)
-  lineinfile:
-    path: /etc/beegfs/beegfs-meta.conf
-    regexp: "^storeMetaDirectory"
-    line: "storeMetaDirectory = /mnt/beegfs/meta"
+# ── Master: conf files (패키지가 설치하지 않은 경우 직접 생성) ───────────────
+# storeAllowFirstRunInit = true 이면 beegfs 데몬이 첫 기동 시 스토리지를 자동 초기화함
+- name: Create beegfs-mgmtd.conf (master)
+  copy:
+    dest: /etc/beegfs/beegfs-mgmtd.conf
+    force: yes
+    mode: '0644'
+    content: |
+      storeMgmtdDirectory          = /mnt/beegfs/mgmtd
+      storeAllowFirstRunInit       = true
+      connDisableAuthentication    = true
+      sysMgmtdHost                 =
+      connMgmtdPortTCP             = 8008
+      connMgmtdPortUDP             = 8008
+      connClientPortUDP            = 8004
+      connStoragePortTCP           = 8003
+      connStoragePortUDP           = 8003
+      connMetaPortTCP              = 8005
+      connMetaPortUDP              = 8005
+      logLevel                     = 2
+      logType                      = syslog
   when: "'master' in group_names"
 
-- name: Set mgmtd host in beegfs-meta.conf (master)
-  lineinfile:
-    path: /etc/beegfs/beegfs-meta.conf
-    regexp: "^sysMgmtdHost"
-    line: "sysMgmtdHost = {{ beegfs_mgmtd_host }}"
+- name: Create beegfs-meta.conf (master)
+  copy:
+    dest: /etc/beegfs/beegfs-meta.conf
+    force: yes
+    mode: '0644'
+    content: |
+      storeMetaDirectory           = /mnt/beegfs/meta
+      storeAllowFirstRunInit       = true
+      connDisableAuthentication    = true
+      sysMgmtdHost                 = {{ beegfs_mgmtd_host }}
+      connMgmtdPortTCP             = 8008
+      connMgmtdPortUDP             = 8008
+      connMetaPortTCP              = 8005
+      connMetaPortUDP              = 8005
+      logLevel                     = 2
+      logType                      = syslog
   when: "'master' in group_names"
 
-- name: Set storage data directory in beegfs-storage.conf (worker)
-  lineinfile:
-    path: /etc/beegfs/beegfs-storage.conf
-    regexp: "^storeStorageDirectory"
-    line: "storeStorageDirectory = /mnt/beegfs/storage"
+- name: Create beegfs-mon.conf (master)
+  copy:
+    dest: /etc/beegfs/beegfs-mon.conf
+    force: yes
+    mode: '0644'
+    content: |
+      connDisableAuthentication    = true
+      sysMgmtdHost                 = {{ beegfs_mgmtd_host }}
+      connMgmtdPortTCP             = 8008
+      connMgmtdPortUDP             = 8008
+      logLevel                     = 2
+      logType                      = syslog
+  when: "'master' in group_names"
+
+# ── Worker: conf files ───────────────────────────────────────────────────────
+- name: Create beegfs-storage.conf (worker)
+  copy:
+    dest: /etc/beegfs/beegfs-storage.conf
+    force: yes
+    mode: '0644'
+    content: |
+      storeStorageDirectory        = /mnt/beegfs/storage
+      storeAllowFirstRunInit       = true
+      connDisableAuthentication    = true
+      sysMgmtdHost                 = {{ beegfs_mgmtd_host }}
+      connMgmtdPortTCP             = 8008
+      connMgmtdPortUDP             = 8008
+      connStoragePortTCP           = 8003
+      connStoragePortUDP           = 8003
+      logLevel                     = 2
+      logType                      = syslog
   when: "'worker' in group_names"
 
-- name: Set mgmtd host in beegfs-storage.conf (worker)
-  lineinfile:
-    path: /etc/beegfs/beegfs-storage.conf
-    regexp: "^sysMgmtdHost"
-    line: "sysMgmtdHost = {{ beegfs_mgmtd_host }}"
+- name: Create beegfs-client.conf (worker)
+  copy:
+    dest: /etc/beegfs/beegfs-client.conf
+    force: yes
+    mode: '0644'
+    content: |
+      connDisableAuthentication    = true
+      sysMgmtdHost                 = {{ beegfs_mgmtd_host }}
+      connMgmtdPortTCP             = 8008
+      connMgmtdPortUDP             = 8008
+      connClientPortUDP            = 8004
+      logLevel                     = 2
+      logType                      = syslog
   when: "'worker' in group_names"
 
-- name: Set mgmtd host in beegfs-client.conf (worker)
-  lineinfile:
-    path: /etc/beegfs/beegfs-client.conf
-    regexp: "^sysMgmtdHost"
-    line: "sysMgmtdHost = {{ beegfs_mgmtd_host }}"
+- name: Create beegfs-helperd.conf (worker)
+  copy:
+    dest: /etc/beegfs/beegfs-helperd.conf
+    force: no
+    mode: '0644'
+    content: |
+      logLevel                     = 2
+      logType                      = syslog
   when: "'worker' in group_names"
 
-# Disable systemd services — managed by K8s DaemonSet/Deployment
+# ── Disable systemd services (K8s DaemonSet/Deployment으로 관리) ─────────────
 - name: Disable beegfs-mgmtd systemd service (master)
   systemd:
     name: beegfs-mgmtd
@@ -148,6 +220,14 @@
   when: "'master' in group_names"
   failed_when: false
 
+- name: Disable beegfs-mon systemd service (master)
+  systemd:
+    name: beegfs-mon
+    state: stopped
+    enabled: no
+  when: "'master' in group_names"
+  failed_when: false
+
 - name: Disable beegfs-storage systemd service (worker)
   systemd:
     name: beegfs-storage
@@ -156,7 +236,6 @@
   when: "'worker' in group_names"
   failed_when: false
 
-# Keep beegfs-helperd running via systemd — required by CSI driver
 - name: Enable and start beegfs-helperd (worker)
   systemd:
     name: beegfs-helperd

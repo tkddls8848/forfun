@@ -175,11 +175,26 @@ $CSSH$M1_PUB "
 "
 
 echo "=============================="
-echo " Step 1-4-1: rook-ceph-tools 배포"
+echo " Step 1-4-1: CSI Provisioner master 노드 배치"
+echo "=============================="
+$CSSH$M1_PUB "
+  kubectl -n rook-ceph patch configmap rook-ceph-operator-config \
+    --type merge \
+    -p '{\"data\":{\"CSI_PROVISIONER_NODE_AFFINITY\":\"node-role.kubernetes.io/control-plane=\"}}'
+  kubectl rollout restart deployment/csi-cephfsplugin-provisioner \
+    deployment/csi-rbdplugin-provisioner -n rook-ceph
+  kubectl -n rook-ceph rollout status deployment/csi-cephfsplugin-provisioner --timeout=120s
+  kubectl -n rook-ceph rollout status deployment/csi-rbdplugin-provisioner --timeout=120s
+  echo '  ✅ CSI Provisioner → master 노드 재배치 완료'
+"
+
+echo "=============================="
+echo " Step 1-4-2: rook-ceph-tools 배포"
 echo "=============================="
 $CSSH$M1_PUB "kubectl apply -f https://raw.githubusercontent.com/rook/rook/$ROOK_VERSION/deploy/examples/toolbox.yaml"
 echo "  [대기] rook-ceph-tools 기동 대기..."
 $CSSH$M1_PUB "kubectl -n rook-ceph rollout status deploy/rook-ceph-tools --timeout=120s"
+
 
 echo "=============================="
 echo " Step 1-5: CephBlockPool + StorageClass (RBD)"

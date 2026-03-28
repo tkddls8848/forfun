@@ -20,7 +20,7 @@ data:
     import time
     from http.server import HTTPServer, BaseHTTPRequestHandler
 
-    BEEGFS_CTL = "/host/usr/sbin/beegfs-ctl"
+    BEEGFS_CTL = "/host/opt/beegfs/sbin/beegfs-ctl"
 
     def run_beegfs_ctl(*args):
         try:
@@ -140,12 +140,11 @@ spec:
       hostNetwork: false
       containers:
         - name: exporter
-          image: ubuntu:24.04
+          image: python:3.12-slim
           command:
-            - /bin/bash
+            - /bin/sh
             - -c
             - |
-              apt-get update -qq && apt-get install -y -qq python3 2>/dev/null
               cp /scripts/exporter.py /tmp/exporter.py
               exec python3 /tmp/exporter.py 9100
           ports:
@@ -160,10 +159,10 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 32Mi
+              memory: 64Mi
             limits:
               cpu: 100m
-              memory: 64Mi
+              memory: 128Mi
           securityContext:
             privileged: false
       volumes:

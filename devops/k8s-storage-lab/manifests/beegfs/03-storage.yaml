@@ -17,16 +17,23 @@ spec:
       hostNetwork: true
       hostPID: true
       nodeSelector:
-        node-role.kubernetes.io/worker: ""
+        role: "worker"
       containers:
         - name: beegfs-storage
           image: ubuntu:24.04
           command:
-            - chroot
-            - /host
-            - /usr/sbin/beegfs-storage
-            - cfgFile=/etc/beegfs/beegfs-storage.conf
-            - runDaemonized=false
+            - /bin/bash
+            - -c
+            - |
+              if [ ! -x /host/opt/beegfs/sbin/beegfs-storage ]; then
+                echo "=== beegfs-storage not found — running apt-get on host ==="
+                chroot /host /bin/bash -c "apt-get update 2>&1 && apt-get install -y beegfs-storage 2>&1" || {
+                  echo "ERROR: apt-get install failed (exit $?)"
+                  exit 1
+                }
+              fi
+              exec chroot /host /opt/beegfs/sbin/beegfs-storage \
+                cfgFile=/etc/beegfs/beegfs-storage.conf runDaemonized=false
           securityContext:
             privileged: true
           volumeMounts:
@@ -37,10 +44,10 @@ spec:
               mountPath: /host/mnt/beegfs/storage
           resources:
             requests:
-              cpu: 200m
+              cpu: 100m
               memory: 256Mi
             limits:
-              cpu: 1000m
+              cpu: 500m
               memory: 1Gi
       volumes:
         - name: host-root

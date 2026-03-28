@@ -18,44 +18,62 @@
   hosts: master
   become: no
   tasks:
+    - name: BeeGFS 매니페스트 디렉토리 생성
+      file:
+        path: /home/ubuntu/manifests/beegfs
+        state: directory
+        mode: '0755'
+      run_once: true
+
+    - name: BeeGFS 매니페스트 파일 복사 (bastion → master)
+      copy:
+        src: /home/ubuntu/manifests/beegfs/
+        dest: /home/ubuntu/manifests/beegfs/
+        mode: '0644'
+      run_once: true
+
     - name: BeeGFS 네임스페이스 및 데몬 매니페스트 적용
-      command: >
-        kubectl apply -f {{ ansible_env.HOME }}/manifests/beegfs/
+      command: kubectl apply -f /home/ubuntu/manifests/beegfs/
       environment:
-        KUBECONFIG: "{{ ansible_env.HOME }}/.kube/config-k8s-storage-lab"
+        KUBECONFIG: "/home/ubuntu/.kube/config"
+      run_once: true
 
     - name: BeeGFS mgmtd 준비 완료 대기
-      command: >
-        kubectl rollout status deployment/beegfs-mgmtd
-        -n beegfs-system --timeout=120s
+      command: kubectl rollout status deployment/beegfs-mgmtd -n beegfs-system --timeout=120s
       environment:
-        KUBECONFIG: "{{ ansible_env.HOME }}/.kube/config-k8s-storage-lab"
+        KUBECONFIG: "/home/ubuntu/.kube/config"
+      register: rollout_result
+      until: rollout_result.rc == 0
       retries: 3
       delay: 10
+      run_once: true
 
     - name: BeeGFS meta 준비 완료 대기
-      command: >
-        kubectl rollout status deployment/beegfs-meta
-        -n beegfs-system --timeout=120s
+      command: kubectl rollout status deployment/beegfs-meta -n beegfs-system --timeout=120s
       environment:
-        KUBECONFIG: "{{ ansible_env.HOME }}/.kube/config-k8s-storage-lab"
+        KUBECONFIG: "/home/ubuntu/.kube/config"
+      register: rollout_result
+      until: rollout_result.rc == 0
       retries: 3
       delay: 10
+      run_once: true
 
     - name: BeeGFS storaged DaemonSet 준비 완료 대기
-      command: >
-        kubectl rollout status daemonset/beegfs-storage
-        -n beegfs-system --timeout=180s
+      command: kubectl rollout status daemonset/beegfs-storage -n beegfs-system --timeout=180s
       environment:
-        KUBECONFIG: "{{ ansible_env.HOME }}/.kube/config-k8s-storage-lab"
+        KUBECONFIG: "/home/ubuntu/.kube/config"
+      register: rollout_result
+      until: rollout_result.rc == 0
       retries: 3
       delay: 10
+      run_once: true
 
     - name: BeeGFS Prometheus Exporter 준비 완료 대기
-      command: >
-        kubectl rollout status deployment/beegfs-exporter
-        -n beegfs-system --timeout=120s
+      command: kubectl rollout status deployment/beegfs-exporter -n beegfs-system --timeout=120s
       environment:
-        KUBECONFIG: "{{ ansible_env.HOME }}/.kube/config-k8s-storage-lab"
+        KUBECONFIG: "/home/ubuntu/.kube/config"
+      register: rollout_result
+      until: rollout_result.rc == 0
       retries: 3
       delay: 10
+      run_once: true

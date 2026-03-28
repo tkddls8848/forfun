@@ -30,7 +30,7 @@ resource "aws_instance" "bastion" {
 resource "aws_instance" "master" {
   count                  = var.master_count
   ami                    = var.ami_id
-  instance_type          = "t3.large"
+  instance_type          = "t3.medium"
   key_name               = var.key_name
   subnet_id              = var.subnet_k8s_id
   vpc_security_group_ids = [var.sg_k8s_id]

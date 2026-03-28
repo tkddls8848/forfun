@@ -22,7 +22,7 @@
 | 노드 | 타입 | vCPU | RAM | 역할 |
 |------|------|------|-----|------|
 | Bastion | t3.small | 2 | 2GB | Ansible 제어 노드, HAProxy |
-| Master | t3.large | 2 | 8GB | K8s HA control plane (etcd ×3) + BeeGFS mgmtd/meta |
+| Master | t3.medium | 2 | 4GB | K8s HA control plane (etcd ×3) + BeeGFS mgmtd/meta + Ceph CSI Provisioner |
 | Worker | m5.large | 2 | 8GB | HCI (K8s + Ceph OSD + BeeGFS storaged) |
 
 ---
@@ -76,8 +76,8 @@
 ## 6. BeeGFS 스토리지 스택
 
 위치: `ansible/roles/beegfs_prep/`, `manifests/beegfs/`
-- BeeGFS: 7.4 (Ubuntu 24.04 Noble 공식 지원)
-  - APT 저장소: https://www.beegfs.io/release/beegfs_7.4/
+- BeeGFS: 7.4.6 (Ubuntu 24.04 Noble 공식 지원 — 7.4.6부터)
+  - APT 저장소: https://www.beegfs.io/release/beegfs_7.4.6/
 - 구성요소:
   - mgmtd: Deployment 1개 (master-1, port 8008)
   - meta: Deployment 1개 (master-1, port 8005)
