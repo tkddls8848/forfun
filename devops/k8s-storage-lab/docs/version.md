@@ -22,7 +22,7 @@
 | 노드 | 타입 | vCPU | RAM | 역할 |
 |------|------|------|-----|------|
 | Bastion | t3.small | 2 | 2GB | Ansible 제어 노드, HAProxy |
-| Master | t3.medium | 2 | 4GB | K8s control plane + BeeGFS mgmtd/meta |
+| Master | t3.large | 2 | 8GB | K8s HA control plane (etcd ×3) + BeeGFS mgmtd/meta |
 | Worker | m5.large | 2 | 8GB | HCI (K8s + Ceph OSD + BeeGFS storaged) |
 
 ---
@@ -40,7 +40,7 @@
 
 위치: `ansible/inventory/group_vars/all.yml`
 - Kubernetes: 1.31
-- kubeadm API: kubeadm.k8s.io/v1beta3
+- kubeadm API: kubeadm.k8s.io/v1beta4
 - kube-proxy:
   - 모드: nftables
   - API: kubeproxy.config.k8s.io/v1alpha1
@@ -86,6 +86,10 @@
 - 데몬 실행 방식: K8s 컨테이너 (`ubuntu:24.04` + `chroot /host`)
 - 스토리지 디렉토리: `/mnt/beegfs/storage` (XFS, 8GB EBS)
 - CSI Driver: beegfs.csi.netapp.com (NetApp/ThinkParQ)
+- 모니터링: Prometheus exporter (`manifests/beegfs/05-monitoring.yaml`)
+  - beegfs-ctl 기반 커스텀 exporter (port 9100)
+  - ServiceMonitor → kube-prometheus-stack 자동 scrape
+  - Grafana 대시보드 자동 import (`06-grafana-dashboard.yaml`)
 
 ---
 
