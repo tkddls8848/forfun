@@ -3,7 +3,12 @@
   shell: |
     wget -q https://www.beegfs.io/release/beegfs_{{ beegfs_version }}/gpg/GPG-KEY-beegfs \
       -O /tmp/beegfs.gpg
-    gpg --dearmor < /tmp/beegfs.gpg > /etc/apt/trusted.gpg.d/beegfs.gpg
+    # ASCII armored이면 dearmor, 이미 binary이면 그대로 복사
+    if file /tmp/beegfs.gpg | grep -q 'text'; then
+      gpg --dearmor < /tmp/beegfs.gpg > /etc/apt/trusted.gpg.d/beegfs.gpg
+    else
+      cp /tmp/beegfs.gpg /etc/apt/trusted.gpg.d/beegfs.gpg
+    fi
   args:
     creates: /etc/apt/trusted.gpg.d/beegfs.gpg
 
