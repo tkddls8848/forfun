@@ -57,8 +57,10 @@ bash start_k8s.sh
 4. `[3/5]` SSH 키 + ansible/ + manifests/ 전송
 5. `[4/5]` 모든 노드 부팅 대기 (ProxyJump 확인)
 6. `[5/5]` `ansible-playbook k8s.yml --extra-vars "control_plane_endpoint=BASTION_PRIVATE_IP"`:
+   - **[Play 0.5] Worker 커널 6.8 고정** — 6.12+ 감지 시 6.8 설치 → GRUB 변경 → reboot
+   - **[Play 0.6] 커널 검증 게이트** — 6.8 아니면 전체 중단
    - **HAProxy 설정** (Bastion, master×3 backend 자동 생성)
-   - common → worker → cluster_setup → kubernetes_common
+   - node_base → hci_node → cluster_setup → kubernetes_common
    - **master-1 kubeadm init** (`--control-plane-endpoint BASTION_PRIVATE_IP:6443 --upload-certs`)
    - CNI (Flannel VXLAN)
    - **master-2/3 control-plane join** (serial: 1)
@@ -87,7 +89,7 @@ bash start_ceph.sh
 1. Helm 설치 (master-1)
 2. rook-ceph operator 배포 + 안정화 대기(60s)
 3. rbd 커널 모듈 확인
-4. CephCluster CR 배포 (`useAllDevices: true` — BeeGFS 디스크 nvme3n1은 XFS 마운트로 자동 제외)
+4. CephCluster CR 배포 (`deviceFilter: ^nvme[12]n1$` — nvme3n1 BeeGFS 전용 명시적 제외)
 5. OSD 안정화 대기 (5회 연속 동일 수)
 6. HEALTH_OK 대기
 7. CSI Provisioner → master 노드 재배치 (worker CPU 여유 확보)
@@ -111,10 +113,12 @@ bash start_beegfs.sh
 1. ansible/manifests 재전송
 2. `ansible-playbook beegfs.yml`:
    - BeeGFS 7.4.6 APT 저장소 + 패키지 설치 (noble 공식 지원)
+   - Worker: 커널 모듈 빌드 (`/opt/beegfs/src/client/client_module_7/build/`) + modprobe
    - Master: `/mnt/beegfs/mgmtd`, `/mnt/beegfs/meta` 디렉토리 생성
    - Worker: `/dev/nvme3n1` XFS 포맷 → `/mnt/beegfs/storage` 마운트
-   - 설정 파일 조정 (`sysMgmtdHost`, 스토리지 경로)
+   - 설정 파일 생성 (`sysMgmtdHost`, `connDisableAuthentication=true`)
    - K8s 매니페스트 적용 (namespace, mgmtd/meta Deployment, storaged DaemonSet, StorageClass)
+   - CSI Driver: git clone + kustomize 배포 (`kubectl apply -k`)
 
 완료 후 확인:
 ```bash

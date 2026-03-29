@@ -91,8 +91,25 @@ sudo kubeadm token create --print-join-command
 
 ### Flannel Pod Pending / 노드 NotReady
 ```bash
-kubectl delete -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
-kubectl apply  -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+VER=v0.26.1
+kubectl delete -f https://github.com/flannel-io/flannel/releases/download/${VER}/kube-flannel.yml
+kubectl apply  -f https://github.com/flannel-io/flannel/releases/download/${VER}/kube-flannel.yml
+```
+
+### Worker 커널 고정 실패 (NotReady, SSH 거절)
+kernel_pin.yml reboot 후 복구 타임아웃:
+```bash
+# EC2 강제 재시작
+INSTANCE_ID=$(aws ec2 describe-instances \
+  --filters "Name=private-ip-address,Values=<worker-ip>" \
+  --query 'Reservations[].Instances[].InstanceId' --output text)
+aws ec2 reboot-instances --instance-ids $INSTANCE_ID
+
+# 복구 대기
+until ssh -o ConnectTimeout=5 <worker-name> "uname -r" 2>/dev/null; do
+  echo "waiting..."; sleep 10
+done
+# 이후 start_beegfs.sh 재실행 (이미 6.8이면 pin 스킵)
 ```
 
 ---

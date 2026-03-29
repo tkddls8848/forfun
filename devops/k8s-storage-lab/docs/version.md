@@ -31,7 +31,7 @@
 
 - EBS 볼륨 타입: gp2
 - Root 볼륨: 20GB (모든 인스턴스 공통)
-- Ceph OSD: 워커당 2개, 각 10GB (`/dev/xvdb`, `/dev/xvdc` → nvme1n1, nvme2n1)
+- Ceph OSD: 워커당 2개, 각 5GB (`/dev/xvdb`, `/dev/xvdc` → nvme1n1, nvme2n1)
 - BeeGFS 스토리지: 워커당 1개, 8GB (`/dev/xvdd` → nvme3n1, XFS 포맷)
 
 ---
@@ -44,11 +44,12 @@
 - kube-proxy:
   - 모드: nftables
   - API: kubeproxy.config.k8s.io/v1alpha1
-- CNI: Flannel (master branch 최신)
+- CNI: Flannel v0.26.1 (버전 고정, K8s 1.28+ 지원)
   - 모드: VXLAN
   - 포트: UDP 8472
   - POD CIDR: 10.244.0.0/16
 - kubectl / kubelet / kubeadm: 1.31
+- Worker 커널: 6.8.0-aws 고정 (BeeGFS 7.4.6 최대 지원 커널 6.11, k8s.yml Play 0.5에서 자동 고정)
 
 ---
 
@@ -70,6 +71,7 @@
 - Dashboard: 활성화 (SSL 비활성화)
 - MDS: activeCount=1, activeStandby=false
 - OSD 배치: worker 노드만
+- 디바이스 선택: `deviceFilter: ^nvme[12]n1$` (nvme3n1 BeeGFS 전용 제외)
 
 ---
 
@@ -78,14 +80,17 @@
 위치: `ansible/roles/beegfs_prep/`, `manifests/beegfs/`
 - BeeGFS: 7.4.6 (Ubuntu 24.04 Noble 공식 지원 — 7.4.6부터)
   - APT 저장소: https://www.beegfs.io/release/beegfs_7.4.6/
+  - 최대 지원 커널: 6.11 (worker 커널 6.8로 고정 필수)
 - 구성요소:
   - mgmtd: Deployment 1개 (master-1, port 8008)
   - meta: Deployment 1개 (master-1, port 8005)
   - storaged: DaemonSet (all workers, port 8003)
-  - helperd: systemd (all workers, CSI 의존, port 8004)
+  - helperd: systemd (all workers, CSI 의존, port 8004, `connDisableAuthentication=true`)
 - 데몬 실행 방식: K8s 컨테이너 (`ubuntu:24.04` + `chroot /host`)
+- 커널 모듈 빌드: 자체 빌드 시스템 (`/opt/beegfs/src/client/client_module_7/build/`, DKMS 미사용)
 - 스토리지 디렉토리: `/mnt/beegfs/storage` (XFS, 8GB EBS)
-- CSI Driver: beegfs.csi.netapp.com (NetApp/ThinkParQ)
+- CSI Driver: beegfs.csi.netapp.com v1.8.0 (ThinkParQ/NetApp)
+  - StorageClass mountOptions: 없음 (rsize/wsize는 BeeGFS 미지원)
 - 모니터링: Prometheus exporter (`manifests/beegfs/05-monitoring.yaml`)
   - beegfs-ctl 기반 커스텀 exporter (port 9100)
   - ServiceMonitor → kube-prometheus-stack 자동 scrape
@@ -148,10 +153,10 @@
 
 ## 10. 시스템 패키지 (Ubuntu 24.04)
 
-- Container Runtime: containerd
-- Worker 추가 패키지: lvm2, chrony, linux-modules-extra-aws
-- BeeGFS 의존성: beegfs-client (DKMS), beegfs-helperd, beegfs-utils
-- 공통: apt-transport-https, ca-certificates, curl, gpg
+- Container Runtime: containerd.io 1.7.22-1 (버전 고정 + dpkg hold)
+- 공통 패키지: curl, ca-certificates, gnupg, git, nfs-common, open-iscsi, conntrack, socat, nftables
+- Worker 추가 패키지: lvm2, chrony, linux-modules-extra-aws, xfsprogs
+- BeeGFS 의존성: beegfs-client, beegfs-helperd, beegfs-utils, xfsprogs, dkms
 
 ---
 
@@ -181,5 +186,5 @@
 |------|------|
 | Kubernetes ↔ Rook | K8s 1.31 ↔ Rook v1.16.6 ✓ |
 | Rook ↔ Ceph | Rook v1.16.6 ↔ Ceph v19.2.3 ✓ |
-| Ubuntu ↔ BeeGFS | Ubuntu 24.04 ↔ BeeGFS 7.4 ✓ |
+| Ubuntu ↔ BeeGFS | Ubuntu 24.04 ↔ BeeGFS 7.4 ✓ (커널 6.8 고정 필수) |
 | K8s ↔ kube-proxy | K8s 1.31 ↔ nftables 모드 stable ✓ |

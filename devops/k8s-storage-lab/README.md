@@ -30,9 +30,9 @@ Ceph CSI Provisioner
 |------|----|----------|--------|-----------|
 | Bastion | 1 | t3.small | 10.0.0.0/24 (public) | Ansible, HAProxy(6443/9000) |
 | K8s Master (HA) | 3 | t3.medium | 10.0.1.0/24 (private) | etcd, kubeadm, BeeGFS mgmtd/meta, Ceph CSI Provisioner |
-| K8s Worker (HCI) | N | m5.large | 10.0.1.0/24 (private) | K8s 워크로드 + Ceph OSD×2 + BeeGFS storaged |
+| K8s Worker (HCI) | N | m5.large | 10.0.1.0/24 (private) | K8s 워크로드 + Ceph OSD×2 + BeeGFS storaged (커널 6.8 고정) |
 
-**EBS 구성 (워커당):** Ceph OSD-a 10GB + Ceph OSD-b 10GB + BeeGFS 8GB
+**EBS 구성 (워커당):** Ceph OSD-a 5GB + Ceph OSD-b 5GB + BeeGFS 8GB
 
 ## 접근 구조
 
@@ -78,8 +78,8 @@ k8s-storage-lab/
 │   │   ├── k8s.yml               # K8s HA 클러스터 구성 (HAProxy 포함)
 │   │   └── beegfs.yml            # BeeGFS 설치 + K8s 매니페스트 적용
 │   └── roles/
-│       ├── common/               # OS 공통 (swap, sysctl, containerd, 커널 모듈)
-│       ├── worker/               # Worker 추가 패키지
+│       ├── node_base/            # OS 공통 (swap, sysctl, containerd, 커널 모듈)
+│       ├── hci_node/             # Worker 추가 패키지 (lvm2, xfsprogs, 커널 헤더)
 │       ├── cluster_setup/        # /etc/hosts, SSH key 배포
 │       ├── kubernetes_common/    # kubelet, kubeadm, kubectl 설치
 │       ├── kubernetes_master/    # kubeadm init (master-1), --upload-certs
@@ -188,7 +188,7 @@ bash worker_add.sh
 bash worker_remove.sh
 ```
 
-Ceph는 `useAllDevices: true`로 새 노드의 OSD 디스크를 자동 감지합니다.
+Ceph는 `deviceFilter: ^nvme[12]n1$`로 OSD 디스크를 감지합니다 (nvme3n1 BeeGFS 제외).
 
 ## 주요 설계 결정
 
@@ -200,9 +200,13 @@ Ceph는 `useAllDevices: true`로 새 노드의 OSD 디스크를 자동 감지합
 | Master 타입 | t3.medium (4GB) | etcd 3노드 quorum + Ceph CSI Provisioner 배치 |
 | Worker 타입 | m5.large (8GB) | Ceph OSD 지속 I/O → t3 버스트 크레딧 고갈 위험 |
 | kube-proxy 모드 | nftables | Ubuntu 24.04 환경, Flannel iptables lock 경합 방지 |
-| CNI | Flannel VXLAN | 경량 DaemonSet, AWS SG VXLAN 포트 허용 |
+| Worker 커널 | 6.8.0-aws 고정 | BeeGFS 7.4.6 최대 지원 커널 6.11 — 6.12+ 감지 시 자동 다운그레이드 후 K8s 설치 진행 |
+| containerd | 1.7.22-1 고정 + hold | K8s 1.31 호환 검증, 자동 업그레이드 방지 |
+| CNI | Flannel v0.26.1 VXLAN | 버전 고정, K8s 1.28+ 지원 확인 |
 | Ceph 배포 | rook-ceph operator | HCI 환경 K8s 단일 제어면, CSI 자동 설치 |
-| BeeGFS 배포 | K8s 컨테이너 (DaemonSet/Deployment) | HCI: chroot 방식으로 호스트 바이너리 실행 (`/opt/beegfs/sbin/`) |
+| Ceph 디바이스 | `deviceFilter: ^nvme[12]n1$` | BeeGFS 전용 nvme3n1 경합 방지 (실행 순서 무관) |
+| BeeGFS 커널 모듈 | 자체 빌드 시스템 | BeeGFS 7.x는 DKMS 미사용 — `/opt/beegfs/src/client/client_module_7/build/` |
+| BeeGFS 배포 | K8s 컨테이너 (DaemonSet/Deployment) | chroot 방식으로 호스트 바이너리 실행 (`/opt/beegfs/sbin/`) |
 | Ceph CSI Provisioner | master 노드 배치 | worker CPU 여유 확보 (HCI 환경) |
-| BeeGFS 디스크 | 8GB gp2 EBS (`/dev/xvdd`) | Ceph OSD와 디바이스 분리, XFS 포맷 |
+| BeeGFS 디스크 | 8GB gp2 EBS (`/dev/xvdd` → nvme3n1) | Ceph OSD와 디바이스 분리, XFS 포맷 |
 | HAProxy | Bastion Ansible 자동 구성 | master_count 변경 시 자동 반영 |
