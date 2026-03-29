@@ -22,7 +22,7 @@
   hosts: master:worker
   become: yes
   roles:
-    - common
+    - node_base
 
 # ── 3. HCI node extra setup (worker only) ──
 - name: HCI node extra setup

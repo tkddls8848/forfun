@@ -1,3 +1,12 @@
+# BeeGFS DKMS 빌드에 필요 — inject_facts_as_vars=False이므로 ansible_facts['kernel'] 사용
+- name: Install kernel headers for BeeGFS DKMS
+  apt:
+    name: "linux-headers-{{ ansible_facts['kernel'] }}"
+    state: present
+    update_cache: no
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
 - name: Install HCI node extra packages
   apt:
     name: "{{ extra_packages }}"

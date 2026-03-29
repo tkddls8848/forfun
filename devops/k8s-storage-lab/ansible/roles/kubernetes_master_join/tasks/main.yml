@@ -41,3 +41,20 @@
     dest: /home/ubuntu/.kube/config
     remote_src: yes
     owner: ubuntu
+
+# master-1의 kubernetes_master role과 동일하게 manifests 배포 (HA: master-2/3도 보유)
+- name: manifests 디렉토리 생성
+  file:
+    path: /home/ubuntu/manifests
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: '0755'
+
+- name: manifests 복사 (bastion → master-2/3)
+  copy:
+    src: "{{ playbook_dir }}/../../manifests/"
+    dest: /home/ubuntu/manifests/
+    owner: ubuntu
+    group: ubuntu
+    mode: '0644'

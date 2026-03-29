@@ -17,6 +17,7 @@
       - curl
       - ca-certificates
       - gnupg
+      - git
       - nfs-common
       - open-iscsi
       - python3

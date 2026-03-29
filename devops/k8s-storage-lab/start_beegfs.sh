@@ -8,7 +8,7 @@ echo "=============================="
 echo " [0/4] 사전 요구사항 확인"
 echo "=============================="
 MISSING=()
-for cmd in tofu jq ssh scp; do
+for cmd in tofu ssh scp; do
   if ! command -v "$cmd" &>/dev/null; then
     MISSING+=("$cmd")
   fi
@@ -27,10 +27,8 @@ echo " [1/4] 인프라 정보 수집"
 echo "=============================="
 cd "$SCRIPT_DIR/opentofu"
 BASTION_IP=$(tofu output -raw bastion_public_ip)
-MASTER_IP=$(tofu output -json master_private_ips | jq -r '.[0]')
 cd "$SCRIPT_DIR"
 echo "  Bastion : $BASTION_IP"
-echo "  Master  : $MASTER_IP"
 
 echo "=============================="
 echo " [2/4] Bastion 환경 준비"

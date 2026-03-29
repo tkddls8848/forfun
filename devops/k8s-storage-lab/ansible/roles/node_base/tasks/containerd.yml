@@ -13,9 +13,14 @@
 
 - name: Install containerd.io
   apt:
-    name: containerd.io
+    name: "containerd.io={{ containerd_version }}"
     state: present
     update_cache: yes
+
+- name: Hold containerd.io version
+  dpkg_selections:
+    name: containerd.io
+    selection: hold
 
 - name: Generate default containerd config
   shell: containerd config default > /etc/containerd/config.toml

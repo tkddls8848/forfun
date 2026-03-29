@@ -1,5 +1,7 @@
 - name: Install Flannel CNI
-  command: kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+  command: >
+    kubectl apply -f
+    https://github.com/flannel-io/flannel/releases/download/{{ flannel_version }}/kube-flannel.yml
   environment:
     KUBECONFIG: /home/ubuntu/.kube/config
   register: flannel_result

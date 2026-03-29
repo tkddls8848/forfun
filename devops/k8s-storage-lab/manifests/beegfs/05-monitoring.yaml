@@ -21,7 +21,9 @@ data:
     from http.server import HTTPServer, BaseHTTPRequestHandler
 
     import os
-    BEEGFS_CTL = "/host/opt/beegfs/sbin/beegfs-ctl"
+    # beegfs-ctl 경로: Ubuntu 패키지 설치 위치 우선, fallback으로 opt 경로 시도
+    _CTL_CANDIDATES = ["/host/usr/sbin/beegfs-ctl", "/host/opt/beegfs/sbin/beegfs-ctl"]
+    BEEGFS_CTL = next((p for p in _CTL_CANDIDATES if os.path.isfile(p)), _CTL_CANDIDATES[0])
     MGMTD_HOST = os.environ.get("BEEGFS_MGMTD_HOST", "beegfs-mgmtd.beegfs-system")
 
     def run_beegfs_ctl(*args):

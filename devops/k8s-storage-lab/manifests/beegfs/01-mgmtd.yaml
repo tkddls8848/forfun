@@ -17,7 +17,11 @@ spec:
     spec:
       hostNetwork: true
       hostPID: true
-      nodeName: master-1
+      # nodeName 대신 라벨 셀렉터 사용 — 호스트명 하드코딩 제거
+      # 적용 전: kubectl label node <mgmtd-노드> beegfs.io/role=mgmtd
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+        beegfs.io/role: mgmtd
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists

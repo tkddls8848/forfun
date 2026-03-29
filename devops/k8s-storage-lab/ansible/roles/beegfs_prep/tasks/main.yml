@@ -54,9 +54,20 @@
   retries: 3
   delay: 5
 
+# DKMS 빌드에 필요한 커널 헤더 먼저 설치
+- name: Install kernel headers for BeeGFS DKMS (worker)
+  apt:
+    name: "linux-headers-{{ ansible_facts['kernel'] }}"
+    state: present
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when: "'worker' in group_names"
+
 - name: Install BeeGFS packages (worker)
   apt:
     name:
+      - xfsprogs
+      - dkms
       - beegfs-storage
       - beegfs-client
       - beegfs-helperd
@@ -70,29 +81,6 @@
   retries: 3
   delay: 5
 
-# ── Worker: XFS disk format + mount ─────────────────────────────────────────
-- name: Format BeeGFS storage disk as XFS (worker)
-  filesystem:
-    fstype: xfs
-    dev: "{{ beegfs_storage_device }}"
-  when: "'worker' in group_names"
-
-- name: Create BeeGFS storage mount point (worker)
-  file:
-    path: /mnt/beegfs/storage
-    state: directory
-    mode: '0755'
-  when: "'worker' in group_names"
-
-- name: Mount BeeGFS storage disk (worker)
-  mount:
-    path: /mnt/beegfs/storage
-    src: "{{ beegfs_storage_device }}"
-    fstype: xfs
-    opts: defaults,noatime
-    state: mounted
-  when: "'worker' in group_names"
-
 # ── Master: storage directories ──────────────────────────────────────────────
 - name: Create BeeGFS mgmtd/meta data directories (master)
   file:
@@ -104,7 +92,7 @@
     - /mnt/beegfs/meta
   when: "'master' in group_names"
 
-# ── Master: conf files (패키지가 설치하지 않은 경우 직접 생성) ───────────────
+# ── Master: conf files ───────────────────────────────────────────────────────
 # storeAllowFirstRunInit = true 이면 beegfs 데몬이 첫 기동 시 스토리지를 자동 초기화함
 - name: Create beegfs-mgmtd.conf (master)
   copy:
@@ -159,6 +147,29 @@
       logType                      = syslog
   when: "'master' in group_names"
 
+# ── Worker: XFS disk format + mount ─────────────────────────────────────────
+- name: Format BeeGFS storage disk as XFS (worker)
+  filesystem:
+    fstype: xfs
+    dev: "{{ beegfs_storage_device }}"
+  when: "'worker' in group_names"
+
+- name: Create BeeGFS storage mount point (worker)
+  file:
+    path: /mnt/beegfs/storage
+    state: directory
+    mode: '0755'
+  when: "'worker' in group_names"
+
+- name: Mount BeeGFS storage disk (worker)
+  mount:
+    path: /mnt/beegfs/storage
+    src: "{{ beegfs_storage_device }}"
+    fstype: xfs
+    opts: defaults,noatime
+    state: mounted
+  when: "'worker' in group_names"
+
 # ── Worker: conf files ───────────────────────────────────────────────────────
 - name: Create beegfs-storage.conf (worker)
   copy:
@@ -203,6 +214,44 @@
       logType                      = syslog
   when: "'worker' in group_names"
 
+# ── Worker: BeeGFS 커널 모듈 빌드 및 로드 ───────────────────────────────────
+# conf 생성 완료 후 실행 — 실패해도 이미 conf는 생성됨
+# BeeGFS 7.x는 DKMS가 아닌 자체 빌드 시스템 사용 (/opt/beegfs/src/client/client_module_7/)
+- name: Build BeeGFS kernel module (worker)
+  shell: |
+    BUILD=/opt/beegfs/src/client/client_module_7/build
+    [ -d "$BUILD" ] || { echo "ERROR: BeeGFS source not found at $BUILD"; exit 1; }
+    make -C "$BUILD" 2>&1
+    install -D -m644 "$BUILD/beegfs.ko" \
+      /lib/modules/$(uname -r)/extra/beegfs/beegfs.ko
+    depmod -a
+  when: "'worker' in group_names"
+  register: beegfs_build_result
+  changed_when: true
+
+- name: Load BeeGFS kernel module (worker)
+  modprobe:
+    name: beegfs
+    state: present
+  when: "'worker' in group_names"
+  failed_when: false
+  register: modprobe_result
+
+- name: Warn if BeeGFS kernel module could not be loaded (worker)
+  debug:
+    msg: "WARNING: beegfs 커널 모듈 로드 실패 — CSI Driver가 동작하지 않을 수 있습니다. 'dkms status' 로 확인하세요."
+  when:
+    - "'worker' in group_names"
+    - modprobe_result is failed
+
+- name: Persist BeeGFS kernel module across reboots (worker)
+  lineinfile:
+    path: /etc/modules-load.d/beegfs.conf
+    line: beegfs
+    create: yes
+    mode: '0644'
+  when: "'worker' in group_names"
+
 # ── Disable systemd services (K8s DaemonSet/Deployment으로 관리) ─────────────
 - name: Disable beegfs-mgmtd systemd service (master)
   systemd:
@@ -243,3 +292,15 @@
     enabled: yes
   when: "'worker' in group_names"
   failed_when: false
+
+# ── mgmtd 노드 라벨링 (01-mgmtd.yaml의 nodeSelector 대응) ───────────────────
+- name: Label mgmtd node (beegfs.io/role=mgmtd)
+  command: >
+    kubectl label node
+    {{ hostvars[groups['master'][0]]['ec2_tags']['Name'] | regex_replace(project_name + '-', '') }}
+    beegfs.io/role=mgmtd --overwrite
+  delegate_to: "{{ groups['master'][0] }}"
+  run_once: true
+  become: false
+  environment:
+    KUBECONFIG: /home/ubuntu/.kube/config

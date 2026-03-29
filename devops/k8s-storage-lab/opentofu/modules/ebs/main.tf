@@ -15,11 +15,11 @@ resource "aws_volume_attachment" "beegfs_storage" {
   force_detach = true
 }
 
-# ── Ceph OSD: worker 노드당 2개 × N노드 ──
+# ── Ceph OSD: worker 노드당 2개 × 5GB ──
 resource "aws_ebs_volume" "ceph_osd_a" {
   count             = var.worker_count
   availability_zone = var.availability_zone
-  size              = 10
+  size              = 5
   type              = "gp2"
   tags              = { Name = "${var.project_name}-ceph-osd-${count.index + 1}-a" }
 }
@@ -27,7 +27,7 @@ resource "aws_ebs_volume" "ceph_osd_a" {
 resource "aws_ebs_volume" "ceph_osd_b" {
   count             = var.worker_count
   availability_zone = var.availability_zone
-  size              = 10
+  size              = 5
   type              = "gp2"
   tags              = { Name = "${var.project_name}-ceph-osd-${count.index + 1}-b" }
 }
