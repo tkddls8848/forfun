@@ -3,6 +3,7 @@ extra_packages:
   - chrony
   - linux-modules-extra-aws
   - xfsprogs
+  - nvme-cli
 
 ceph_modules:
   - rbd

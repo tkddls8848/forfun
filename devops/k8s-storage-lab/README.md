@@ -18,7 +18,7 @@ Internet
     ┌──────┴──────┐
     ▼             ▼
 master-1/2/3   worker-1/2/3 ...
-t3.medium×3    m5.large×N
+t3.large×3     m5.large×N
 etcd HA        K8s 워크로드
 K8s API        Ceph OSD×2 (10GB×2)
 BeeGFS         BeeGFS storaged (8GB)
@@ -29,7 +29,7 @@ Ceph CSI Provisioner
 | 역할 | 수 | 인스턴스 | 서브넷 | 주요 구성 |
 |------|----|----------|--------|-----------|
 | Bastion | 1 | t3.small | 10.0.0.0/24 (public) | Ansible, HAProxy(6443/9000) |
-| K8s Master (HA) | 3 | t3.medium | 10.0.1.0/24 (private) | etcd, kubeadm, BeeGFS mgmtd/meta, Ceph CSI Provisioner |
+| K8s Master (HA) | 3 | t3.large | 10.0.1.0/24 (private) | etcd, kubeadm, BeeGFS mgmtd/meta, Ceph CSI Provisioner |
 | K8s Worker (HCI) | N | m5.large | 10.0.1.0/24 (private) | K8s 워크로드 + Ceph OSD×2 + BeeGFS storaged (커널 6.8 고정) |
 
 **EBS 구성 (워커당):** Ceph OSD-a 5GB + Ceph OSD-b 5GB + BeeGFS 8GB
@@ -197,7 +197,7 @@ Ceph는 `deviceFilter: ^nvme[12]n1$`로 OSD 디스크를 감지합니다 (nvme3n
 | OS | Ubuntu 24.04 (Noble) | BeeGFS 7.4 공식 지원, nftables 네이티브 |
 | K8s 버전 | 1.31 | stable, nftables 모드 지원 |
 | Master HA | 3식 (etcd quorum) | 1대 장애 허용, HAProxy 자동 failover |
-| Master 타입 | t3.medium (4GB) | etcd 3노드 quorum + Ceph CSI Provisioner 배치 |
+| Master 타입 | t3.large (8GB) | etcd 3노드 quorum + BeeGFS mgmtd/meta + Ceph CSI Provisioner — 실측 메모리 96%+ (4GB 부족) |
 | Worker 타입 | m5.large (8GB) | Ceph OSD 지속 I/O → t3 버스트 크레딧 고갈 위험 |
 | kube-proxy 모드 | nftables | Ubuntu 24.04 환경, Flannel iptables lock 경합 방지 |
 | Worker 커널 | 6.8.0-aws 고정 | BeeGFS 7.4.6 최대 지원 커널 6.11 — 6.12+ 감지 시 자동 다운그레이드 후 K8s 설치 진행 |

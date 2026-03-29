@@ -26,11 +26,11 @@ resource "aws_instance" "bastion" {
   }
 }
 
-# ── Master 노드 (HA 3식, t3.large: etcd 안정성) ──
+# ── Master 노드 (HA 3식, t3.large: etcd + BeeGFS mgmtd/meta + Ceph CSI 안정성) ──
 resource "aws_instance" "master" {
   count                  = var.master_count
   ami                    = var.ami_id
-  instance_type          = "t3.medium"
+  instance_type          = "t3.large"
   key_name               = var.key_name
   subnet_id              = var.subnet_k8s_id
   vpc_security_group_ids = [var.sg_k8s_id]

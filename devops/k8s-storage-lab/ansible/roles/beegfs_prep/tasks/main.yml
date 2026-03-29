@@ -147,6 +147,43 @@
       logType                      = syslog
   when: "'master' in group_names"
 
+# ── Worker: BeeGFS 디스크 자동 탐색 (Nitro NVMe 순서 비결정적 문제 대응) ────────
+# AWS Nitro 인스턴스에서 nvme*n1 번호는 커널 발견 순서에 따라 달라짐.
+# nvme id-ctrl로 EBS 연결 장치명(xvdd)을 찾아 beegfs_storage_device를 덮어씀.
+- name: Discover BeeGFS storage device via nvme id-ctrl (xvdd, worker)
+  shell: |
+    for dev in /dev/nvme*n1; do
+      [ "$dev" = "/dev/nvme0n1" ] && continue
+      if nvme id-ctrl "$dev" 2>/dev/null | grep -q 'xvdd'; then
+        echo "$dev"
+        exit 0
+      fi
+    done
+    # Fallback: 8GB 디스크 (BeeGFS 전용 크기)
+    lsblk -d -o NAME,SIZE --noheadings \
+      | awk '$2 == "8G" {print "/dev/" $1}' \
+      | head -1
+  register: _beegfs_dev
+  when: "'worker' in group_names"
+  changed_when: false
+
+- name: Set beegfs_storage_device from discovered device (worker)
+  set_fact:
+    beegfs_storage_device: "{{ _beegfs_dev.stdout | trim }}"
+  when:
+    - "'worker' in group_names"
+    - _beegfs_dev.stdout | trim | length > 0
+
+- name: Fail if BeeGFS storage device not found (worker)
+  fail:
+    msg: >-
+      BeeGFS 스토리지 디스크를 찾을 수 없습니다.
+      nvme id-ctrl로 xvdd를 찾지 못했고 8GB 디스크도 없습니다.
+      lsblk 출력: {{ _beegfs_dev.stderr | default('') }}
+  when:
+    - "'worker' in group_names"
+    - _beegfs_dev.stdout | trim | length == 0
+
 # ── Worker: XFS disk format + mount ─────────────────────────────────────────
 - name: Format BeeGFS storage disk as XFS (worker)
   filesystem:

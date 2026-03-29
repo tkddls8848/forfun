@@ -22,7 +22,7 @@
 | 노드 | 타입 | vCPU | RAM | 역할 |
 |------|------|------|-----|------|
 | Bastion | t3.small | 2 | 2GB | Ansible 제어 노드, HAProxy |
-| Master | t3.medium | 2 | 4GB | K8s HA control plane (etcd ×3) + BeeGFS mgmtd/meta + Ceph CSI Provisioner |
+| Master | t3.large | 2 | 8GB | K8s HA control plane (etcd ×3) + BeeGFS mgmtd/meta + Ceph CSI Provisioner |
 | Worker | m5.large | 2 | 8GB | HCI (K8s + Ceph OSD + BeeGFS storaged) |
 
 ---
@@ -155,7 +155,7 @@
 
 - Container Runtime: containerd.io 1.7.22-1 (버전 고정 + dpkg hold)
 - 공통 패키지: curl, ca-certificates, gnupg, git, nfs-common, open-iscsi, conntrack, socat, nftables
-- Worker 추가 패키지: lvm2, chrony, linux-modules-extra-aws, xfsprogs
+- Worker 추가 패키지: lvm2, chrony, linux-modules-extra-aws, xfsprogs, nvme-cli
 - BeeGFS 의존성: beegfs-client, beegfs-helperd, beegfs-utils, xfsprogs, dkms
 
 ---

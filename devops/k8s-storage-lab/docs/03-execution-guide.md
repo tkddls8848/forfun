@@ -181,11 +181,11 @@ bash resume.sh   # EC2 재시작 + 최신 playbook 재전송
 | 리소스 | 수량 | 시간당 |
 |--------|------|--------|
 | t3.small (bastion × 1) | 1 | ~$0.026 |
-| t3.medium (master × 3) | 3 | ~$0.125 |
+| t3.large (master × 3) | 3 | ~$0.250 |
 | m5.large (worker × 3) | 3 | ~$0.288 |
 | EBS gp2 20GB (루트 × 7) | 7 | 미미 |
-| EBS gp2 10GB (Ceph OSD × 6) | 6 | 미미 |
+| EBS gp2 5GB (Ceph OSD × 6) | 6 | 미미 |
 | EBS gp2 8GB (BeeGFS × 3) | 3 | 미미 |
-| **합계** | | **~$0.44/h** |
+| **합계** | | **~$0.56/h** |
 
 > 미사용 시 `bash pause.sh` 또는 `bash destroy.sh`.
