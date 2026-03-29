@@ -9,6 +9,29 @@
         timeout: 300
         sleep: 5
 
+# ── 0.5. Worker 커널 6.8 고정 (BeeGFS 7.x 호환, K8s 설치 전 선행) ──
+- name: Pin worker kernel to 6.8 for BeeGFS 7.x compatibility
+  hosts: worker
+  become: yes
+  tasks:
+    - import_role:
+        name: beegfs_prep
+        tasks_from: kernel_pin
+
+# ── 0.6. Worker 커널 버전 검증 게이트 (6.8 아니면 전체 중단) ──
+- name: Verify worker kernel is 6.8 before K8s install
+  hosts: worker
+  gather_facts: yes
+  tasks:
+    - name: Assert worker kernel is 6.8 family
+      assert:
+        that:
+          - ansible_facts['kernel'] is match('^6\\.8\\.')
+        fail_msg: >-
+          {{ inventory_hostname }} 커널이 6.8이 아닙니다 (현재: {{ ansible_facts['kernel'] }}).
+          커널 고정 실패 — K8s 설치를 중단합니다.
+        success_msg: "{{ inventory_hostname }}: {{ ansible_facts['kernel'] }} ✓"
+
 # ── 1. Bastion HAProxy setup (must exist before control-plane-endpoint is used) ──
 - name: Configure HAProxy on Bastion
   hosts: localhost

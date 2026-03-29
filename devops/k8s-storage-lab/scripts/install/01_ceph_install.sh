@@ -152,11 +152,12 @@ spec:
       osd_pool_default_min_size: \"1\"
   storage:
     useAllNodes: true
-    useAllDevices: true
+    useAllDevices: false
+    deviceFilter: "^nvme[12]n1$"
 CREOF
 "
 
-echo "  useAllDevices: true — 가용 디바이스 자동 감지 후 OSD 안정화 대기"
+echo "  deviceFilter: ^nvme[12]n1$ — Ceph OSD 전용 디스크만 사용 (nvme3n1=BeeGFS 제외)"
 wait_osd_running
 
 echo "=============================="

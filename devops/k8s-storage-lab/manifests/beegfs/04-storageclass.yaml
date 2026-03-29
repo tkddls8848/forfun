@@ -13,6 +13,3 @@ parameters:
   volDirBasePath: /k8s/dynamic
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
-mountOptions:
-  - rsize=1048576
-  - wsize=1048576

@@ -54,8 +54,8 @@
   retries: 3
   delay: 5
 
-# DKMS 빌드에 필요한 커널 헤더 먼저 설치
-- name: Install kernel headers for BeeGFS DKMS (worker)
+# 커널 고정(reboot) 후 갱신된 ansible_facts['kernel'] 기준으로 헤더 설치
+- name: Install kernel headers for BeeGFS build (worker)
   apt:
     name: "linux-headers-{{ ansible_facts['kernel'] }}"
     state: present
@@ -207,9 +207,10 @@
 - name: Create beegfs-helperd.conf (worker)
   copy:
     dest: /etc/beegfs/beegfs-helperd.conf
-    force: no
+    force: yes
     mode: '0644'
     content: |
+      connDisableAuthentication    = true
       logLevel                     = 2
       logType                      = syslog
   when: "'worker' in group_names"
