@@ -10,6 +10,7 @@
         sleep: 5
 
 # ── 0.5. Worker 커널 6.8 고정 (BeeGFS 7.x 호환, K8s 설치 전 선행) ──
+# USE_PACKER_AMI=true 시 --skip-tags ami_base 로 스킵 (AMI에서 6.8 고정 완료)
 - name: Pin worker kernel to 6.8 for BeeGFS 7.x compatibility
   hosts: worker
   become: yes
@@ -17,6 +18,7 @@
     - import_role:
         name: beegfs_prep
         tasks_from: kernel_pin
+      tags: [ami_base]
 
 # ── 0.6. Worker 커널 버전 검증 게이트 (6.8 아니면 전체 중단) ──
 - name: Verify worker kernel is 6.8 before K8s install

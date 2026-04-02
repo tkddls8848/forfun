@@ -20,3 +20,15 @@ variable "key_name" {
   description = "AWS EC2 Key Pair 이름 (terraform.tfvars에서 설정)"
   type        = string
 }
+
+variable "ami_frontend" {
+  description = "Packer k3s-frontend AMI ID (미설정 시 Ubuntu 최신 AMI 자동 사용)"
+  type        = string
+  default     = null
+}
+
+variable "ami_backend" {
+  description = "Packer k3s-backend AMI ID (미설정 시 Ubuntu 최신 AMI 자동 사용)"
+  type        = string
+  default     = null
+}

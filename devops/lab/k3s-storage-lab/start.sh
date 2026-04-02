@@ -1,9 +1,11 @@
 #!/bin/bash
 # k3s-storage-lab 전체 구성 자동화 (Phase 1~5)
+# USE_PACKER_AMI=true: Packer 사전 빌드 AMI 사용 (패키지 설치 단계 스킵)
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SSH_KEY="${SSH_KEY_PATH:-$HOME/.ssh/storage-lab.pem}"
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -i $SSH_KEY"
+USE_PACKER_AMI=${USE_PACKER_AMI:-false}
 
 echo "=============================="
 echo " [0/5] 사전 요구사항 확인"
@@ -47,13 +49,24 @@ done
 echo "=============================="
 echo " [3/5] Phase 2: k3s Frontend 구성"
 echo "=============================="
-ssh $SSH_OPTS ubuntu@$FRONTEND_IP 'sudo bash -s' < "$SCRIPT_DIR/scripts/01_k3s_frontend.sh"
+if [ "$USE_PACKER_AMI" = "true" ]; then
+  echo "  [Packer AMI] 서비스 등록/조인만 실행"
+  ssh $SSH_OPTS ubuntu@$FRONTEND_IP 'sudo bash -s' < "$SCRIPT_DIR/scripts/01_k3s_frontend_join.sh"
+else
+  ssh $SSH_OPTS ubuntu@$FRONTEND_IP 'sudo bash -s' < "$SCRIPT_DIR/scripts/01_k3s_frontend.sh"
+fi
 
 echo "=============================="
 echo " [4/5] Phase 3+4: Backend 구성 (Ceph + BeeGFS)"
 echo "=============================="
-ssh $SSH_OPTS ubuntu@$BACKEND_IP 'sudo bash -s' < "$SCRIPT_DIR/scripts/02_ceph_backend.sh"
-ssh $SSH_OPTS ubuntu@$BACKEND_IP 'sudo bash -s' < "$SCRIPT_DIR/scripts/03_beegfs_backend.sh"
+if [ "$USE_PACKER_AMI" = "true" ]; then
+  echo "  [Packer AMI] bootstrap/conf만 실행"
+  ssh $SSH_OPTS ubuntu@$BACKEND_IP 'sudo bash -s' < "$SCRIPT_DIR/scripts/02_ceph_bootstrap_only.sh"
+  ssh $SSH_OPTS ubuntu@$BACKEND_IP 'sudo bash -s' < "$SCRIPT_DIR/scripts/03_beegfs_conf_only.sh"
+else
+  ssh $SSH_OPTS ubuntu@$BACKEND_IP 'sudo bash -s' < "$SCRIPT_DIR/scripts/02_ceph_backend.sh"
+  ssh $SSH_OPTS ubuntu@$BACKEND_IP 'sudo bash -s' < "$SCRIPT_DIR/scripts/03_beegfs_backend.sh"
+fi
 
 # Ceph 정보 수집
 CEPH_FSID=$(ssh $SSH_OPTS ubuntu@$BACKEND_IP "sudo cephadm shell -- ceph fsid 2>/dev/null" | tr -d '\r\n')

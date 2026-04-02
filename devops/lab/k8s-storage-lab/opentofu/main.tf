@@ -81,6 +81,9 @@ module "ec2" {
   source              = "./modules/ec2"
   project_name        = var.project_name
   ami_id              = data.aws_ami.ubuntu.id
+  ami_bastion         = var.ami_bastion
+  ami_master          = var.ami_master
+  ami_worker          = var.ami_worker
   key_name            = var.key_name
   subnet_bastion_id   = module.vpc.subnet_bastion_id
   subnet_k8s_id       = module.vpc.subnet_k8s_id

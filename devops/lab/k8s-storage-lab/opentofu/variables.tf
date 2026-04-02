@@ -31,3 +31,21 @@ variable "worker_count" {
   description = "K8s Worker(HCI) 노드 수"
   type        = number
 }
+
+variable "ami_bastion" {
+  description = "Packer k8s-bastion AMI ID (미설정 시 Ubuntu 최신 AMI 자동 사용)"
+  type        = string
+  default     = null
+}
+
+variable "ami_master" {
+  description = "Packer k8s-master AMI ID (미설정 시 Ubuntu 최신 AMI 자동 사용)"
+  type        = string
+  default     = null
+}
+
+variable "ami_worker" {
+  description = "Packer k8s-worker AMI ID (미설정 시 Ubuntu 최신 AMI 자동 사용)"
+  type        = string
+  default     = null
+}

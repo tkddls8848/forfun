@@ -1,8 +1,10 @@
 #!/bin/bash
+# USE_PACKER_AMI=true: Packer 사전 빌드 AMI 사용 (패키지 설치 단계 스킵 --skip-tags ami_base)
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SSH_KEY="${SSH_KEY_PATH:-$HOME/.ssh/storage-lab.pem}"
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -i $SSH_KEY"
+USE_PACKER_AMI=${USE_PACKER_AMI:-false}
 
 echo "=============================="
 echo " [0/5] 사전 요구사항 확인"
@@ -82,6 +84,12 @@ echo "=============================="
 echo " [5/5] Ansible Playbook 실행 (Bastion)"
 echo "=============================="
 LOCK_FILE="/tmp/k8s-setup.lock"
+if [ "$USE_PACKER_AMI" = "true" ]; then
+  ANSIBLE_EXTRA_ARGS="--skip-tags ami_base"
+  echo "  [Packer AMI] --skip-tags ami_base 적용 (패키지 설치 단계 스킵)"
+else
+  ANSIBLE_EXTRA_ARGS=""
+fi
 ssh $SSH_OPTS ubuntu@$BASTION_IP \
   "while [ ! -f /tmp/ansible-ready ]; do echo 'Waiting for ansible install...'; sleep 10; done && \
    if [ -f $LOCK_FILE ]; then \
@@ -92,7 +100,8 @@ ssh $SSH_OPTS ubuntu@$BASTION_IP \
    trap 'rm -f $LOCK_FILE' EXIT && \
    cd ~/ansible && /home/ubuntu/.local/bin/ansible-playbook \
      -i inventory/aws_ec2.yml playbooks/k8s.yml \
-     --extra-vars \"control_plane_endpoint=$BASTION_PRIVATE_IP\" && \
+     --extra-vars \"control_plane_endpoint=$BASTION_PRIVATE_IP\" \
+     $ANSIBLE_EXTRA_ARGS && \
    touch /tmp/ansible-k8s-complete && \
    rm -f $LOCK_FILE"
 

@@ -7,6 +7,8 @@
 #   - CEPH_FSID, CEPH_ADMIN_KEY 환경변수 설정
 set -e
 
+export KUBECONFIG="${HOME}/.kube/config"
+
 # start.sh에서 ~/04_csi_install.sh로 실행될 때 manifests는 ~/manifests에 있음
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MANIFEST_DIR="${SCRIPT_DIR}/manifests"
@@ -122,10 +124,25 @@ kubectl apply -f "${MANIFEST_DIR}/ceph-csi/csi-config.yaml"
 kubectl apply -f "${MANIFEST_DIR}/ceph-csi/secret-rbd.yaml"
 kubectl apply -f "${MANIFEST_DIR}/ceph-csi/secret-cephfs.yaml"
 
+# Helm이 기존 리소스를 소유할 수 있도록 메타데이터 부여
+kubectl annotate configmap ceph-csi-config -n ceph-csi \
+  meta.helm.sh/release-name=ceph-csi-rbd \
+  meta.helm.sh/release-namespace=ceph-csi --overwrite
+kubectl label configmap ceph-csi-config -n ceph-csi \
+  app.kubernetes.io/managed-by=Helm --overwrite
+
 helm repo add ceph-csi https://ceph.github.io/csi-charts 2>/dev/null || helm repo update
 helm upgrade --install ceph-csi-rbd ceph-csi/ceph-csi-rbd \
   -n ceph-csi \
   --set provisioner.replicaCount=1
+
+for cm in ceph-config ceph-csi-config; do
+  kubectl annotate configmap $cm -n ceph-csi \
+    meta.helm.sh/release-name=ceph-csi-cephfs \
+    meta.helm.sh/release-namespace=ceph-csi --overwrite 2>/dev/null || true
+  kubectl label configmap $cm -n ceph-csi \
+    app.kubernetes.io/managed-by=Helm --overwrite 2>/dev/null || true
+done
 
 helm upgrade --install ceph-csi-cephfs ceph-csi/ceph-csi-cephfs \
   -n ceph-csi \

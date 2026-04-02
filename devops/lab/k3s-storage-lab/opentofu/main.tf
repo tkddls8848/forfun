@@ -44,6 +44,8 @@ module "ec2" {
   source           = "./modules/ec2"
   project_name     = var.project_name
   ami_id           = data.aws_ami.ubuntu.id
+  ami_frontend     = var.ami_frontend
+  ami_backend      = var.ami_backend
   key_name         = var.key_name
   subnet_id        = module.vpc.subnet_id
   sg_frontend_id   = module.security_group.sg_frontend_id

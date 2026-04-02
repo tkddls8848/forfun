@@ -25,6 +25,7 @@
       cp /tmp/beegfs.gpg /etc/apt/trusted.gpg.d/beegfs.gpg
     fi
   changed_when: false
+  tags: [ami_base]
 
 - name: Add BeeGFS APT repository
   ansible.builtin.copy:
@@ -32,10 +33,12 @@
     mode: '0644'
     content: |
       deb [signed-by=/etc/apt/trusted.gpg.d/beegfs.gpg] https://www.beegfs.io/release/{{ beegfs_version }}/ noble non-free
+  tags: [ami_base]
 
 - name: Update APT cache
   ansible.builtin.apt:
     update_cache: yes
+  tags: [ami_base]
 
 # ── Package install ──────────────────────────────────────────────────────────
 - name: Install BeeGFS packages (master)
@@ -53,6 +56,7 @@
   until: apt_result is succeeded
   retries: 3
   delay: 5
+  tags: [ami_base]
 
 # 커널 고정(reboot) 후 갱신된 ansible_facts['kernel'] 기준으로 헤더 설치
 - name: Install kernel headers for BeeGFS build (worker)
@@ -62,6 +66,7 @@
   environment:
     DEBIAN_FRONTEND: noninteractive
   when: "'worker' in group_names"
+  tags: [ami_base]
 
 - name: Install BeeGFS packages (worker)
   ansible.builtin.apt:
@@ -80,6 +85,7 @@
   until: apt_result is succeeded
   retries: 3
   delay: 5
+  tags: [ami_base]
 
 # ── Master: storage directories ──────────────────────────────────────────────
 - name: Create BeeGFS mgmtd/meta data directories (master)

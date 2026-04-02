@@ -1,12 +1,13 @@
 locals {
-  bastion_user_data = file("${path.module}/user_data/bastion.sh")
-  master_user_data  = file("${path.module}/user_data/common.sh")
-  worker_user_data  = file("${path.module}/user_data/worker.sh")
+  # Packer AMI 사용 시: bastion은 ansible-ready 신호만, master/worker는 user_data 불필요
+  bastion_user_data = var.ami_bastion != null ? "#!/bin/bash\ntouch /tmp/ansible-ready\n" : file("${path.module}/user_data/bastion.sh")
+  master_user_data  = var.ami_master  != null ? null : file("${path.module}/user_data/common.sh")
+  worker_user_data  = var.ami_worker  != null ? null : file("${path.module}/user_data/worker.sh")
 }
 
 # ── Bastion 노드 (Ansible 제어 노드 + HAProxy) ──
 resource "aws_instance" "bastion" {
-  ami                    = var.ami_id
+  ami                    = coalesce(var.ami_bastion, var.ami_id)
   instance_type          = "t3.small"
   key_name               = var.key_name
   subnet_id              = var.subnet_bastion_id
@@ -29,7 +30,7 @@ resource "aws_instance" "bastion" {
 # ── Master 노드 (HA 3식, t3.large: etcd + BeeGFS mgmtd/meta + Ceph CSI 안정성) ──
 resource "aws_instance" "master" {
   count                  = var.master_count
-  ami                    = var.ami_id
+  ami                    = coalesce(var.ami_master, var.ami_id)
   instance_type          = "t3.large"
   key_name               = var.key_name
   subnet_id              = var.subnet_k8s_id
@@ -51,7 +52,7 @@ resource "aws_instance" "master" {
 # ── Worker 노드 (HCI: k8s + Ceph OSD + BeeGFS storaged) ──
 resource "aws_instance" "worker" {
   count                  = var.worker_count
-  ami                    = var.ami_id
+  ami                    = coalesce(var.ami_worker, var.ami_id)
   instance_type          = "m5.large"
   key_name               = var.key_name
   subnet_id              = var.subnet_k8s_id

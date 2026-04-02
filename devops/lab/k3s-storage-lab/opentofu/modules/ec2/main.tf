@@ -1,6 +1,6 @@
 # ── EC2 #1 Frontend (k3s server + agent × 2) ──
 resource "aws_instance" "frontend" {
-  ami                    = var.ami_id
+  ami                    = coalesce(var.ami_frontend, var.ami_id)
   instance_type          = "t3.large"
   key_name               = var.key_name
   subnet_id              = var.subnet_id
@@ -20,7 +20,7 @@ resource "aws_instance" "frontend" {
 
 # ── EC2 #2 Backend (cephadm + BeeGFS) ──
 resource "aws_instance" "backend" {
-  ami                    = var.ami_id
+  ami                    = coalesce(var.ami_backend, var.ami_id)
   instance_type          = "t3.medium"
   key_name               = var.key_name
   subnet_id              = var.subnet_id
