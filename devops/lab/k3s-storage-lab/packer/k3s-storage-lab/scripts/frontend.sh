@@ -14,3 +14,17 @@ curl -sfL https://get.k3s.io | \
 
 echo "k3s 바이너리 설치 완료 (서비스 등록 제외)"
 k3s --version
+
+# Docker CE 설치 — storage-test-app 이미지 빌드 및 k3s containerd 임포트에 사용
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  > /etc/apt/sources.list.d/docker.list
+apt-get update -qq
+apt-get install -y docker-ce docker-ce-cli containerd.io
+# ubuntu 유저가 sudo 없이 docker 사용 가능하도록
+usermod -aG docker ubuntu
+echo "Docker 설치 완료: $(docker --version)"

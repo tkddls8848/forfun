@@ -1,7 +1,7 @@
 # ── EC2 #1 Frontend (k3s server + agent × 2) ──
 resource "aws_instance" "frontend" {
   ami                    = coalesce(var.ami_frontend, var.ami_id)
-  instance_type          = "t3.large"
+  instance_type          = "t3.medium"
   key_name               = var.key_name
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [var.sg_frontend_id]

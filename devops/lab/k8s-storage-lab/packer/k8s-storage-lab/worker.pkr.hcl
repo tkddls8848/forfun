@@ -48,7 +48,7 @@ build {
   }
   # 재부팅 후 BeeGFS 패키지 + 커널 모듈 빌드
   provisioner "shell" {
-    pause_before    = "60s"
+    pause_before    = "120s"
     script          = "scripts/worker.sh"
     execute_command = "sudo bash '{{.Path}}'"
   }

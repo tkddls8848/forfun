@@ -46,11 +46,13 @@
       ansible.builtin.command: update-grub
       changed_when: true
 
-    - name: Hold current high kernel to prevent re-upgrade
+    - name: Hold current high kernel and 6.8 kernel to prevent re-upgrade
       ansible.builtin.shell: |
         apt-mark hold \
           linux-image-{{ ansible_facts['kernel'] }} \
-          linux-headers-{{ ansible_facts['kernel'] }} 2>/dev/null || true
+          linux-headers-{{ ansible_facts['kernel'] }} \
+          linux-image-{{ _kernel_68_ver.stdout }} \
+          linux-headers-{{ _kernel_68_ver.stdout }} 2>/dev/null || true
       changed_when: false
 
     - name: Reboot into 6.8 kernel

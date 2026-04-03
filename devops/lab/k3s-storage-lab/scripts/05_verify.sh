@@ -4,7 +4,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-MANIFEST_DIR="${SCRIPT_DIR}/../manifests"
+MANIFEST_DIR="${SCRIPT_DIR}/manifests"
+export KUBECONFIG="/etc/rancher/k3s/k3s.yaml"
 
 echo "=============================="
 echo " [1/3] StorageClass 확인"

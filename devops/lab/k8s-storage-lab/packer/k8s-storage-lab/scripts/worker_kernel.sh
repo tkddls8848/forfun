@@ -22,8 +22,13 @@ sed -i "s|^GRUB_DEFAULT=.*|GRUB_DEFAULT=\"Advanced options for Ubuntu>Ubuntu, wi
   /etc/default/grub
 update-grub
 
-# 현재 커널(6.12+)은 hold하여 자동 업그레이드 방지
+# 현재 커널(6.12+)과 설치된 6.8 커널 모두 hold하여 자동 업그레이드 방지
 CURRENT_KERNEL=$(uname -r)
-apt-mark hold "linux-image-${CURRENT_KERNEL}" "linux-headers-${CURRENT_KERNEL}" 2>/dev/null || true
+apt-mark hold \
+  "linux-image-${CURRENT_KERNEL}" \
+  "linux-headers-${CURRENT_KERNEL}" \
+  "linux-image-${KERNEL_68}" \
+  "linux-headers-${KERNEL_68}" 2>/dev/null || true
+echo "  hold 목록:"; apt-mark showhold | grep linux
 
 echo "커널 6.8 설치 완료 — 재부팅 후 BeeGFS 모듈 빌드 진행"
