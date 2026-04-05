@@ -44,7 +44,7 @@ ansible_ssh_private_key_file=~/.ssh/storage-lab.pem
 
 노드명을 AWS 태그에서 추출하는 코드를 `inventory_hostname` 직접 사용으로 변경합니다.
 
-### kubernetes_worker/tasks/main.yml
+### worker/tasks/main.yml
 
 **현재 (AWS):**
 ```yaml
@@ -62,7 +62,7 @@ worker_node_name: >-
      else ansible_facts['hostname'] }}
 ```
 
-### kubernetes_master/tasks/main.yml, kubernetes_master_join/tasks/main.yml
+### control_plane/tasks/main.yml, control_plane_join/tasks/main.yml
 
 동일하게 `ec2_tags` 참조 제거:
 ```yaml
@@ -166,8 +166,8 @@ ansible-galaxy collection install \
 | 파일 | 변경 내용 | 난이도 |
 |------|-----------|--------|
 | `ansible/inventory/aws_ec2.yml` | → `hosts.ini` 교체 | 낮음 |
-| `ansible/roles/kubernetes_worker/tasks/main.yml` | ec2_tags 제거 | 낮음 |
-| `ansible/roles/kubernetes_master*/tasks/main.yml` | ec2_tags → inventory_hostname | 낮음 |
+| `ansible/roles/worker/tasks/main.yml` | ec2_tags 제거 | 낮음 |
+| `ansible/roles/control_plane*/tasks/main.yml` | ec2_tags → inventory_hostname | 낮음 |
 | `ansible/playbooks/k8s.yml` | ec2_tags 참조 제거, master-1 구분 조건 | 낮음 |
 | `ansible/roles/addons/tasks/metallb.yml` | Source/Dest Check 태스크 제거 | 낮음 |
 | `ansible/roles/addons/defaults/main.yml` | metallb_ip_range 변경 | 낮음 |
@@ -176,4 +176,4 @@ ansible-galaxy collection install \
 | `start_k8s.sh` | tofu 블록 제거, ansible-playbook 직접 실행 | 중간 |
 | `opentofu/` | 전체 미사용 | - |
 
-> Ansible 역할 대부분(common, kubernetes_*, cni, addons, beegfs_prep)은 수정 없이 그대로 사용 가능합니다.
+> Ansible 역할 대부분(k8s_common, control_plane*, worker, cni, addons, beegfs_prep)은 수정 없이 그대로 사용 가능합니다.

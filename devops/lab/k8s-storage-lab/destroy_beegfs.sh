@@ -21,7 +21,7 @@ echo "=============================="
 echo " [2/3] Bastion 환경 준비"
 echo "=============================="
 ssh $SSH_OPTS ubuntu@$BASTION_IP "mkdir -p ~/scripts"
-printf "SSH_KEY=~/.ssh/storage-lab.pem
+printf "SSH_KEY=\$HOME/.ssh/storage-lab.pem
 MASTER_IP=%s
 WORKER_IPS=(%s)
 " \

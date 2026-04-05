@@ -68,14 +68,14 @@
   hosts: master:worker
   become: yes
   roles:
-    - kubernetes_common
+    - k8s_common
 
 # ── 6. Master-1 init ──
 - name: Master-1 kubeadm init
   hosts: master
   become: yes
   roles:
-    - role: kubernetes_master
+    - role: control_plane
       when: >-
         hostvars[inventory_hostname]['ec2_tags']['Name']
         == project_name + '-master-1'
@@ -96,7 +96,7 @@
   become: yes
   serial: 1
   roles:
-    - role: kubernetes_master_join
+    - role: control_plane_join
       when: >-
         hostvars[inventory_hostname]['ec2_tags']['Name']
         != project_name + '-master-1'
@@ -107,7 +107,7 @@
   become: yes
   serial: 1
   roles:
-    - kubernetes_worker
+    - worker
 
 # ── 10. Cluster addons (master-1 only) ──
 - name: Install cluster addons

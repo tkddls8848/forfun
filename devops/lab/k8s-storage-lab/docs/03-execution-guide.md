@@ -24,7 +24,7 @@ bash start_ceph.sh         ← rook-ceph (약 15~20분)
        ↓
 bash start_beegfs.sh       ← BeeGFS 7.4.6 (약 10~15분)
        ↓
-kubectl apply -f manifests/test-pvc/
+kubectl apply -f manifests/examples/
 ```
 
 ---
@@ -60,7 +60,7 @@ bash start_k8s.sh
    - **[Play 0.5] Worker 커널 6.8 고정** — 6.12+ 감지 시 6.8 설치 → GRUB 변경 → reboot
    - **[Play 0.6] 커널 검증 게이트** — 6.8 아니면 전체 중단
    - **HAProxy 설정** (Bastion, master×3 backend 자동 생성)
-   - node_base → hci_node → cluster_setup → kubernetes_common
+   - node_base → hci_node → cluster_setup → k8s_common
    - **master-1 kubeadm init** (`--control-plane-endpoint BASTION_PRIVATE_IP:6443 --upload-certs`)
    - CNI (Flannel VXLAN)
    - **master-2/3 control-plane join** (serial: 1)
@@ -132,9 +132,9 @@ kubectl get storageclass
 ## Step 4: PVC 테스트
 
 ```bash
-kubectl apply -f manifests/test-pvc/test-pvc-rbd.yaml
-kubectl apply -f manifests/test-pvc/test-pvc-cephfs.yaml
-kubectl apply -f manifests/test-pvc/test-pvc-beegfs.yaml
+kubectl apply -f manifests/examples/test-pvc-rbd.yaml
+kubectl apply -f manifests/examples/test-pvc-cephfs.yaml
+kubectl apply -f manifests/examples/test-pvc-beegfs.yaml
 kubectl get pvc
 ```
 

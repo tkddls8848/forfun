@@ -2,7 +2,7 @@ source "amazon-ebs" "frontend" {
   region        = var.aws_region
   source_ami    = var.base_ami
   instance_type = "t3.large"
-  ssh_username  = "ubuntu"
+  ssh_username  = "ec2-user"
   ssh_keypair_name     = var.key_name
   ssh_private_key_file = var.ssh_private_key_file
   associate_public_ip_address            = true
@@ -16,13 +16,13 @@ source "amazon-ebs" "frontend" {
   }
 
   ami_name        = "k3s-storage-lab-frontend-{{timestamp}}"
-  ami_description = "k3s frontend: k3s v1.31.6+k3s1 binary (Ubuntu 24.04)"
+  ami_description = "k3s frontend: k3s v1.32.x+k3s1 binary + BeeGFS 8 client (RHEL 9)"
 
   tags = {
     Project   = "k3s-storage-lab"
     Role      = "frontend"
-    OS        = "ubuntu-24.04"
-    k3s       = "v1.31.6+k3s1"
+    OS        = "rhel-9"
+    k3s       = "v1.32.x+k3s1"
     BuildDate = "{{timestamp}}"
   }
 }

@@ -41,8 +41,8 @@ echo "=============================="
 ssh $SSH_OPTS ubuntu@$BASTION_IP "rm -rf ~/scripts && mkdir -p ~/scripts"
 scp -O $SSH_OPTS -r "$SCRIPT_DIR/scripts" ubuntu@$BASTION_IP:~/
 
-# .env 생성 (배스천에서 scripts/01_ceph_install.sh가 참조)
-printf "SSH_KEY=~/.ssh/storage-lab.pem
+# .env 생성 (배스천에서 scripts/ceph_install.sh가 참조)
+printf "SSH_KEY=\$HOME/.ssh/storage-lab.pem
 M1_PUB=%s
 M1_PRIV=%s
 WORKER_PUBS=(%s)
@@ -69,7 +69,7 @@ echo "=============================="
 echo " [3/4] Ceph 클러스터 구성 (Bastion에서 실행)"
 echo "=============================="
 ssh $SSH_OPTS ubuntu@$BASTION_IP \
-  "export KUBECONFIG=~/.kube/config-k8s-storage-lab && cd ~ && bash scripts/install/01_ceph_install.sh"
+  "export KUBECONFIG=~/.kube/config-k8s-storage-lab && cd ~ && bash scripts/ceph_install.sh"
 
 echo "=============================="
 echo " [4/4] 안내"
@@ -81,7 +81,7 @@ echo "   kubeconfig  : ~/.kube/config-k8s-storage-lab (배스천)"
 echo ""
 echo "⚠️  BeeGFS 설치는 별도 실행 필요:"
 echo "   1. bash start_beegfs.sh"
-echo "   2. kubectl apply -f manifests/test-pvc/test-pvc-beegfs.yaml"
+echo "   2. kubectl apply -f manifests/examples/test-pvc-beegfs.yaml"
 echo ""
 echo "   rook-ceph만 재설치 필요 시:"
 echo "   bash destroy_ceph.sh && bash start_ceph.sh"

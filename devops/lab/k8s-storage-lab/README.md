@@ -54,6 +54,9 @@ Ceph CSI Provisioner
 | `ceph-cephfs` | CephFS (rook-ceph) | RWX | 파일 공유 (다중 Pod 동시 접근) |
 | `beegfs-scratch` | BeeGFS 7.4.6 CSI | RWX | 고성능 병렬 파일시스템 |
 
+> **BeeGFS 8 업그레이드 불가**: BeeGFS 8.x는 RHEL/CentOS RPM만 제공. Ubuntu deb 패키지 미제공(404 확인).
+> Ubuntu 기반 이 랩은 BeeGFS 7.4.6이 최신 사용 가능 버전입니다.
+
 ## 디렉토리 구조
 
 ```
@@ -67,6 +70,18 @@ k8s-storage-lab/
 │       ├── security_group/       # Bastion SG / K8s HCI SG
 │       ├── ec2/                  # EC2 인스턴스 + user_data
 │       └── ebs/                  # EBS (Ceph OSD×1 5GB + BeeGFS 8GB, 워커당)
+├── packer/                       # Packer AMI 빌드 (선택)
+│   ├── worker.pkr.hcl            # Worker: containerd + kubeadm + BeeGFS 7.4.6 + 커널 6.8
+│   ├── master.pkr.hcl            # Master: containerd + kubeadm
+│   ├── bastion.pkr.hcl           # Bastion: ansible-core + boto3
+│   ├── common.pkr.hcl            # 공통 변수 + plugin 선언
+│   ├── variables.pkrvars.hcl     # AMI ID, Key Pair 등
+│   └── scripts/
+│       ├── base.sh               # 공통 패키지 + 커널 모듈 + sysctl
+│       ├── worker_kernel.sh      # 커널 6.8 설치 + 5단계 고정 + GRUB 설정
+│       ├── worker.sh             # containerd + kubeadm + BeeGFS 모듈 빌드 + lvm2/chrony/linux-modules-extra-aws + Ceph 모듈 등록
+│       ├── master.sh             # containerd + kubeadm
+│       └── bastion.sh            # ansible-core + boto3 + collections
 ├── ansible/
 │   ├── ansible.cfg
 │   ├── inventory/
@@ -79,16 +94,16 @@ k8s-storage-lab/
 │   │   └── beegfs.yml            # BeeGFS 설치 + K8s 매니페스트 적용
 │   └── roles/
 │       ├── node_base/            # OS 공통 (swap, sysctl, containerd, 커널 모듈)
-│       ├── hci_node/             # Worker 추가 패키지 (lvm2, xfsprogs, 커널 헤더)
+│       ├── hci_node/             # Worker 추가 패키지 (lvm2, chrony, linux-modules-extra-aws) + Ceph 모듈 로드 — Packer AMI 사용 시 ami_base 태그로 스킵
 │       ├── cluster_setup/        # /etc/hosts, SSH key 배포
-│       ├── kubernetes_common/    # kubelet, kubeadm, kubectl 설치
-│       ├── kubernetes_master/    # kubeadm init (master-1), --upload-certs
-│       ├── kubernetes_master_join/ # master-2/3 control-plane join
-│       ├── kubernetes_worker/    # worker K8s join + label
+│       ├── k8s_common/           # kubelet, kubeadm, kubectl 설치
+│       ├── control_plane/        # kubeadm init (master-1), --upload-certs
+│       ├── control_plane_join/   # master-2/3 control-plane join
+│       ├── worker/               # worker K8s join + label
 │       ├── cni/                  # Flannel VXLAN
 │       ├── addons/               # Metrics Server, Dashboard, Prometheus, Grafana, MetalLB
 │       ├── haproxy/              # HAProxy 설치 (Bastion, k8s.yml에서 자동 실행)
-│       └── beegfs_prep/          # BeeGFS 패키지 설치 + 디스크 포맷/마운트
+│       └── beegfs_prep/          # BeeGFS 패키지 설치 + 커널 고정 + 디스크 포맷/마운트
 ├── manifests/
 │   ├── beegfs/                   # BeeGFS 데몬 K8s 매니페스트
 │   │   ├── 00-namespace.yaml
@@ -98,11 +113,12 @@ k8s-storage-lab/
 │   │   ├── 04-storageclass.yaml  # beegfs-scratch StorageClass
 │   │   ├── 05-monitoring.yaml    # beegfs-exporter (python:3.12-slim, Prometheus)
 │   │   └── 06-grafana-dashboard.yaml  # Grafana 대시보드 자동 import
-│   ├── test-pvc/                 # StorageClass별 PVC 테스트 YAML
-│   └── metallb-nginx/            # MetalLB + nginx LoadBalancer 예시
+│   ├── examples/                 # StorageClass별 PVC 테스트 YAML
+│   └── networking/               # MetalLB + nginx LoadBalancer 예시
 ├── scripts/
-│   └── install/
-│       └── 01_ceph_install.sh    # rook-ceph operator + StorageClass
+│   ├── ceph_install.sh           # rook-ceph operator + StorageClass
+│   ├── check_resources.sh        # 노드 자원 현황 수집
+│   └── fix_beegfs_storage_conf.sh # BeeGFS 스토리지 설정 수정
 ├── start_k8s.sh                  # 인프라 + K8s HA 클러스터 구성
 ├── start_ceph.sh                 # rook-ceph 구성
 ├── start_beegfs.sh               # BeeGFS 구성
@@ -126,7 +142,7 @@ k8s-storage-lab/
 
 > **Windows 사용자:** 모든 스크립트는 Linux Bash 환경 전제. **WSL2에서 실행**하세요.
 > ```bash
-> cd /mnt/c/forfun/forfun/devops/k8s-storage-lab
+> cd /mnt/c/forfun/forfun/devops/lab/k8s-storage-lab
 > cp /mnt/c/path/to/storage-lab.pem ~/.ssh/ && chmod 400 ~/.ssh/storage-lab.pem
 > ```
 
@@ -150,7 +166,7 @@ bash start_ceph.sh
 bash start_beegfs.sh
 
 # 5. PVC 테스트
-kubectl apply -f manifests/test-pvc/
+kubectl apply -f manifests/examples/
 
 # Worker 스케일 아웃 (1대 추가)
 bash worker_add.sh
@@ -167,6 +183,49 @@ bash destroy_beegfs.sh && bash start_beegfs.sh
 # 전체 삭제
 bash destroy_k8s.sh
 ```
+
+## Packer AMI 빌드 (선택)
+
+사전 빌드된 AMI를 사용하면 Worker 커널 다운그레이드 + BeeGFS 모듈 빌드 시간을 단축할 수 있습니다.
+
+```bash
+cd packer
+
+# Worker AMI만 빌드 (커널 6.8 고정 + BeeGFS 7.4.6 모듈 사전 빌드)
+packer build -only="amazon-ebs.worker" -var-file=variables.pkrvars.hcl .
+
+# 전체 빌드
+packer build -var-file=variables.pkrvars.hcl .
+```
+
+빌드 완료 후 `opentofu/terraform.tfvars`에 AMI ID 반영:
+
+```hcl
+ami_worker  = "ami-0xxxxxxxxxxxxxxxxx"
+ami_master  = "ami-0yyyyyyyyyyyyyyyyy"
+ami_bastion = "ami-0zzzzzzzzzzzzzzzzz"
+```
+
+Packer AMI 사용 시 패키지 설치 단계를 건너뜁니다:
+
+```bash
+USE_PACKER_AMI=true bash start_k8s.sh
+```
+
+**Worker AMI 사전 포함 항목:**
+
+| 항목 | 내용 |
+|------|------|
+| 커널 | 6.8.0-aws 고정 (5단계 보호) |
+| containerd | 1.7.22-1 |
+| K8s 바이너리 | kubeadm, kubelet, kubectl 1.31 |
+| BeeGFS 패키지 | beegfs-storage, beegfs-client, beegfs-helperd, beegfs-utils 7.4.6 |
+| BeeGFS 커널 모듈 | beegfs.ko 사전 빌드 + 자동 로드 등록 |
+| HCI 패키지 | lvm2, chrony, linux-modules-extra-aws, linux-headers-aws |
+| Ceph 커널 모듈 | rbd, ceph → `/etc/modules-load.d/k8s.conf` 등록 |
+
+> Ansible `hci_node` 롤의 패키지 설치/chrony 활성화/modules-load.d 등록 태스크는
+> `ami_base` 태그로 묶여 있어 `USE_PACKER_AMI=true` 시 자동 스킵됩니다.
 
 ## HAProxy 리버스 프록시
 
@@ -194,13 +253,14 @@ Ceph는 `deviceFilter: ^nvme1n1$`로 OSD 디스크를 감지합니다 (nvme2n1 B
 
 | 항목 | 선택 | 이유 |
 |------|------|------|
-| OS | Ubuntu 24.04 (Noble) | BeeGFS 7.4 공식 지원, nftables 네이티브 |
+| OS | Ubuntu 24.04 (Noble) | BeeGFS 7.4.6 공식 deb 지원 (BeeGFS 8은 Ubuntu 패키지 미제공) |
 | K8s 버전 | 1.31 | stable, nftables 모드 지원 |
 | Master HA | 3식 (etcd quorum) | 1대 장애 허용, HAProxy 자동 failover |
 | Master 타입 | t3.large (8GB) | etcd 3노드 quorum + BeeGFS mgmtd/meta + Ceph CSI Provisioner — 실측 메모리 96%+ (4GB 부족) |
 | Worker 타입 | m5.large (8GB) | Ceph OSD 지속 I/O → t3 버스트 크레딧 고갈 위험 |
 | kube-proxy 모드 | nftables | Ubuntu 24.04 환경, Flannel iptables lock 경합 방지 |
-| Worker 커널 | 6.8.0-aws 고정 | BeeGFS 7.4.6 최대 지원 커널 6.11 — 6.12+ 감지 시 자동 다운그레이드 후 K8s 설치 진행 |
+| Worker 커널 | 6.8.0-aws 고정 (5단계) | BeeGFS 7.4.6 최대 지원 커널 6.11 — 6.12+ 감지 시 자동 다운그레이드 후 K8s 설치 진행 |
+| 커널 고정 메커니즘 | APT preferences + apt-mark hold + 구커널 제거 + GRUB savedefault 비활성화 + unattended-upgrades 차단 | 5단계 조합으로 자동 업그레이드 완전 차단 |
 | containerd | 1.7.22-1 고정 + hold | K8s 1.31 호환 검증, 자동 업그레이드 방지 |
 | CNI | Flannel v0.26.1 VXLAN | 버전 고정, K8s 1.28+ 지원 확인 |
 | Ceph 배포 | rook-ceph operator | HCI 환경 K8s 단일 제어면, CSI 자동 설치 |
@@ -210,3 +270,15 @@ Ceph는 `deviceFilter: ^nvme1n1$`로 OSD 디스크를 감지합니다 (nvme2n1 B
 | Ceph CSI Provisioner | master 노드 배치 | worker CPU 여유 확보 (HCI 환경) |
 | BeeGFS 디스크 | 8GB gp2 EBS (`/dev/xvdd` → nvme2n1) | Ceph OSD와 디바이스 분리, XFS 포맷 |
 | HAProxy | Bastion Ansible 자동 구성 | master_count 변경 시 자동 반영 |
+
+## 버전
+
+| 항목 | 버전 |
+|------|------|
+| OS | Ubuntu 24.04 LTS (Noble) |
+| Kernel (Worker) | 6.8.0-aws (고정) |
+| Kubernetes | 1.31 |
+| Containerd | 1.7.22-1 |
+| BeeGFS | 7.4.6 |
+| Ceph | Squid (rook-ceph, 최신) |
+| Flannel CNI | v0.26.1 |

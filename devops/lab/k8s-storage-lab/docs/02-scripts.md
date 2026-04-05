@@ -48,7 +48,7 @@ Worker 전용 추가 설정 (Ceph OSD + BeeGFS storaged 담당 노드).
 
 ---
 
-## scripts/install/01_ceph_install.sh
+## scripts/ceph_install.sh
 
 1. **Helm 설치** (master-1)
 2. **rook-ceph Helm repo** + namespace 생성
@@ -77,7 +77,7 @@ Worker 전용 추가 설정 (Ceph OSD + BeeGFS storaged 담당 노드).
 [0/4] 사전 요구사항 확인
 [1/4] tofu apply -var="worker_count=N+1"  (EC2 + EBS 추가)
 [2/4] 새 Worker 부팅 대기
-[3/4] Ansible: common/worker/cluster_setup/kubernetes_common/kubernetes_worker 실행
+[3/4] Ansible: common/worker/cluster_setup/k8s_common/worker 실행
 [4/4] Ansible: beegfs.yml 실행 (BeeGFS storaged 추가)
 ```
 

@@ -59,7 +59,7 @@ ssh $SSH_OPTS ubuntu@$BASTION_IP \
      -i inventory/aws_ec2.yml playbooks/k8s.yml \
      --extra-vars \"control_plane_endpoint=$BASTION_PRIVATE_IP\" \
      --limit \"$NEW_WORKER_IP\" \
-     --tags common,hci_node,cluster_setup,kubernetes_common,kubernetes_worker"
+     --tags common,hci_node,cluster_setup,k8s_common,worker"
 
 echo "=============================="
 echo " [4/4] BeeGFS storaged join"

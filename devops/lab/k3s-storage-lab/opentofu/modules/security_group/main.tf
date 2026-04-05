@@ -108,13 +108,6 @@ resource "aws_security_group" "backend" {
     protocol    = "tcp"
     cidr_blocks = [var.vpc_cidr]
   }
-  # BeeGFS helperd
-  ingress {
-    from_port   = 8004
-    to_port     = 8004
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-  }
   # VPC 내부 전체 허용
   ingress {
     from_port   = 0

@@ -57,7 +57,7 @@ echo " SSH 연결 대기"
 echo "=============================="
 for IP in $FRONTEND_IP $BACKEND_IP; do
   echo -n "  $IP 대기 중..."
-  until ssh $SSH_OPTS ubuntu@$IP "echo ok" &>/dev/null; do
+  until ssh $SSH_OPTS ec2-user@$IP "echo ok" &>/dev/null; do
     echo -n "."; sleep 5
   done
   echo " ✓"
@@ -66,8 +66,8 @@ done
 echo ""
 echo "✅ 인스턴스 재시작 완료"
 echo ""
-echo "  Frontend : ssh -i $SSH_KEY ubuntu@$FRONTEND_IP"
-echo "  Backend  : ssh -i $SSH_KEY ubuntu@$BACKEND_IP"
+echo "  Frontend : ssh -i $SSH_KEY ec2-user@$FRONTEND_IP"
+echo "  Backend  : ssh -i $SSH_KEY ec2-user@$BACKEND_IP"
 echo ""
 echo "  서비스 상태 확인:"
-echo "    ssh -i $SSH_KEY ubuntu@$FRONTEND_IP 'kubectl get nodes'"
+echo "    ssh -i $SSH_KEY ec2-user@$FRONTEND_IP 'kubectl get nodes'"

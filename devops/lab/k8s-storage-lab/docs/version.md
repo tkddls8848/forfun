@@ -55,7 +55,7 @@
 
 ## 5. Ceph 스토리지 스택
 
-위치: `scripts/install/01_ceph_install.sh`
+위치: `scripts/ceph_install.sh`
 - Rook-Ceph Operator: v1.16.6
   - Helm repository: https://charts.rook.io/release
   - Chart: rook-release/rook-ceph

@@ -22,13 +22,13 @@ variable "key_name" {
 }
 
 variable "ami_frontend" {
-  description = "Packer k3s-frontend AMI ID (미설정 시 Ubuntu 최신 AMI 자동 사용)"
+  description = "Packer k3s-frontend AMI ID (미설정 시 RHEL 9 최신 AMI 자동 사용)"
   type        = string
   default     = null
 }
 
 variable "ami_backend" {
-  description = "Packer k3s-backend AMI ID (미설정 시 Ubuntu 최신 AMI 자동 사용)"
+  description = "Packer k3s-backend AMI ID (미설정 시 RHEL 9 최신 AMI 자동 사용)"
   type        = string
   default     = null
 }

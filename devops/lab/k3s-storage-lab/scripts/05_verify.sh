@@ -2,10 +2,13 @@
 # Phase 6: 검증 — PVC 생성 및 Pod 마운트 테스트
 # 실행: EC2 #1 (frontend) 에서 실행
 set -e
+export PATH="/usr/local/bin:/usr/local/sbin:$PATH"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MANIFEST_DIR="${SCRIPT_DIR}/manifests"
-export KUBECONFIG="/etc/rancher/k3s/k3s.yaml"
+# sudo 환경에서 $HOME=/root가 되므로 명시적 경로 우선 사용
+export KUBECONFIG="${KUBECONFIG:-/home/ec2-user/.kube/config}"
+[ -f "$KUBECONFIG" ] || export KUBECONFIG="/etc/rancher/k3s/k3s.yaml"
 
 echo "=============================="
 echo " [1/3] StorageClass 확인"

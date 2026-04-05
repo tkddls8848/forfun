@@ -5,12 +5,36 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LAB_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-PACKER_DIR="$LAB_DIR/packer/k8s-storage-lab"
+PACKER_DIR="$LAB_DIR/packer"
 
 REGION="${1:-ap-northeast-2}"
 KEY_NAME="${2:-storage-lab}"
 KEY_FILE="${3:-${SSH_KEY_PATH:-$HOME/.ssh/storage-lab.pem}}"
 EXPANDED_KEY="${KEY_FILE/#\~/$HOME}"
+
+# Packer 임시 보안 그룹 정리 (빌드 성공/실패 모두 실행)
+cleanup_packer_sgs() {
+  echo ""
+  echo "========================================"
+  echo " [cleanup] Packer 임시 보안 그룹 정리"
+  echo "========================================"
+  local sgs
+  sgs=$(aws ec2 describe-security-groups --region "$REGION" \
+    --filters "Name=group-name,Values=packer_*" \
+    --query 'SecurityGroups[*].GroupId' --output text 2>/dev/null)
+  if [ -z "$sgs" ] || [ "$sgs" = "None" ]; then
+    echo "  잔여 보안 그룹 없음"
+    return
+  fi
+  for sg in $sgs; do
+    if aws ec2 delete-security-group --region "$REGION" --group-id "$sg" 2>/dev/null; then
+      echo "  삭제: $sg"
+    else
+      echo "  건너뜀 (사용 중): $sg"
+    fi
+  done
+}
+trap cleanup_packer_sgs EXIT
 
 PASS="[PASS]"
 FAIL="[FAIL]"

@@ -65,5 +65,12 @@ depmod -a
 # 부팅 시 자동 로드
 echo beegfs > /etc/modules-load.d/beegfs.conf
 
+# HCI 노드 필수 패키지 (Ceph + 스토리지)
+apt-get install -y lvm2 chrony linux-modules-extra-aws linux-headers-aws
+systemctl enable chrony
+
+# Ceph 커널 모듈 자동 로드 등록 (modprobe는 런타임에 Ansible이 수행)
+printf 'rbd\nceph\n' >> /etc/modules-load.d/k8s.conf
+
 echo "worker AMI 패키지 설치 완료 (containerd + kubeadm + BeeGFS 7.4.6 모듈)"
 uname -r

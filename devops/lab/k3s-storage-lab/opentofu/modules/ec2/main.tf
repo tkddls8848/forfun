@@ -38,7 +38,7 @@ resource "aws_instance" "backend" {
   }
 }
 
-# ── EBS: /dev/xvdb 5GB (Ceph OSD #1) → EC2 #2 ──
+# ── EBS 5GB (Ceph OSD #1) → EC2 #2 — Nitro: OS에서 /dev/nvme*n1로 노출, device_name 무시됨 ──
 resource "aws_ebs_volume" "ceph_osd_1" {
   availability_zone = "${var.aws_region}a"
   size              = 5
@@ -52,7 +52,7 @@ resource "aws_volume_attachment" "ceph_osd_1" {
   instance_id = aws_instance.backend.id
 }
 
-# ── EBS: /dev/xvdc 5GB (Ceph OSD #2) → EC2 #2 ──
+# ── EBS 5GB (Ceph OSD #2) → EC2 #2 — Nitro: OS에서 /dev/nvme*n1로 노출, device_name 무시됨 ──
 resource "aws_ebs_volume" "ceph_osd_2" {
   availability_zone = "${var.aws_region}a"
   size              = 5
@@ -66,7 +66,7 @@ resource "aws_volume_attachment" "ceph_osd_2" {
   instance_id = aws_instance.backend.id
 }
 
-# ── EBS: /dev/xvdd 5GB (BeeGFS storage #1) → EC2 #2 ──
+# ── EBS 5GB (BeeGFS storage #1) → EC2 #2 — Nitro: OS에서 /dev/nvme*n1로 노출, device_name 무시됨 ──
 resource "aws_ebs_volume" "beegfs_storage_1" {
   availability_zone = "${var.aws_region}a"
   size              = 5
@@ -80,7 +80,7 @@ resource "aws_volume_attachment" "beegfs_storage_1" {
   instance_id = aws_instance.backend.id
 }
 
-# ── EBS: /dev/xvde 5GB (BeeGFS storage #2) → EC2 #2 ──
+# ── EBS 5GB (BeeGFS storage #2) → EC2 #2 — Nitro: OS에서 /dev/nvme*n1로 노출, device_name 무시됨 ──
 resource "aws_ebs_volume" "beegfs_storage_2" {
   availability_zone = "${var.aws_region}a"
   size              = 5
@@ -94,7 +94,11 @@ resource "aws_volume_attachment" "beegfs_storage_2" {
   instance_id = aws_instance.backend.id
 }
 
-output "frontend_public_ip"  { value = aws_instance.frontend.public_ip }
-output "frontend_private_ip" { value = aws_instance.frontend.private_ip }
-output "backend_public_ip"   { value = aws_instance.backend.public_ip }
-output "backend_private_ip"  { value = aws_instance.backend.private_ip }
+output "frontend_public_ip"        { value = aws_instance.frontend.public_ip }
+output "frontend_private_ip"       { value = aws_instance.frontend.private_ip }
+output "backend_public_ip"         { value = aws_instance.backend.public_ip }
+output "backend_private_ip"        { value = aws_instance.backend.private_ip }
+output "ceph_osd_1_volume_id"      { value = aws_ebs_volume.ceph_osd_1.id }
+output "ceph_osd_2_volume_id"      { value = aws_ebs_volume.ceph_osd_2.id }
+output "beegfs_storage_1_volume_id" { value = aws_ebs_volume.beegfs_storage_1.id }
+output "beegfs_storage_2_volume_id" { value = aws_ebs_volume.beegfs_storage_2.id }

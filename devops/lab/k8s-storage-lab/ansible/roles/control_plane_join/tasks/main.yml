@@ -43,7 +43,7 @@
     remote_src: yes
     owner: ubuntu
 
-# master-1의 kubernetes_master role과 동일하게 manifests 배포 (HA: master-2/3도 보유)
+# master-1의 control_plane role과 동일하게 manifests 배포 (HA: master-2/3도 보유)
 - name: manifests 디렉토리 생성
   ansible.builtin.file:
     path: /home/ubuntu/manifests

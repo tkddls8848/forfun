@@ -2,7 +2,7 @@ source "amazon-ebs" "backend" {
   region        = var.aws_region
   source_ami    = var.base_ami
   instance_type = "t3.medium"
-  ssh_username  = "ubuntu"
+  ssh_username  = "ec2-user"
   ssh_keypair_name     = var.key_name
   ssh_private_key_file = var.ssh_private_key_file
   associate_public_ip_address            = true
@@ -16,13 +16,13 @@ source "amazon-ebs" "backend" {
   }
 
   ami_name        = "k3s-storage-lab-backend-{{timestamp}}"
-  ami_description = "k3s backend: cephadm + BeeGFS 7.4.6 packages (Ubuntu 24.04)"
+  ami_description = "k3s backend: cephadm Squid + BeeGFS 8 packages (RHEL 9)"
 
   tags = {
     Project   = "k3s-storage-lab"
     Role      = "backend"
-    OS        = "ubuntu-24.04"
-    BeeGFS    = "7.4.6"
+    OS        = "rhel-9"
+    BeeGFS    = "8.x"
     BuildDate = "{{timestamp}}"
   }
 }

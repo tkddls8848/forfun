@@ -12,17 +12,21 @@ provider "aws" {
   region = var.aws_region
 }
 
-data "aws_ami" "ubuntu" {
+data "aws_ami" "rhel9" {
   most_recent = true
-  owners      = ["099720109477"]
+  owners      = ["309956199498"] # Red Hat, Inc.
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
+    values = ["RHEL-9.*_HVM-*-x86_64-*"]
   }
   filter {
     name   = "virtualization-type"
     values = ["hvm"]
+  }
+  filter {
+    name   = "state"
+    values = ["available"]
   }
 }
 
@@ -43,7 +47,7 @@ module "security_group" {
 module "ec2" {
   source           = "./modules/ec2"
   project_name     = var.project_name
-  ami_id           = data.aws_ami.ubuntu.id
+  ami_id           = data.aws_ami.rhel9.id
   ami_frontend     = var.ami_frontend
   ami_backend      = var.ami_backend
   key_name         = var.key_name
