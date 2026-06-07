@@ -2,16 +2,25 @@
 # vi: set ft=ruby :
 
 # password.rb 파일 로드
-require_relative 'password'
+if File.exist?(File.join(__dir__, "password.rb"))
+  require_relative 'password'
+else
+  VAGRANT_PASSWORD = "vagrant"
+end
 
 # 버전 관리 변수
+VERSION_CONFIG = {
 VERSION_CONFIG = {
   :ubuntu_box => "bento/ubuntu-22.04",
   :ceph => "squid"
 }
 
 # 네트워크 설정
-NETWORK_CONFIG = { :master_ip => "192.168.60.10", :network_prefix => "192.168.60" }
+NETWORK_CONFIG = {
+  :master_ip => "192.168.60.10",
+  :network_prefix => "192.168.60",
+  :cluster_network_prefix => "192.168.61"
+}
 
 # Ceph 클러스터 설정 (리소스 증가)
 CLUSTER_NAME = "ceph-cluster"
@@ -31,6 +40,7 @@ CEPH_SERVICES = {
 
 # Ceph OSD 설정
 CEPH_OSD = { :count => 2, :disk_size => 1024*10 }
+CEPH_OSD_DEVICES = ["/dev/sdb", "/dev/sdc"]
 OSD_DISK_BASE_PATH = File.join(Dir.home, "vagrant_osd", CLUSTER_NAME)
 
 Vagrant.configure("2") do |config|  
@@ -39,6 +49,7 @@ Vagrant.configure("2") do |config|
       cfg.vm.box = VERSION_CONFIG[:ubuntu_box]
       cfg.vm.host_name = hostname      
       cfg.vm.network "private_network", ip: info[:ip]
+      cfg.vm.network "private_network", ip: "#{NETWORK_CONFIG[:cluster_network_prefix]}.#{info[:ip].split('.').last}"
       cfg.vm.network "forwarded_port", guest: 22, host: info[:ssh_port], id: "ssh", auto_correct: true 
       cfg.vm.provider "virtualbox" do |vb|
         vb.name = hostname
@@ -61,13 +72,15 @@ Vagrant.configure("2") do |config|
       
       # 노드 공통 설정 (공통 설치 스크립트)
       cfg.vm.provision "shell", path: "./scripts/ceph/common-setup.sh", 
-        args: ["#{NETWORK_CONFIG[:master_ip]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{CEPH_WORKER_NODES}"]
+        args: ["#{NETWORK_CONFIG[:master_ip]}", "#{NETWORK_CONFIG[:network_prefix]}", "#{CEPH_WORKER_NODES}"],
+        env: { "CEPH_CLUSTER_NETWORK" => "#{NETWORK_CONFIG[:cluster_network_prefix]}.0/24" }
       
       # 마스터 노드 설정
       if hostname == "ceph-master"
         # Ceph 설치 및 설정 (OSD 준비 통합)
         cfg.vm.provision "shell", path: "./scripts/ceph/cephadm-setup.sh", name: "cephadm", 
-          args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{CEPH_WORKER_NODES}", "#{VAGRANT_PASSWORD}", "#{VERSION_CONFIG[:ceph]}", "#{CEPH_SERVICES[:mon_count]}", "#{CEPH_SERVICES[:mgr_count]}"], 
+          args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{CEPH_WORKER_NODES}", "#{VAGRANT_PASSWORD}", "#{VERSION_CONFIG[:ceph]}", "#{CEPH_SERVICES[:mon_count]}", "#{CEPH_SERVICES[:mgr_count]}", "#{CEPH_OSD_DEVICES.join(',')}"],
+          env: { "CEPH_CLUSTER_NETWORK" => "#{NETWORK_CONFIG[:cluster_network_prefix]}.0/24" },
           privileged: true
         # Filesystem Storage 설치
         cfg.vm.provision "shell", path: "./scripts/ceph/cephadm-cephfs.sh", name: "cephfs", 

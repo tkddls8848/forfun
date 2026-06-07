@@ -94,7 +94,7 @@ podman run -d \
     --restart=unless-stopped \
     -p ${PROMETHEUS_PORT}:9090 \
     -v /opt/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
-    prom/prometheus:latest \
+    prom/prometheus:v2.55.1 \
     --config.file=/etc/prometheus/prometheus.yml \
     --storage.tsdb.path=/prometheus \
     --web.console.libraries=/etc/prometheus/console_libraries \
@@ -158,7 +158,7 @@ podman run -d \
     -e GF_SECURITY_ADMIN_PASSWORD=admin \
     -e GF_SECURITY_ADMIN_USER=admin \
     -e GF_USERS_ALLOW_SIGN_UP=false \
-    grafana/grafana:latest
+    grafana/grafana:11.3.1
 
 # Grafana가 완전히 시작될 때까지 대기 (더 긴 대기 시간)
 echo ">> Grafana 시작 대기 중..."

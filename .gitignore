@@ -20,6 +20,24 @@ OSD
 **/embeddings
 **/pipeline-venv
 
+# devops/k8s generated local state
+devops/k8s/**/*.vdi
+devops/k8s/**/*.vmdk
+devops/k8s/**/*.qcow2
+devops/k8s/**/*.img
+devops/k8s/**/*.iso
+devops/k8s/**/kubeconfig
+devops/k8s/**/kubeconfig-*
+devops/k8s/**/admin.conf
+devops/k8s/**/join-command.sh
+devops/k8s/**/worker_join.sh
+devops/k8s/**/*.retry
+devops/k8s/**/.ansible/
+devops/k8s/**/.cache/
+devops/k8s/**/tmp/
+devops/k8s/**/rook/
+devops/k8s/**/kubespray-repo/
+
 # dependencies
 node_modules
 /.pnp

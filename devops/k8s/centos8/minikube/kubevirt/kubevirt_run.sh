@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
 ## get kubevirt version
-export KUBEVIRT_VERSION=$(curl -s https://api.github.com/repos/kubevirt/kubevirt/releases/latest | grep tag_name | cut -d '"' -f 4)
+KUBEVIRT_VERSION="${KUBEVIRT_VERSION:-v1.8.2}"
 
 ## install Kubevirt operator
 kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/kubevirt-operator.yaml

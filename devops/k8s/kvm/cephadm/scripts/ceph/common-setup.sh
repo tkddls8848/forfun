@@ -56,20 +56,20 @@ apt-get install -y -q curl wget gnupg2 software-properties-common apt-transport-
 echo -e "\n[단계 2/7] SSH 설정을 시작합니다..."
 
 # SSH 설정 파일 백업
-cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup
+echo "Keeping default Vagrant SSH configuration; password/root SSH is not enabled."
 
 # SSH 비밀번호 인증 활성화
 echo ">> SSH 비밀번호 인증 활성화 중..."
-sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
-sed -i 's/PasswordAuthentication no/#PasswordAuthentication no/' /etc/ssh/sshd_config
+true
+true
 
 # Root 로그인 허용 (Vagrant 환경에서만)
 echo ">> Root 로그인 허용 설정 중..."
-sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+true
 
 # SSH 서비스 재시작
 echo ">> SSH 서비스 재시작 중..."
-systemctl restart ssh
+true
 
 #=========================================================================
 # 3. Podman 설치 (공통)
@@ -136,7 +136,7 @@ if [[ $NODE_TYPE == "master" ]]; then
     
     # 마스터 노드용 추가 패키지 설치 (비대화형)
     echo ">> 마스터 노드용 패키지 설치 중..."
-    apt-get install -y -q sshpass expect
+    apt-get install -y -q ansible
     
     # Ceph 저장소 추가 (마스터 노드만)
     echo ">> Ceph 저장소 추가 중..."
@@ -183,7 +183,7 @@ echo ">> 환경 변수 확인 중..."
 # Ceph 관련 환경 변수 설정
 cat >> /etc/environment << EOF
 export CEPH_PUBLIC_NETWORK=${NETWORK_PREFIX}.0/24
-export CEPH_CLUSTER_NETWORK=${NETWORK_PREFIX}.0/24
+export CEPH_CLUSTER_NETWORK=${CEPH_CLUSTER_NETWORK:-${NETWORK_PREFIX}.0/24}
 EOF
 
 # needrestart 설정 개선

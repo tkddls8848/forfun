@@ -12,28 +12,11 @@ SECRET_KEY=$(kubectl -n rook-ceph get secret rook-ceph-object-user-my-store-my-u
 ## install gateway S3 API AWS-CLI
 sudo apt-get install -y awscli
 
-## configure awscli user
-cat << EOF >> aws.sh
-##!/usr/bin/expect -f
-spawn aws configure
-expect {
-    "AWS Access Key ID" {
-        send "$ACCESS_KEY\r"; exp_continue
-    }
-    "AWS Secret Access Key" {
-        send "$SECRET_KEY\r"; exp_continue
-    }
-    "Default region name" {
-        send "\r"; exp_continue
-    }
-    "Default output format" {
-        send "\r"; exp_continue
-    }
-}
-EOF
-sudo chmod +x aws.sh
-./aws.sh
-sudo rm aws.sh
+## configure awscli user non-interactively
+aws configure set aws_access_key_id "$ACCESS_KEY"
+aws configure set aws_secret_access_key "$SECRET_KEY"
+aws configure set region us-east-1
+aws configure set output json
 
 ## make bucket, copy file, listing file in my-test-bucket
 endpoint_ip=$(kubectl -n rook-ceph get svc rook-ceph-rgw-my-store -o jsonpath='{.spec.clusterIP}')
@@ -41,4 +24,3 @@ endpoint_port=$(kubectl -n rook-ceph get svc rook-ceph-rgw-my-store -o jsonpath=
 aws --endpoint-url=http://$endpoint_ip:$endpoint_port/ s3 mb s3://my-test-bucket
 aws --endpoint-url=http://$endpoint_ip:$endpoint_port/ s3 cp myfile.txt s3://my-test-bucket
 aws --endpoint-url=http://$endpoint_ip:$endpoint_port/ s3 ls s3://my-test-bucket
-

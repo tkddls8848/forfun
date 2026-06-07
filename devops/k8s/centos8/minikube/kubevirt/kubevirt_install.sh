@@ -4,8 +4,10 @@
 sudo dnf install -y qemu-kvm libvirt virt-install bridge-utils virt-manager
 sudo systemctl enable --now libvirtd
 
+MINIKUBE_VERSION="${MINIKUBE_VERSION:-v1.38.1}"
+
 ## install kvm2 driver for minikube
-curl -LO https://storage.googleapis.com/minikube/releases/latest/docker-machine-driver-kvm2
+curl -LO "https://storage.googleapis.com/minikube/releases/${MINIKUBE_VERSION}/docker-machine-driver-kvm2"
 chmod +x docker-machine-driver-kvm2
 sudo mv docker-machine-driver-kvm2 /usr/local/bin/
 
