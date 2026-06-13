@@ -1,0 +1,63 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+require "fileutils"
+
+# 노드 설정
+K8S_CLUSTER = {
+  "k8s-worker1" => { :ip => "192.168.56.21", :cpus => 2, :memory => 4096, :ssh => 22001, :rook_disk_gb => 20 },
+  "k8s-worker2" => { :ip => "192.168.56.22", :cpus => 2, :memory => 4096, :ssh => 22002, :rook_disk_gb => 20 },
+  "k8s-worker3" => { :ip => "192.168.56.23", :cpus => 2, :memory => 4096, :ssh => 22003, :rook_disk_gb => 20 },
+  "k8s-master" => { :ip => "192.168.56.10", :cpus => 4, :memory => 4096, :ssh => 22000, :provision => ["./scripts/cluster/kubespray.sh", "./scripts/storage/rook-ceph.sh", "./scripts/addons/jenkins.sh", "./scripts/addons/monitoring.sh"] }
+}
+
+# 환경 설정
+CLUSTER_NAME = "k8s-ubuntu2404-kubespray"
+NODE_NUMBER = K8S_CLUSTER.size()
+
+Vagrant.configure("2") do |config|
+  K8S_CLUSTER.each do |hostname, info|
+    config.vm.define hostname do |cfg|
+      cfg.vm.box = "bento/ubuntu-24.04"
+      cfg.vm.host_name = hostname
+      
+      # 네트워크 설정
+      cfg.vm.network "private_network", ip: info[:ip]
+      cfg.vm.network "forwarded_port", guest: 22, host: info[:ssh], auto_correct: true, id: "ssh"
+      
+      # VirtualBox 설정
+      cfg.vm.provider "virtualbox" do |vb|
+        vb.name = hostname
+        vb.gui = false
+        vb.memory = info[:memory]
+        vb.cpus = info[:cpus]
+        vb.customize ["modifyvm", :id, "--groups", "/#{CLUSTER_NAME}"]
+
+        if info[:rook_disk_gb]
+          disk_dir = File.expand_path(".vagrant/disks", __dir__)
+          disk_path = File.join(disk_dir, "#{hostname}-rook.vdi")
+          FileUtils.mkdir_p(disk_dir)
+          unless File.exist?(disk_path)
+            vb.customize ["createhd", "--filename", disk_path, "--size", info[:rook_disk_gb] * 1024]
+          end
+          vb.customize ["storageattach", :id, "--storagectl", "SATA Controller", "--port", 1, "--device", 0, "--type", "hdd", "--medium", disk_path]
+        end
+      end
+
+      cfg.vm.provision "shell", privileged: true, inline: <<-SHELL
+        set -euo pipefail
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get install -y lvm2
+        modprobe rbd || true
+      SHELL
+      
+      # 프로비저닝 스크립트 실행
+      if info[:provision]
+        info[:provision].each do |script|
+          cfg.vm.provision "shell", path: script, args: [NODE_NUMBER], privileged: false
+        end
+      end
+    end
+  end
+end

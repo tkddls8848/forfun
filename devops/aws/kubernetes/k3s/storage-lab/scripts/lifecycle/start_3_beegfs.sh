@@ -1,0 +1,54 @@
+#!/bin/bash
+# Stage 3: BeeGFS ?¨Ïù¥???ÑÍ≤∞
+#   [1/2] BeeGFS Î∞±Ïóî??(?îÏä§??Ï§ÄÎπ???LVM ?§Ìä∏?ºÏù¥????XFS ???úÎπÑ??Í∏∞Îèô)
+#   [2/2] BeeGFS CSI ?§Ïπò (Ïª§ÎÑê Î™®Îìà ÎπåÎìú ??beegfs-scratch StorageClass)
+# ?ÑÏ†ú: start_2_ceph.sh ?ÑÎ£å ??lab.env ??CEPH_FSID / CEPH_ADMIN_KEY Ï°¥Ïû¨
+# Î°§Î∞±: rollback_3_beegfs.sh
+set -e
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LAB_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+LAB_ENV="$LAB_ROOT/lab.env"
+
+if [ ! -f "$LAB_ENV" ]; then
+  echo "??$LAB_ENV ?ÜÏùå ??start_1_infra_k3s.sh, start_2_ceph.sh Î•?Î®ºÏ? ?§Ìñâ?òÏÑ∏??"
+  exit 1
+fi
+set -a; source "$LAB_ENV"; set +a
+
+: "${CEPH_FSID:?lab.env ??CEPH_FSID ?ÜÏùå ??start_2_ceph.sh Î•?Î®ºÏ? ?§Ìñâ?òÏÑ∏??"
+
+SSH_KEY="${SSH_KEY_PATH:-${SSH_KEY:-$HOME/.ssh/storage-lab.pem}}"
+SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -i $SSH_KEY"
+
+echo "=============================="
+echo " [1/2] BeeGFS Î∞±Ïóî??
+echo "       ?îÏä§??Ï§ÄÎπ???LVM ?§Ìä∏?ºÏù¥????XFS ???úÎπÑ??Í∏∞Îèô"
+echo "=============================="
+ssh $SSH_OPTS ec2-user@$BACKEND_IP \
+  "sudo BEEGFS_STORAGE_1_VOL='$BEEGFS_STORAGE_1_VOL' BEEGFS_STORAGE_2_VOL='$BEEGFS_STORAGE_2_VOL' bash -s" \
+  < "$LAB_ROOT/scripts/system/03_beegfs_backend.sh"
+
+echo "=============================="
+echo " [2/2] BeeGFS CSI ?§Ïπò"
+echo "       Ïª§ÎÑê Î™®Îìà ÎπåÎìú ??beegfs-scratch StorageClass ??frontend"
+echo "=============================="
+scp -O $SSH_OPTS "$LAB_ROOT/scripts/system/04_csi_beegfs.sh" ec2-user@$FRONTEND_IP:~/
+scp -O $SSH_OPTS "$LAB_ROOT/scripts/system/05_verify.sh"     ec2-user@$FRONTEND_IP:~/
+
+ssh $SSH_OPTS ec2-user@$FRONTEND_IP \
+  "sudo BACKEND_PRIVATE_IP='$BACKEND_PRIVATE_IP' \
+   SCRIPT_DIR=/home/ec2-user \
+   bash /home/ec2-user/04_csi_beegfs.sh"
+
+echo ""
+echo "??Stage 3 ?ÑÎ£å ??BeeGFS + CSI Íµ¨ÏÑ±??
+echo "  StorageClass: beegfs-scratch"
+echo ""
+echo "  ?ÑÏ≤¥ StorageClass ?ïÏù∏:"
+ssh $SSH_OPTS ec2-user@$FRONTEND_IP \
+  "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml && kubectl get storageclass"
+echo ""
+echo "  Frontend : ssh -i $SSH_KEY ec2-user@$FRONTEND_IP"
+echo "  Backend  : ssh -i $SSH_KEY ec2-user@$BACKEND_IP"
+echo ""
+echo "  Í≤ÄÏ¶?    : ssh -i $SSH_KEY ec2-user@$FRONTEND_IP 'bash ~/05_verify.sh'"
