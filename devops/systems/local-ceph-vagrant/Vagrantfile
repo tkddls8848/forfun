@@ -70,7 +70,7 @@ Vagrant.configure("2") do |config|
       # 마스터 노드 설정
       if hostname == "ceph-master"
         # 블록 스토어 앱 소스를 master에 마운트 (ansible로 워커에 배포). 앱 폴더명 변경 시 경로도 수정.
-        cfg.vm.synced_folder "../../../../../apps/vagrant/ubuntu/cephadm/block-store-app", "/opt/ceph-block-store-src"
+        cfg.vm.synced_folder "./apps/block-store-app", "/opt/ceph-block-store-src"
         # Ceph 설치 및 설정 (OSD 준비 통합)
         cfg.vm.provision "shell", path: "./scripts/ceph/cephadm-setup.sh", name: "cephadm", 
           args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{CEPH_WORKER_NODES}", "#{VERSION_CONFIG[:ceph]}", "#{CEPH_SERVICES[:mon_count]}", "#{CEPH_SERVICES[:mgr_count]}", "#{CEPH_OSD_DEVICES.join(',')}"],

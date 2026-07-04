@@ -124,7 +124,7 @@ k8s-storage-lab/
 
 > **Windows ?¬ìš©??** ëª¨ë“  ?¤í¬ë¦½íŠ¸??Linux Bash ?˜ê²½ ?„ì œ. **WSL2?ì„œ ?¤í–‰**?˜ì„¸??
 > ```bash
-> cd /mnt/c/forfun/forfun/devops/aws/kubernetes/kubeadm/storage-lab
+> cd /mnt/c/forfun/forfun/devops/systems/aws-kubeadm-storage-lab
 > cp /mnt/c/path/to/storage-lab.pem ~/.ssh/ && chmod 400 ~/.ssh/storage-lab.pem
 > ```
 
