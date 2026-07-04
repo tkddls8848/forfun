@@ -45,7 +45,11 @@ systemctl enable containerd
 systemctl restart containerd
 
 swapoff -a
-sed -i '/swap/s/^/#/' /etc/fstab
+# swap 항목만, 미주석 라인에 한해 1회 주석 처리.
+# 기존 '/swap/s/^/#/' 는 "swap" 문자열이 포함된 무관 라인까지 건드리고
+# 재실행 시 '#'가 누적됨. 단어 경계(\bswap\b) + 미주석([^#]) 매칭으로 멱등 처리.
+# (동일 저장소 GPU용 02_node_setup.sh의 패턴과 통일)
+sed -i '/\bswap\b/s/^[^#]/#&/' /etc/fstab
 
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL "https://pkgs.k8s.io/core:/stable:/${KUBE_MINOR_VERSION}/deb/Release.key" \
