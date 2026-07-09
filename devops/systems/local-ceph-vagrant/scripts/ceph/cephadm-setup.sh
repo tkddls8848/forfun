@@ -97,10 +97,33 @@ if [[ "${current_osds:-0}" -ge "$EXPECTED_OSDS" ]]; then
   echo "[cephadm] OSD가 이미 ${current_osds}개 존재 — OSD 생성 건너뜀"
 else
   # cephadm이 host add 직후 디바이스 인벤토리를 채우기 전에는 add osd가 묻히므로,
-  # 워커 디바이스가 Available 로 보고될 때까지 기다린다.
-  echo "[cephadm] OSD 디바이스 인벤토리 대기 중 (목표 ${EXPECTED_OSDS}개)..."
+  # 먼저 워커 디바이스가 인벤토리에 등장할 때까지 기다린다.
+  echo "[cephadm] OSD 디바이스 인벤토리 등장 대기 중 (목표 ${EXPECTED_OSDS}개)..."
   for _ in $(seq 1 30); do
-    avail="$(ceph orch device ls --format json 2>/dev/null | jq '[.[].devices[]? | select(.available)] | length' || echo 0)"
+    listed="$(ceph orch device ls --format json 2>/dev/null | jq '[.[].devices[]?] | length' || echo 0)"
+    [[ "${listed:-0}" -ge "$EXPECTED_OSDS" ]] && break
+    sleep 10
+  done
+
+  # 이전 클러스터(다른 FSID)가 남긴 LVM/파일시스템이 디스크에 있으면 ceph-volume이
+  # 해당 디바이스를 거부(available:false)하여 OSD가 0개가 된다. .vdi 디스크는
+  # vagrant destroy 후에도 재부착되므로 재프로비저닝 시 이 상태가 반복된다.
+  # sdb/sdc는 OSD 전용 디스크이므로, OSD가 아직 없을 때 선언 디바이스를 zap(초기화)한다.
+  echo "[cephadm] 선언된 OSD 디바이스 zap(초기화) 중..."
+  for i in $(seq 1 "$WORKER_LENGTH"); do
+    host="ceph-worker-$i"
+    for device in "${OSD_DEVICES[@]}"; do
+      device="$(echo "$device" | xargs)"
+      [[ -n "$device" ]] || continue
+      # 이미 비어 있으면 zap이 실패할 수 있으므로 실패는 무시한다.
+      ceph orch device zap "$host" "$device" --force || true
+    done
+  done
+
+  # zap 후 인벤토리를 강제 갱신하며 디바이스가 Available 로 보고될 때까지 기다린다.
+  echo "[cephadm] OSD 디바이스 Available 대기 중 (목표 ${EXPECTED_OSDS}개)..."
+  for _ in $(seq 1 30); do
+    avail="$(ceph orch device ls --refresh --format json 2>/dev/null | jq '[.[].devices[]? | select(.available)] | length' || echo 0)"
     [[ "${avail:-0}" -ge "$EXPECTED_OSDS" ]] && break
     sleep 10
   done

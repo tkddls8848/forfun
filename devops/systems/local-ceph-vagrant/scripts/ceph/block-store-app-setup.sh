@@ -32,6 +32,12 @@ echo "[block-store] 배포 시작 (workers=$WORKER_LENGTH, pool=$RBD_POOL)"
 command -v ansible-playbook >/dev/null || { echo "ansible-playbook 필요 (common-setup 마스터 단계에서 설치됨)"; exit 1; }
 [[ -f "$APP_SRC/app.js" ]] || { echo "앱 소스가 $APP_SRC 에 없습니다. Vagrantfile의 synced_folder를 확인하세요."; exit 1; }
 
+run_ansible_playbook() {
+  # npm/libuv가 Vagrant에서 상속한 stdio를 non-blocking으로 남길 수 있다.
+  # Ansible에는 새 blocking pipe와 /dev/null을 연결하고 pipefail로 종료 코드를 보존한다.
+  ansible-playbook "$@" </dev/null 2>&1 | cat
+}
+
 install -d "$ANSIBLE_DIR"
 
 # --- 1. rbd 클라이언트 키링 + 최소 conf (워커 배포용) ---
@@ -126,7 +132,7 @@ cat > "$ANSIBLE_DIR/deploy-agent.yml" <<'PLAY'
 PLAY
 
 echo "[block-store] 워커 에이전트 배포 (ansible)"
-ansible-playbook -i "$ANSIBLE_DIR/inventory.ini" "$ANSIBLE_DIR/deploy-agent.yml" \
+run_ansible_playbook -i "$ANSIBLE_DIR/inventory.ini" "$ANSIBLE_DIR/deploy-agent.yml" \
   -e ceph_conf="$ANSIBLE_DIR/ceph.conf" \
   -e ceph_keyring="$ANSIBLE_DIR/ceph.client.block-store.keyring" \
   -e app_src="$APP_SRC" \

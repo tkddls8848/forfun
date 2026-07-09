@@ -1,5 +1,9 @@
 #!/usr/bin/bash
 
+## disable swap for the Kubernetes node and keep it disabled after reboot
+sudo swapoff -a
+sudo sed -i '/\bswap\b/s/^[^#]/#&/' /etc/fstab
+
 ## install docker (no docker in Rocky Linux)
 sudo dnf -y install dnf-plugins-core
 sudo dnf config-manager --add-repo=https://download.docker.com/linux/centos/docker-ce.repo
@@ -14,4 +18,3 @@ MINIKUBE_VERSION="${MINIKUBE_VERSION:-v1.38.1}"
 curl -LO "https://storage.googleapis.com/minikube/releases/${MINIKUBE_VERSION}/minikube-linux-amd64"
 sudo install minikube-linux-amd64 /usr/local/bin/minikube
 rm -f minikube-linux-amd64
-

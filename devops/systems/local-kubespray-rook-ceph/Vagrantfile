@@ -47,6 +47,8 @@ Vagrant.configure("2") do |config|
       cfg.vm.provision "shell", privileged: true, inline: <<-SHELL
         set -euo pipefail
         export DEBIAN_FRONTEND=noninteractive
+        swapoff -a
+        sed -i '/\bswap\b/s/^[^#]/#&/' /etc/fstab
         apt-get update
         apt-get install -y lvm2
         modprobe rbd || true
