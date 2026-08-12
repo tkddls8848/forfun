@@ -1,34 +1,34 @@
-# k8s Å¬·¯½ºÅÍ Á¤ÀÇ ÄÚµå ¼öÁ¤ ÇÊ¿ä ¸ñ·Ï
+# k8s í´ëŸ¬ìŠ¤í„° ì •ì˜ ì½”ë“œ ìˆ˜ì • í•„ìš” ëª©ë¡
 
-°ËÅä ¹üÀ§: `D:\forfun\devops\k8s` ÇÏÀ§ ÀüÃ¼ Å¬·¯½ºÅÍ Á¤ÀÇ ÄÚµå.
+ê²€í†  ë²”ìœ„: `D:\forfun\devops\k8s` í•˜ìœ„ ì „ì²´ í´ëŸ¬ìŠ¤í„° ì •ì˜ ì½”ë“œ.
 
-¿øÄ¢:
+ì›ì¹™:
 
-- ±âÁ¸ ¹æ½Ä°ú ½Å±Ô ¹æ½ÄÀ» µ¿½Ã¿¡ »ì¸®´Â ¿ÏÃæ ±¸ÇöÀº ³ÖÁö ¾Ê´Â´Ù.
-- Å¬·¯½ºÅÍ À¯Çüº°·Î Ç¥ÁØÀûÀÎ ÇÑ °¡Áö ±¸Çö ¹æ½ÄÀ» ¼±ÅÃÇÏ°í, Ãæµ¹ÇÏ°Å³ª À§ÇèÇÑ ±âÁ¸ °æ·Î´Â Á¦°ÅÇÑ´Ù.
-- ³ëµå °£ ÀÛ¾÷Àº Á÷Á¢ SSH ¸í·ÉÀ¸·Î Ã³¸®ÇÏÁö ¾Ê´Â´Ù. ´Ü, `kvm/ubuntu/kubeadm/gpu`´Â ¿¹¿Ü·Î µĞ´Ù.
-- ³ëµå °£ ÀÛ¾÷Àº Ansible inventory¿¡ master/worker/storage ¿ªÇÒÀ» Á¤ÀÇÇÏ°í, Ansible playbookÀÌ °¢ ´ë»ó ³ëµå¿¡¼­ ½ÇÇàÇÏ´Â ¹æ½ÄÀ¸·Î ÅëÀÏÇÑ´Ù. ´Ü, `kvm/ubuntu/kubeadm/gpu`´Â ¿¹¿Ü·Î µĞ´Ù.
-- CNI´Â Å¬·¯½ºÅÍ À¯Çüº°·Î ¸í½ÃÇÑ´Ù. MicroK8s¸¦ Á¦¿ÜÇÑ Kubernetes Å¬·¯½ºÅÍ´Â Flannel·Î ÀüÈ¯ÇÑ´Ù. MicroK8s´Â ±âº» CNI¸¦ À¯ÁöÇÑ´Ù.
-- ¹öÀüÀº latest°¡ ¾Æ´Ï¶ó os ¹öÀü ¹× k8s ¹öÀü ¹× °ü·Ã ¼³Ä¡¿ä¼Ò°£ È£È¯¼ºÀÌ °¡Àå ¾ÈÁ¤ÀûÀÎ ¹öÀüÀ» ¼±ÅÃÇÑ´Ù.
-- `kvm/ubuntu/kubeadm/gpu`´Â ¿¹¿Ü·Î µĞ´Ù. ±âÁ¸ VM »ı¼º/SSH ±â¹İ Èå¸§Àº À¯ÁöÇÏµÇ, À§ÇèÇÑ cleanup°ú latest »ç¿ëÀº Á¦°ÅÇÏ°í ÇÊ¿äÇÑ ÀÌÀ¯¸¦ ¹®¼­È­ÇÑ´Ù.
-
-
-
-## Ä¡¸íÀû ¼öÁ¤ Ç×¸ñ
-
-- [ ] `ubuntu/kubeadm/Vagrantfile`ÀÇ kubeadm °øÅë ÇÁ·ÎºñÀú´× ½ºÅ©¸³Æ® °æ·Î¸¦ ¼öÁ¤ÇÑ´Ù.
-  - ÇöÀç È£Ãâ: `./kubeadm-common.sh`
-  - ½ÇÁ¦ Á¸Àç ÆÄÀÏ: `./kubeadm-setup.sh`
-  - ¼öÁ¤ ¿äÃ»: VagrantfileÀÇ shell provision path¸¦ ½ÇÁ¦ ÆÄÀÏ¸íÀÎ `./kubeadm-setup.sh`·Î º¯°æÇÏ°í, ÀÌÈÄ ÀÎÀÚ ¼ø¼­°¡ `kubeadm-setup.sh`ÀÇ ±â´ë°ª°ú ÀÏÄ¡ÇÏ´ÂÁö °ËÁõÇÑ´Ù.
+- ê¸°ì¡´ ë°©ì‹ê³¼ ì‹ ê·œ ë°©ì‹ì„ ë™ì‹œì— ì‚´ë¦¬ëŠ” ì™„ì¶© êµ¬í˜„ì€ ë„£ì§€ ì•ŠëŠ”ë‹¤.
+- í´ëŸ¬ìŠ¤í„° ìœ í˜•ë³„ë¡œ í‘œì¤€ì ì¸ í•œ ê°€ì§€ êµ¬í˜„ ë°©ì‹ì„ ì„ íƒí•˜ê³ , ì¶©ëŒí•˜ê±°ë‚˜ ìœ„í—˜í•œ ê¸°ì¡´ ê²½ë¡œëŠ” ì œê±°í•œë‹¤.
+- ë…¸ë“œ ê°„ ì‘ì—…ì€ ì§ì ‘ SSH ëª…ë ¹ìœ¼ë¡œ ì²˜ë¦¬í•˜ì§€ ì•ŠëŠ”ë‹¤. ë‹¨, `kvm/ubuntu/kubeadm/gpu`ëŠ” ì˜ˆì™¸ë¡œ ë‘”ë‹¤.
+- ë…¸ë“œ ê°„ ì‘ì—…ì€ Ansible inventoryì— master/worker/storage ì—­í• ì„ ì •ì˜í•˜ê³ , Ansible playbookì´ ê° ëŒ€ìƒ ë…¸ë“œì—ì„œ ì‹¤í–‰í•˜ëŠ” ë°©ì‹ìœ¼ë¡œ í†µì¼í•œë‹¤. ë‹¨, `kvm/ubuntu/kubeadm/gpu`ëŠ” ì˜ˆì™¸ë¡œ ë‘”ë‹¤.
+- CNIëŠ” í´ëŸ¬ìŠ¤í„° ìœ í˜•ë³„ë¡œ ëª…ì‹œí•œë‹¤. MicroK8së¥¼ ì œì™¸í•œ Kubernetes í´ëŸ¬ìŠ¤í„°ëŠ” Flannelë¡œ ì „í™˜í•œë‹¤. MicroK8sëŠ” ê¸°ë³¸ CNIë¥¼ ìœ ì§€í•œë‹¤.
+- ë²„ì „ì€ latestê°€ ì•„ë‹ˆë¼ os ë²„ì „ ë° k8s ë²„ì „ ë° ê´€ë ¨ ì„¤ì¹˜ìš”ì†Œê°„ í˜¸í™˜ì„±ì´ ê°€ì¥ ì•ˆì •ì ì¸ ë²„ì „ì„ ì„ íƒí•œë‹¤.
+- `kvm/ubuntu/kubeadm/gpu`ëŠ” ì˜ˆì™¸ë¡œ ë‘”ë‹¤. ê¸°ì¡´ VM ìƒì„±/SSH ê¸°ë°˜ íë¦„ì€ ìœ ì§€í•˜ë˜, ìœ„í—˜í•œ cleanupê³¼ latest ì‚¬ìš©ì€ ì œê±°í•˜ê³  í•„ìš”í•œ ì´ìœ ë¥¼ ë¬¸ì„œí™”í•œë‹¤.
 
 
-- [ ] `vagrant/ubuntu/kubeadm/basic`ÀÇ kubeadm ÀÎÀÚ °è¾àÀ» ¼öÁ¤ÇÑ´Ù.
-  - `kubeadm-setup.sh`´Â `KUBE_VERSION`À» ±â´ëÇÏÁö¸¸ VagrantfileÀº Àü´ŞÇÏÁö ¾Ê°í ÀÖ°í `kubeadm-master.sh`´Â `KUBE_VERSION`, `CALICO_VERSION`À» ±â´ëÇÏÁö¸¸ VagrantfileÀº Àü´ŞÇÏÁö ¾Ê´Â´Ù.
-  - ¼öÁ¤ ¿äÃ»: MicroK8s¸¦ Á¦¿ÜÇÑ Kubernetes Å¬·¯½ºÅÍÀÇ CNI¸¦ Flannel·Î ÅëÀÏÇÑ´Ù. `vagrant/ubuntu/kubeadm/basic`Àº Calico °ü·Ã ÀÎÀÚ¸¦ Á¦°ÅÇÏ°í, Ansible inventory ¶Ç´Â group vars¿¡¼­ Kubernetes ¹öÀü°ú Flannel ¹öÀüÀ» ¸í½ÃÇØ ³Ñ±ä´Ù.
+
+## ì¹˜ëª…ì  ìˆ˜ì • í•­ëª©
+
+- [ ] `ubuntu/kubeadm/Vagrantfile`ì˜ kubeadm ê³µí†µ í”„ë¡œë¹„ì €ë‹ ìŠ¤í¬ë¦½íŠ¸ ê²½ë¡œë¥¼ ìˆ˜ì •í•œë‹¤.
+  - í˜„ì¬ í˜¸ì¶œ: `./kubeadm-common.sh`
+  - ì‹¤ì œ ì¡´ì¬ íŒŒì¼: `./kubeadm-setup.sh`
+  - ìˆ˜ì • ìš”ì²­: Vagrantfileì˜ shell provision pathë¥¼ ì‹¤ì œ íŒŒì¼ëª…ì¸ `./kubeadm-setup.sh`ë¡œ ë³€ê²½í•˜ê³ , ì´í›„ ì¸ì ìˆœì„œê°€ `kubeadm-setup.sh`ì˜ ê¸°ëŒ€ê°’ê³¼ ì¼ì¹˜í•˜ëŠ”ì§€ ê²€ì¦í•œë‹¤.
 
 
-- [ ] Å¬·¯½ºÅÍ ¼³Á¤ ¹æ½Ä¿¡¼­ password/root SSH¸¦ Á¦°ÅÇÑ´Ù.
-  - ´ë»ó:
+- [ ] `vagrant/ubuntu/kubeadm/basic`ì˜ kubeadm ì¸ì ê³„ì•½ì„ ìˆ˜ì •í•œë‹¤.
+  - `kubeadm-setup.sh`ëŠ” `KUBE_VERSION`ì„ ê¸°ëŒ€í•˜ì§€ë§Œ Vagrantfileì€ ì „ë‹¬í•˜ì§€ ì•Šê³  ìˆê³  `kubeadm-master.sh`ëŠ” `KUBE_VERSION`, `CALICO_VERSION`ì„ ê¸°ëŒ€í•˜ì§€ë§Œ Vagrantfileì€ ì „ë‹¬í•˜ì§€ ì•ŠëŠ”ë‹¤.
+  - ìˆ˜ì • ìš”ì²­: MicroK8së¥¼ ì œì™¸í•œ Kubernetes í´ëŸ¬ìŠ¤í„°ì˜ CNIë¥¼ Flannelë¡œ í†µì¼í•œë‹¤. `vagrant/ubuntu/kubeadm/basic`ì€ Calico ê´€ë ¨ ì¸ìë¥¼ ì œê±°í•˜ê³ , Ansible inventory ë˜ëŠ” group varsì—ì„œ Kubernetes ë²„ì „ê³¼ Flannel ë²„ì „ì„ ëª…ì‹œí•´ ë„˜ê¸´ë‹¤.
+
+
+- [ ] í´ëŸ¬ìŠ¤í„° ì„¤ì • ë°©ì‹ì—ì„œ password/root SSHë¥¼ ì œê±°í•œë‹¤.
+  - ëŒ€ìƒ:
     - `ubuntu/kubeadm/kubeadm-setup.sh`
     - `ubuntu/kubeadm/kubeadm-master.sh`
     - `ubuntu/kubespray/kubespray.sh`
@@ -38,71 +38,71 @@
     - `kvm/cephadm/scripts/ceph/cephadm-setup.sh`
     - `centos8/cephfs/common/config.sh`
     - `centos8/cephfs/master_node/kubespray.sh`
-  - ÇöÀç ¹®Á¦: `PermitRootLogin yes`, `PasswordAuthentication yes`, `sshpass`, `expect`, ÇÏµåÄÚµùµÈ `vagrant` ºñ¹Ğ¹øÈ£, `StrictHostKeyChecking=no`°¡ ±âº» °æ·Î¿¡ Æ÷ÇÔµÇ¾î ÀÖ´Ù.
-  - ¼öÁ¤ ¿äÃ»: ³ëµå °£ ÀÛ¾÷¿¡ ´ëÇØ ansible ÀÎº¥Åä¸®·Î Á¢±ÙÇÑ´Ù.
+  - í˜„ì¬ ë¬¸ì œ: `PermitRootLogin yes`, `PasswordAuthentication yes`, `sshpass`, `expect`, í•˜ë“œì½”ë”©ëœ `vagrant` ë¹„ë°€ë²ˆí˜¸, `StrictHostKeyChecking=no`ê°€ ê¸°ë³¸ ê²½ë¡œì— í¬í•¨ë˜ì–´ ìˆë‹¤.
+  - ìˆ˜ì • ìš”ì²­: ë…¸ë“œ ê°„ ì‘ì—…ì— ëŒ€í•´ ansible ì¸ë²¤í† ë¦¬ë¡œ ì ‘ê·¼í•œë‹¤.
 
-- [ ] Ceph OSD µğ½ºÅ© ÃÊ±âÈ­¸¦ ¸í½Ã µğ½ºÅ© ´ë»óÀ¸·Î Á¦ÇÑÇÑ´Ù.
-  - ´ë»ó:
+- [ ] Ceph OSD ë””ìŠ¤í¬ ì´ˆê¸°í™”ë¥¼ ëª…ì‹œ ë””ìŠ¤í¬ ëŒ€ìƒìœ¼ë¡œ ì œí•œí•œë‹¤.
+  - ëŒ€ìƒ:
     - `ubuntu/cephadm/scripts/ceph/cephadm-setup.sh`
     - `kvm/cephadm/scripts/ceph/cephadm-setup.sh`
-  - ÇöÀç ¹®Á¦: `vd[b-z]`, `sd[b-z]` ÀüÃ¼¸¦ ¼øÈ¸ÇÏ¸ç `sgdisk --zap-all`À» ½ÇÇàÇÑ´Ù.
-  - ¼öÁ¤ ¿äÃ»: inventory ¶Ç´Â group vars¿¡ OSD µğ½ºÅ© ¸ñ·ÏÀ» ¼±¾ğÇÏ°í, ¼±¾ğµÈ µğ½ºÅ©¸¸ wipeÇÑ´Ù. ¼±¾ğµÇÁö ¾ÊÀº µğ½ºÅ©°¡ ¹ß°ßµÇ¸é ÀÚµ¿ Ã³¸®ÇÏÁö ¸»°í °æ°í ¶Ç´Â ½ÇÆĞ·Î ³¡³½´Ù.
+  - í˜„ì¬ ë¬¸ì œ: `vd[b-z]`, `sd[b-z]` ì „ì²´ë¥¼ ìˆœíšŒí•˜ë©° `sgdisk --zap-all`ì„ ì‹¤í–‰í•œë‹¤.
+  - ìˆ˜ì • ìš”ì²­: inventory ë˜ëŠ” group varsì— OSD ë””ìŠ¤í¬ ëª©ë¡ì„ ì„ ì–¸í•˜ê³ , ì„ ì–¸ëœ ë””ìŠ¤í¬ë§Œ wipeí•œë‹¤. ì„ ì–¸ë˜ì§€ ì•Šì€ ë””ìŠ¤í¬ê°€ ë°œê²¬ë˜ë©´ ìë™ ì²˜ë¦¬í•˜ì§€ ë§ê³  ê²½ê³  ë˜ëŠ” ì‹¤íŒ¨ë¡œ ëë‚¸ë‹¤.
 
 
-- [ ] ·ÎÄÃ ·±Å¸ÀÓ »óÅÂ ÆÄÀÏÀ» Á¤¸®ÇÏ°í ignore »óÅÂ¸¦ È®ÀÎÇÑ´Ù.
-  - ´ë»ó:
+- [ ] ë¡œì»¬ ëŸ°íƒ€ì„ ìƒíƒœ íŒŒì¼ì„ ì •ë¦¬í•˜ê³  ignore ìƒíƒœë¥¼ í™•ì¸í•œë‹¤.
+  - ëŒ€ìƒ:
     - `ubuntu/cephadm/.vagrant`
     - `kvm/cephadm/.vagrant`
     - `kvm/cephadm/.claude/settings.local.json`
     - `kvm/kubeadm_GPU/.claude/settings.local.json`
-  - ÇöÀç »óÅÂ: ÇØ´ç °æ·Î´Â ·ÎÄÃ¿¡´Â Á¸ÀçÇÏÁö¸¸ `.gitignore`¿¡ ÀÇÇØ ignoreµÇ°í ÀÖÀ¸¸ç, ÇöÀç `git ls-files` ±âÁØÀ¸·Î ÃßÀûµÇÁö´Â ¾Ê´Â´Ù.
-  - ¼öÁ¤ ¿äÃ»: ·ÎÄÃ »óÅÂ ÆÄÀÏÀº ÀúÀå¼Ò »êÃâ¹°¿¡¼­ Á¦¿ÜÇÑ´Ù. ÃßÀû ÁßÀÎ Ç×¸ñÀÌ ¹ß°ßµÇ¸é `git rm --cached`·Î ÃßÀû¸¸ Á¦°ÅÇÏ°í, `.gitignore`°¡ °è¼Ó Â÷´ÜÇÏ´ÂÁö `git check-ignore -v`·Î °ËÁõÇÑ´Ù.
+  - í˜„ì¬ ìƒíƒœ: í•´ë‹¹ ê²½ë¡œëŠ” ë¡œì»¬ì—ëŠ” ì¡´ì¬í•˜ì§€ë§Œ `.gitignore`ì— ì˜í•´ ignoreë˜ê³  ìˆìœ¼ë©°, í˜„ì¬ `git ls-files` ê¸°ì¤€ìœ¼ë¡œ ì¶”ì ë˜ì§€ëŠ” ì•ŠëŠ”ë‹¤.
+  - ìˆ˜ì • ìš”ì²­: ë¡œì»¬ ìƒíƒœ íŒŒì¼ì€ ì €ì¥ì†Œ ì‚°ì¶œë¬¼ì—ì„œ ì œì™¸í•œë‹¤. ì¶”ì  ì¤‘ì¸ í•­ëª©ì´ ë°œê²¬ë˜ë©´ `git rm --cached`ë¡œ ì¶”ì ë§Œ ì œê±°í•˜ê³ , `.gitignore`ê°€ ê³„ì† ì°¨ë‹¨í•˜ëŠ”ì§€ `git check-ignore -v`ë¡œ ê²€ì¦í•œë‹¤.
 
-- [ ] Å¬·¯½ºÅÍº° Ansible inventory¸¦ Ãß°¡ÇÑ´Ù.
-  - ´ë»ó:
+- [ ] í´ëŸ¬ìŠ¤í„°ë³„ Ansible inventoryë¥¼ ì¶”ê°€í•œë‹¤.
+  - ëŒ€ìƒ:
     - `vagrant/ubuntu/kubeadm/basic`
     - `vagrant/ubuntu/kubespray/rook-ceph`
     - `../storage/vagrant/ubuntu/cephadm/basic`
     - `../storage/kvm/ubuntu/cephadm/basic`
     - `../storage/vagrant/centos8/cephfs/kubespray`
-  - ÇöÀç ¹®Á¦: ³ëµå ÀÌ¸§, IP, ¿ªÇÒ, worker ¼ö, storage/gpu ¿©ºÎ°¡ Vagrantfile°ú ½ºÅ©¸³Æ® ³»ºÎ °ªÀ¸·Î Èğ¾îÁ® ÀÖ´Ù.
-  - ¼öÁ¤ ¿äÃ»: Å¬·¯½ºÅÍº° `inventory.yml` ¶Ç´Â `inventory.ini`¸¦ Ãß°¡ÇÏ°í `control_plane`, `workers`, `storage` °°Àº ±×·ìÀ» Á¤ÀÇÇÑ´Ù. ³ëµå ¼ö, IP, ¿ªÇÒ, ¹öÀü, ³×Æ®¿öÅ© ´ë¿ª µî Å¬·¯½ºÅÍ ¼³Á¤ Á¤º¸´Â Ansible inventory ¶Ç´Â group vars¿¡¼­ ´ÜÀÏ ±âÁØÀ¸·Î °ü¸®ÇÑ´Ù. `kvm/ubuntu/kubeadm/gpu`´Â ¿¹¿Ü·Î µÎ°í ±âÁ¸ ½ºÅ©¸³Æ® Èå¸§À» ¹®¼­È­ÇÑ´Ù.
+  - í˜„ì¬ ë¬¸ì œ: ë…¸ë“œ ì´ë¦„, IP, ì—­í• , worker ìˆ˜, storage/gpu ì—¬ë¶€ê°€ Vagrantfileê³¼ ìŠ¤í¬ë¦½íŠ¸ ë‚´ë¶€ ê°’ìœ¼ë¡œ í©ì–´ì ¸ ìˆë‹¤.
+  - ìˆ˜ì • ìš”ì²­: í´ëŸ¬ìŠ¤í„°ë³„ `inventory.yml` ë˜ëŠ” `inventory.ini`ë¥¼ ì¶”ê°€í•˜ê³  `control_plane`, `workers`, `storage` ê°™ì€ ê·¸ë£¹ì„ ì •ì˜í•œë‹¤. ë…¸ë“œ ìˆ˜, IP, ì—­í• , ë²„ì „, ë„¤íŠ¸ì›Œí¬ ëŒ€ì—­ ë“± í´ëŸ¬ìŠ¤í„° ì„¤ì • ì •ë³´ëŠ” Ansible inventory ë˜ëŠ” group varsì—ì„œ ë‹¨ì¼ ê¸°ì¤€ìœ¼ë¡œ ê´€ë¦¬í•œë‹¤. `kvm/ubuntu/kubeadm/gpu`ëŠ” ì˜ˆì™¸ë¡œ ë‘ê³  ê¸°ì¡´ ìŠ¤í¬ë¦½íŠ¸ íë¦„ì„ ë¬¸ì„œí™”í•œë‹¤.
 
 
-## ³ôÀº ¿ì¼±¼øÀ§ÀÇ Á¤È®¼º ¼öÁ¤
+## ë†’ì€ ìš°ì„ ìˆœìœ„ì˜ ì •í™•ì„± ìˆ˜ì •
 
-- [ ] `../storage/vagrant/ubuntu/cephadm/basic`¿Í `../storage/kvm/ubuntu/cephadm/basic`ÀÇ Â÷ÀÌ¸¦ ¸íÈ®È÷ ¹®¼­È­ÇÑ´Ù.
-  - ´ë»ó:
+- [ ] `../storage/vagrant/ubuntu/cephadm/basic`ì™€ `../storage/kvm/ubuntu/cephadm/basic`ì˜ ì°¨ì´ë¥¼ ëª…í™•íˆ ë¬¸ì„œí™”í•œë‹¤.
+  - ëŒ€ìƒ:
     - `../storage/vagrant/ubuntu/cephadm/basic`
     - `../storage/kvm/ubuntu/cephadm/basic`
-  - ÇöÀç ¹®Á¦: µÎ Å¬·¯½ºÅÍ Á¤ÀÇÀÇ Ceph ½ºÅ©¸³Æ®¿Í ºÎ°¡ ÆÄÀÏÀÌ À¯»çÇÏÁö¸¸, provider¿Í ½ÇÇà È¯°æ Â÷ÀÌ°¡ ¹®¼­¿¡¼­ ¸íÈ®È÷ µå·¯³ªÁö ¾Ê´Â´Ù.
-  - ¼öÁ¤ ¿äÃ»: µÎ ±¸ÇöÀº º°µµ Å¬·¯½ºÅÍ Á¤ÀÇ·Î À¯ÁöÇÑ´Ù. ´Ù¸¸ `../storage/vagrant/ubuntu/cephadm/basic`¿Í `../storage/kvm/ubuntu/cephadm/basic`ÀÇ provider, VM µğ½ºÅ© ¹æ½Ä, ³×Æ®¿öÅ©, inventory, ½ÇÇà ÀüÁ¦ Â÷ÀÌ¸¦ README ¶Ç´Â °¢ Å¬·¯½ºÅÍ ¹®¼­¿¡ ¸íÈ®È÷ Àû´Â´Ù.
+  - í˜„ì¬ ë¬¸ì œ: ë‘ í´ëŸ¬ìŠ¤í„° ì •ì˜ì˜ Ceph ìŠ¤í¬ë¦½íŠ¸ì™€ ë¶€ê°€ íŒŒì¼ì´ ìœ ì‚¬í•˜ì§€ë§Œ, providerì™€ ì‹¤í–‰ í™˜ê²½ ì°¨ì´ê°€ ë¬¸ì„œì—ì„œ ëª…í™•íˆ ë“œëŸ¬ë‚˜ì§€ ì•ŠëŠ”ë‹¤.
+  - ìˆ˜ì • ìš”ì²­: ë‘ êµ¬í˜„ì€ ë³„ë„ í´ëŸ¬ìŠ¤í„° ì •ì˜ë¡œ ìœ ì§€í•œë‹¤. ë‹¤ë§Œ `../storage/vagrant/ubuntu/cephadm/basic`ì™€ `../storage/kvm/ubuntu/cephadm/basic`ì˜ provider, VM ë””ìŠ¤í¬ ë°©ì‹, ë„¤íŠ¸ì›Œí¬, inventory, ì‹¤í–‰ ì „ì œ ì°¨ì´ë¥¼ README ë˜ëŠ” ê° í´ëŸ¬ìŠ¤í„° ë¬¸ì„œì— ëª…í™•íˆ ì ëŠ”ë‹¤.
 
-- [ ] Kubespray worker ¼ö¿Í ÀÎº¥Åä¸® »ı¼ºÀ» ÀÏÄ¡½ÃÅ²´Ù.
-  - ´ë»ó:
+- [ ] Kubespray worker ìˆ˜ì™€ ì¸ë²¤í† ë¦¬ ìƒì„±ì„ ì¼ì¹˜ì‹œí‚¨ë‹¤.
+  - ëŒ€ìƒ:
     - `ubuntu/kubespray/Vagrantfile`
     - `ubuntu/kubespray/kubespray.sh`
-  - ÇöÀç ¹®Á¦: `NODE_NUMBER = K8S_CLUSTER.size()`´Â master±îÁö Æ÷ÇÔÇÏÁö¸¸, inventory´Â worker 3°³·Î ÇÏµåÄÚµùµÇ¾î ÀÖ´Ù.
-  - ¼öÁ¤ ¿äÃ»: Á¤º¸¸¦ ansible ÀÎº¥Åä¸®¿¡¼­ ÀüÃ¼ ÅëÇÕ °ü¸®ÇÑ´Ù.
+  - í˜„ì¬ ë¬¸ì œ: `NODE_NUMBER = K8S_CLUSTER.size()`ëŠ” masterê¹Œì§€ í¬í•¨í•˜ì§€ë§Œ, inventoryëŠ” worker 3ê°œë¡œ í•˜ë“œì½”ë”©ë˜ì–´ ìˆë‹¤.
+  - ìˆ˜ì • ìš”ì²­: ì •ë³´ë¥¼ ansible ì¸ë²¤í† ë¦¬ì—ì„œ ì „ì²´ í†µí•© ê´€ë¦¬í•œë‹¤.
 
 
-- [ ] Kubespray ÇÁ·ÎºñÀú´×À» Àç½ÇÇà °¡´ÉÇÏ°Ô Á¤¸®ÇÑ´Ù.
-  - ´ë»ó: `ubuntu/kubespray/kubespray.sh`
-  - ÇöÀç ¹®Á¦: `ssh-keygen`, `git clone`, inventory º¹»ç, ÆĞÅ°Áö ¼³Ä¡¸¦ ±âÁ¸ »óÅÂ È®ÀÎ ¾øÀÌ Ç×»ó ½ÇÇàÇÑ´Ù.
-  - ¼öÁ¤ ¿äÃ»: SSH Å°, Kubespray checkout, inventory, Python venv, ÆĞÅ°Áö ¼³Ä¡´Â Á¸Àç ¿©ºÎ¿Í ¹öÀüÀ» È®ÀÎÇÑ µÚ ÇÊ¿äÇÑ °æ¿ì¿¡¸¸ »ı¼º/°»½ÅÇÑ´Ù. Àç½ÇÇà ½Ã ±âÁ¸ Á¤»ó »óÅÂ¸¦ µ¤¾î¾²Áö ¾Êµµ·Ï ÇÑ´Ù.
+- [ ] Kubespray í”„ë¡œë¹„ì €ë‹ì„ ì¬ì‹¤í–‰ ê°€ëŠ¥í•˜ê²Œ ì •ë¦¬í•œë‹¤.
+  - ëŒ€ìƒ: `ubuntu/kubespray/kubespray.sh`
+  - í˜„ì¬ ë¬¸ì œ: `ssh-keygen`, `git clone`, inventory ë³µì‚¬, íŒ¨í‚¤ì§€ ì„¤ì¹˜ë¥¼ ê¸°ì¡´ ìƒíƒœ í™•ì¸ ì—†ì´ í•­ìƒ ì‹¤í–‰í•œë‹¤.
+  - ìˆ˜ì • ìš”ì²­: SSH í‚¤, Kubespray checkout, inventory, Python venv, íŒ¨í‚¤ì§€ ì„¤ì¹˜ëŠ” ì¡´ì¬ ì—¬ë¶€ì™€ ë²„ì „ì„ í™•ì¸í•œ ë’¤ í•„ìš”í•œ ê²½ìš°ì—ë§Œ ìƒì„±/ê°±ì‹ í•œë‹¤. ì¬ì‹¤í–‰ ì‹œ ê¸°ì¡´ ì •ìƒ ìƒíƒœë¥¼ ë®ì–´ì“°ì§€ ì•Šë„ë¡ í•œë‹¤.
 
 
-- [ ] ´Ù¿î·ÎµåÇÑ Kubernetes ¸Å´ÏÆä½ºÆ®¸¦ `sed`·Î Á÷Á¢ ¼öÁ¤ÇÏ´Â ¹æ½ÄÀ» Á¦°ÅÇÑ´Ù.
-  - ´ë»ó:
+- [ ] ë‹¤ìš´ë¡œë“œí•œ Kubernetes ë§¤ë‹ˆí˜ìŠ¤íŠ¸ë¥¼ `sed`ë¡œ ì§ì ‘ ìˆ˜ì •í•˜ëŠ” ë°©ì‹ì„ ì œê±°í•œë‹¤.
+  - ëŒ€ìƒ:
     - `ubuntu/kubeadm/kubeadm-master.sh`
     - `ubuntu/kubespray/kubespray.sh`
     - `centos8/cephfs/master_node/kubespray.sh`
-  - ÇöÀç ¹®Á¦: Calico/MetalLB ¸Å´ÏÆä½ºÆ®¸¦ ´Ù¿î·ÎµåÇÑ µÚ Áï½Ã ¼öÁ¤ ¶Ç´Â Àû¿ëÇÑ´Ù.
-  - ¼öÁ¤ ¿äÃ»: MicroK8s¸¦ Á¦¿ÜÇÑ Kubernetes Å¬·¯½ºÅÍ´Â Flannel·Î ¼öÁ¤ÇÏ°í ÁöÁ¤µÈ k8s ¹öÀü ¹× °ü·Ã ¿ä¼Ò ¹öÀüÀ» Âü°íÇÏ¿© °¡Àå ¾ÈÁ¤ÀûÀÎ ¹öÀüÀ¸·Î °íÁ¤ÇÑ´Ù. ÀÇµµÇÑ ¼³Á¤Àº ansible ÀÎº¥Åä¸®¸¦ ÀÌ¿ëÇÑ´Ù.
+  - í˜„ì¬ ë¬¸ì œ: Calico/MetalLB ë§¤ë‹ˆí˜ìŠ¤íŠ¸ë¥¼ ë‹¤ìš´ë¡œë“œí•œ ë’¤ ì¦‰ì‹œ ìˆ˜ì • ë˜ëŠ” ì ìš©í•œë‹¤.
+  - ìˆ˜ì • ìš”ì²­: MicroK8së¥¼ ì œì™¸í•œ Kubernetes í´ëŸ¬ìŠ¤í„°ëŠ” Flannelë¡œ ìˆ˜ì •í•˜ê³  ì§€ì •ëœ k8s ë²„ì „ ë° ê´€ë ¨ ìš”ì†Œ ë²„ì „ì„ ì°¸ê³ í•˜ì—¬ ê°€ì¥ ì•ˆì •ì ì¸ ë²„ì „ìœ¼ë¡œ ê³ ì •í•œë‹¤. ì˜ë„í•œ ì„¤ì •ì€ ansible ì¸ë²¤í† ë¦¬ë¥¼ ì´ìš©í•œë‹¤.
 
 
-- [ ] ¿ÜºÎ ¼³Ä¡ ÆÄÀÏÀÇ `latest` »ç¿ëÀ» Á¦°ÅÇÏ°í ¹öÀüÀ» °íÁ¤ÇÑ´Ù.
-  - ¿¹½Ã ´ë»ó:
+- [ ] ì™¸ë¶€ ì„¤ì¹˜ íŒŒì¼ì˜ `latest` ì‚¬ìš©ì„ ì œê±°í•˜ê³  ë²„ì „ì„ ê³ ì •í•œë‹¤.
+  - ì˜ˆì‹œ ëŒ€ìƒ:
     - `centos8/minikube/minikube.sh`
     - `rocky/minikube/minikube.sh`
     - `centos8/minikube/kubevirt/kubevirt_install.sh`
@@ -114,95 +114,95 @@
     - `ubuntu/cephadm/scripts/ceph/monitoring-setup.sh`
     - `kvm/cephadm/scripts/ceph/monitoring-setup.sh`
     - `centos8/cephfs/master_node/kubespray.sh`
-  - ¼öÁ¤ ¿äÃ»: ¹öÀüÀº Å¬·¯½ºÅÍ Á¤ÀÇµÈ k8s ¹öÀü ¹× os ¹öÀü°úÀÇ È£È¯¼ºÀ» °¡Àå ¾ÈÁ¤ÀûÀ¸·Î Áö¿øÇÏ´Â ¹öÀüÀ¸·Î °íÁ¤ÇÑ´Ù.
+  - ìˆ˜ì • ìš”ì²­: ë²„ì „ì€ í´ëŸ¬ìŠ¤í„° ì •ì˜ëœ k8s ë²„ì „ ë° os ë²„ì „ê³¼ì˜ í˜¸í™˜ì„±ì„ ê°€ì¥ ì•ˆì •ì ìœ¼ë¡œ ì§€ì›í•˜ëŠ” ë²„ì „ìœ¼ë¡œ ê³ ì •í•œë‹¤.
 
-## Kubernetes ±¸Çö ¼öÁ¤
+## Kubernetes êµ¬í˜„ ìˆ˜ì •
 
-- [ ] kubeadm Å¬·¯½ºÅÍº° CNI¸¦ ÇÏ³ª·Î ¸í½ÃÇÑ´Ù.
-  - ÇöÀç »óÅÂ: `vagrant/ubuntu/kubeadm/basic`Àº Calico¸¦ »ç¿ëÇÑ´Ù.
-  - ÇöÀç »óÅÂ: `kvm/ubuntu/kubeadm/gpu`´Â FlannelÀ» »ç¿ëÇÑ´Ù.
-  - ¼öÁ¤ ¿äÃ»: MicroK8s¸¦ Á¦¿ÜÇÑ Kubernetes Å¬·¯½ºÅÍ´Â Flannel·Î ÀüÈ¯ÇÑ´Ù. `vagrant/ubuntu/kubeadm/basic`Àº Calico¸¦ Á¦°ÅÇÏ°í Flannel·Î ÀüÈ¯ÇÑ´Ù. `kvm/ubuntu/kubeadm/gpu`´Â ¿¹¿Ü ¿øÄ¢¿¡ µû¶ó ±âÁ¸ Èå¸§Àº À¯ÁöÇÏµÇ Flannel ¸Å´ÏÆä½ºÆ® ¹öÀü¸¸ °íÁ¤ÇÑ´Ù. MicroK8s´Â ±âº» CNI¸¦ À¯ÁöÇÑ´Ù.
+- [ ] kubeadm í´ëŸ¬ìŠ¤í„°ë³„ CNIë¥¼ í•˜ë‚˜ë¡œ ëª…ì‹œí•œë‹¤.
+  - í˜„ì¬ ìƒíƒœ: `vagrant/ubuntu/kubeadm/basic`ì€ Calicoë¥¼ ì‚¬ìš©í•œë‹¤.
+  - í˜„ì¬ ìƒíƒœ: `kvm/ubuntu/kubeadm/gpu`ëŠ” Flannelì„ ì‚¬ìš©í•œë‹¤.
+  - ìˆ˜ì • ìš”ì²­: MicroK8së¥¼ ì œì™¸í•œ Kubernetes í´ëŸ¬ìŠ¤í„°ëŠ” Flannelë¡œ ì „í™˜í•œë‹¤. `vagrant/ubuntu/kubeadm/basic`ì€ Calicoë¥¼ ì œê±°í•˜ê³  Flannelë¡œ ì „í™˜í•œë‹¤. `kvm/ubuntu/kubeadm/gpu`ëŠ” ì˜ˆì™¸ ì›ì¹™ì— ë”°ë¼ ê¸°ì¡´ íë¦„ì€ ìœ ì§€í•˜ë˜ Flannel ë§¤ë‹ˆí˜ìŠ¤íŠ¸ ë²„ì „ë§Œ ê³ ì •í•œë‹¤. MicroK8sëŠ” ê¸°ë³¸ CNIë¥¼ ìœ ì§€í•œë‹¤.
 
-- [ ] `ubuntu/kubeadm/kubeadm-master.sh`¿¡¼­ master°¡ password SSH·Î worker joinÀ» ¼öÇàÇÏ´Â ¹æ½ÄÀ» Á¦°ÅÇÑ´Ù.
-  - ÇöÀç ¹®Á¦: master°¡ worker¸¦ ¼øÈ¸ÇÏ¸ç `ssh ... sudo kubeadm join`À» ½ÇÇàÇÑ´Ù.
-  - ¼öÁ¤ ¿äÃ»: ³ëµå°£ ÀÛ¾÷Àº Ansible ÀÎº¥Åä¸® ¹æ½ÄÀ¸·Î Àü´ŞÇÑ´Ù.
+- [ ] `ubuntu/kubeadm/kubeadm-master.sh`ì—ì„œ masterê°€ password SSHë¡œ worker joinì„ ìˆ˜í–‰í•˜ëŠ” ë°©ì‹ì„ ì œê±°í•œë‹¤.
+  - í˜„ì¬ ë¬¸ì œ: masterê°€ workerë¥¼ ìˆœíšŒí•˜ë©° `ssh ... sudo kubeadm join`ì„ ì‹¤í–‰í•œë‹¤.
+  - ìˆ˜ì • ìš”ì²­: ë…¸ë“œê°„ ì‘ì—…ì€ Ansible ì¸ë²¤í† ë¦¬ ë°©ì‹ìœ¼ë¡œ ì „ë‹¬í•œë‹¤.
 
-- [ ] root ºñ¹Ğ¹øÈ£ º¯°æ°ú sudoers Á÷Á¢ append¸¦ Á¦°ÅÇÑ´Ù.
-  - ´ë»ó:
+- [ ] root ë¹„ë°€ë²ˆí˜¸ ë³€ê²½ê³¼ sudoers ì§ì ‘ appendë¥¼ ì œê±°í•œë‹¤.
+  - ëŒ€ìƒ:
     - `ubuntu/kubeadm/kubeadm-setup.sh`
     - `ubuntu/cephadm/scripts/ceph/common-setup.sh`
     - `ubuntu/cephadm/scripts/ceph/cephadm-setup.sh`
     - `kvm/cephadm/scripts/ceph/common-setup.sh`
     - `kvm/cephadm/scripts/ceph/cephadm-setup.sh`
     - `centos8/cephfs/common/config.sh`
-  - ¼öÁ¤ ¿äÃ»: vagrant ±âº» sudo¸¸ ¾²°í, root ºñ¹Ğ¹øÈ£ º¯°æ, root SSH Çã¿ë, password auth Çã¿ë, sudoers append´Â Á¦°Å
+  - ìˆ˜ì • ìš”ì²­: vagrant ê¸°ë³¸ sudoë§Œ ì“°ê³ , root ë¹„ë°€ë²ˆí˜¸ ë³€ê²½, root SSH í—ˆìš©, password auth í—ˆìš©, sudoers appendëŠ” ì œê±°
 
-- [ ] kubeadm reset/destroy µ¿ÀÛÀº rollback ½ºÅ©¸³Æ®·Î¸¸ ÀÌµ¿ÇÑ´Ù.
-  - ´ë»ó:
+- [ ] kubeadm reset/destroy ë™ì‘ì€ rollback ìŠ¤í¬ë¦½íŠ¸ë¡œë§Œ ì´ë™í•œë‹¤.
+  - ëŒ€ìƒ:
     - `kvm/kubeadm_GPU/04_worker_join.sh`
     - `kvm/kubeadm_GPU/06_rollback.sh`
-  - ÇöÀç ¹®Á¦: worker join °æ·Î¿¡¼­ ÀÌÀü kubeadm »óÅÂ¸¦ ¹ß°ßÇÏ¸é cleanupÀ» ¼öÇàÇÑ´Ù.
-  - ¼öÁ¤ ¿äÃ»: ÆÄ±«Àû resetÀº rollback/destroy Èå¸§¿¡¸¸ µĞ´Ù. ÀÏ¹İ join °æ·Î¿¡¼­´Â ½ÇÆĞ¸¦ ¸íÈ®È÷ ¹İÈ¯ÇÑ´Ù.
+  - í˜„ì¬ ë¬¸ì œ: worker join ê²½ë¡œì—ì„œ ì´ì „ kubeadm ìƒíƒœë¥¼ ë°œê²¬í•˜ë©´ cleanupì„ ìˆ˜í–‰í•œë‹¤.
+  - ìˆ˜ì • ìš”ì²­: íŒŒê´´ì  resetì€ rollback/destroy íë¦„ì—ë§Œ ë‘”ë‹¤. ì¼ë°˜ join ê²½ë¡œì—ì„œëŠ” ì‹¤íŒ¨ë¥¼ ëª…í™•íˆ ë°˜í™˜í•œë‹¤.
 
-- [ ] `kvm/kubeadm_GPU/02_node_setup.sh`ÀÇ NVIDIA runtime ¼öÁ¤ ¹æ½ÄÀ» Àç°ËÅäÇÑ´Ù.
-  - ÇöÀç ¹®Á¦: NVIDIA runtime config¸¦ legacy mode·Î ¹Ù²Ù°í containerd import µ¿ÀÛ±îÁö ¼öÁ¤ÇÑ´Ù.
-  - ¼öÁ¤ ¿äÃ»: ÀÌ Å¬·¯½ºÅÍ´Â ¿¹¿Ü·Î µÎ°í ±âÁ¸ ¼³Á¤ º¯°æÀº À¯ÁöÇÑ´Ù. ´Ù¸¸ legacy mode, disable-require, containerd imports ¼öÁ¤ÀÌ ¿Ö ÇÊ¿äÇÑÁö ½ºÅ©¸³Æ® ÁÖ¼®°ú README¿¡ ¼³¸íÇÑ´Ù.
+- [ ] `kvm/kubeadm_GPU/02_node_setup.sh`ì˜ NVIDIA runtime ìˆ˜ì • ë°©ì‹ì„ ì¬ê²€í† í•œë‹¤.
+  - í˜„ì¬ ë¬¸ì œ: NVIDIA runtime configë¥¼ legacy modeë¡œ ë°”ê¾¸ê³  containerd import ë™ì‘ê¹Œì§€ ìˆ˜ì •í•œë‹¤.
+  - ìˆ˜ì • ìš”ì²­: ì´ í´ëŸ¬ìŠ¤í„°ëŠ” ì˜ˆì™¸ë¡œ ë‘ê³  ê¸°ì¡´ ì„¤ì • ë³€ê²½ì€ ìœ ì§€í•œë‹¤. ë‹¤ë§Œ legacy mode, disable-require, containerd imports ìˆ˜ì •ì´ ì™œ í•„ìš”í•œì§€ ìŠ¤í¬ë¦½íŠ¸ ì£¼ì„ê³¼ READMEì— ì„¤ëª…í•œë‹¤.
 
-- [ ] `kvm/kubeadm_GPU/03_master_init.sh`ÀÇ Flannel ¸Å´ÏÆä½ºÆ® ¹öÀüÀ» °íÁ¤ÇÑ´Ù.
-  - ÇöÀç ¹®Á¦: `releases/latest/download/kube-flannel.yml`À» Àû¿ëÇÑ´Ù.
-  - ¼öÁ¤ ¿äÃ»: Flannel ¸±¸®½º ¹öÀüÀ» º¯¼ö·Î °íÁ¤ÇÏ°í, ÇØ´ç ¹öÀüÀÇ ¸Å´ÏÆä½ºÆ®¸¦ ÀúÀå¼Ò¿¡ º¸°üÇÏ°Å³ª °íÁ¤ URL·Î Àû¿ëÇÑ´Ù. °¡´ÉÇÏ¸é Àû¿ë Àü checksum ¶Ç´Â ÆÄÀÏ Á¸Àç ¿©ºÎ¸¦ °ËÁõÇÑ´Ù.
+- [ ] `kvm/kubeadm_GPU/03_master_init.sh`ì˜ Flannel ë§¤ë‹ˆí˜ìŠ¤íŠ¸ ë²„ì „ì„ ê³ ì •í•œë‹¤.
+  - í˜„ì¬ ë¬¸ì œ: `releases/latest/download/kube-flannel.yml`ì„ ì ìš©í•œë‹¤.
+  - ìˆ˜ì • ìš”ì²­: Flannel ë¦´ë¦¬ìŠ¤ ë²„ì „ì„ ë³€ìˆ˜ë¡œ ê³ ì •í•˜ê³ , í•´ë‹¹ ë²„ì „ì˜ ë§¤ë‹ˆí˜ìŠ¤íŠ¸ë¥¼ ì €ì¥ì†Œì— ë³´ê´€í•˜ê±°ë‚˜ ê³ ì • URLë¡œ ì ìš©í•œë‹¤. ê°€ëŠ¥í•˜ë©´ ì ìš© ì „ checksum ë˜ëŠ” íŒŒì¼ ì¡´ì¬ ì—¬ë¶€ë¥¼ ê²€ì¦í•œë‹¤.
 
-- [ ] MicroK8s/Kubeflow ¹öÀü°ú ³×Æ®¿öÅ© °¡Á¤À» °íÁ¤ÇÑ´Ù.
-  - ´ë»ó:
+- [ ] MicroK8s/Kubeflow ë²„ì „ê³¼ ë„¤íŠ¸ì›Œí¬ ê°€ì •ì„ ê³ ì •í•œë‹¤.
+  - ëŒ€ìƒ:
     - `host/ubuntu/microk8s/kubeflow-gpu/scripts/cluster/03_microk8s_gpu_addon_install.sh`
     - `host/ubuntu/microk8s/kubeflow-gpu/scripts/cluster/04_juju_kubeflow_lite_install.sh`
-  - ÇöÀç ¹®Á¦: MicroK8s channel°ú MetalLB IP range°¡ Æ¯Á¤ È£½ºÆ® ³×Æ®¿öÅ©¿¡ ÇÏµåÄÚµùµÇ¾î ÀÖ´Ù.
-  - ¼öÁ¤ ¿äÃ»: MicroK8s channel, Juju/Kubeflow ¹öÀü, MetalLB IP range¸¦ Å¬·¯½ºÅÍ ¼³Á¤°ªÀ¸·Î ºĞ¸®ÇÑ´Ù. MicroK8s CNI´Â ±âº»°ªÀ» À¯ÁöÇÏ°í, È£½ºÆ® ³×Æ®¿öÅ©¿¡ ¸ÂÁö ¾Ê´Â ´ë¿ªÀÌ¸é ¼³Ä¡ Àü¿¡ ½ÇÆĞÇÏµµ·Ï °ËÁõÇÑ´Ù.
+  - í˜„ì¬ ë¬¸ì œ: MicroK8s channelê³¼ MetalLB IP rangeê°€ íŠ¹ì • í˜¸ìŠ¤íŠ¸ ë„¤íŠ¸ì›Œí¬ì— í•˜ë“œì½”ë”©ë˜ì–´ ìˆë‹¤.
+  - ìˆ˜ì • ìš”ì²­: MicroK8s channel, Juju/Kubeflow ë²„ì „, MetalLB IP rangeë¥¼ í´ëŸ¬ìŠ¤í„° ì„¤ì •ê°’ìœ¼ë¡œ ë¶„ë¦¬í•œë‹¤. MicroK8s CNIëŠ” ê¸°ë³¸ê°’ì„ ìœ ì§€í•˜ê³ , í˜¸ìŠ¤íŠ¸ ë„¤íŠ¸ì›Œí¬ì— ë§ì§€ ì•ŠëŠ” ëŒ€ì—­ì´ë©´ ì„¤ì¹˜ ì „ì— ì‹¤íŒ¨í•˜ë„ë¡ ê²€ì¦í•œë‹¤.
 
-## Ceph/Rook/storage ¼öÁ¤
+## Ceph/Rook/storage ìˆ˜ì •
 
-- [ ] Ceph public network¿Í cluster network ¼±¾ğÀ» Á¤¸®ÇÑ´Ù.
-  - ´ë»ó:
+- [ ] Ceph public networkì™€ cluster network ì„ ì–¸ì„ ì •ë¦¬í•œë‹¤.
+  - ëŒ€ìƒ:
     - `ubuntu/cephadm/scripts/ceph/common-setup.sh`
     - `kvm/cephadm/scripts/ceph/common-setup.sh`
-  - ÇöÀç ¹®Á¦: `CEPH_PUBLIC_NETWORK`¿Í `CEPH_CLUSTER_NETWORK`°¡ °°Àº CIDR·Î ¼³Á¤µÇ¾î ÀÖ´Ù.
-  - ¼öÁ¤ ¿äÃ»: ÇÁ·ĞÆ® ³×Æ®¿öÅ©¿Í ¹é ³×Æ®¿öÅ© ºĞ¸®¸¦ À§ÇØ ½ÇÁ¦ µÎ ¹øÂ° ³×Æ®¿öÅ©¸¦ Ãß°¡ÇÑ´Ù.
+  - í˜„ì¬ ë¬¸ì œ: `CEPH_PUBLIC_NETWORK`ì™€ `CEPH_CLUSTER_NETWORK`ê°€ ê°™ì€ CIDRë¡œ ì„¤ì •ë˜ì–´ ìˆë‹¤.
+  - ìˆ˜ì • ìš”ì²­: í”„ë¡ íŠ¸ ë„¤íŠ¸ì›Œí¬ì™€ ë°± ë„¤íŠ¸ì›Œí¬ ë¶„ë¦¬ë¥¼ ìœ„í•´ ì‹¤ì œ ë‘ ë²ˆì§¸ ë„¤íŠ¸ì›Œí¬ë¥¼ ì¶”ê°€í•œë‹¤.
 
-- [ ] Ceph monitor/manager placement¸¦ ÀÇµµ¿¡ ¸Â°Ô Á¤¸®ÇÑ´Ù.
-  - ´ë»ó:
+- [ ] Ceph monitor/manager placementë¥¼ ì˜ë„ì— ë§ê²Œ ì •ë¦¬í•œë‹¤.
+  - ëŒ€ìƒ:
     - `ubuntu/cephadm/Vagrantfile`
     - `kvm/cephadm/Vagrantfile`
-  - ÇöÀç »óÅÂ: ÀÛÀº Å×½ºÆ® Å¬·¯½ºÅÍ¿¡¼­ `mon_count = 1`, `mgr_count = 2`¸¦ »ç¿ëÇÑ´Ù.
-  - ¼öÁ¤ ¿äÃ»: ´ÜÀÏ monitor ½Ç½À Å¬·¯½ºÅÍÀÌ´Ù. non-HAÀÓÀ» ¸íÈ®È÷ ¹®¼­È­ÇÑ´Ù.
+  - í˜„ì¬ ìƒíƒœ: ì‘ì€ í…ŒìŠ¤íŠ¸ í´ëŸ¬ìŠ¤í„°ì—ì„œ `mon_count = 1`, `mgr_count = 2`ë¥¼ ì‚¬ìš©í•œë‹¤.
+  - ìˆ˜ì • ìš”ì²­: ë‹¨ì¼ monitor ì‹¤ìŠµ í´ëŸ¬ìŠ¤í„°ì´ë‹¤. non-HAì„ì„ ëª…í™•íˆ ë¬¸ì„œí™”í•œë‹¤.
 
-- [ ] Ceph OSD Àû¿ë¿¡¼­ `--all-available-devices` »ç¿ëÀ» Á¦°ÅÇÑ´Ù.
-  - ´ë»ó:
+- [ ] Ceph OSD ì ìš©ì—ì„œ `--all-available-devices` ì‚¬ìš©ì„ ì œê±°í•œë‹¤.
+  - ëŒ€ìƒ:
     - `ubuntu/cephadm/scripts/ceph/cephadm-setup.sh`
     - `kvm/cephadm/scripts/ceph/cephadm-setup.sh`
-  - ÇöÀç ¹®Á¦: `ceph orch apply osd --all-available-devices`´Â ³ëµå¿¡¼­ »ç¿ë °¡´ÉÇÑ ¸ğµç µğ½ºÅ©¸¦ OSD ÈÄº¸·Î Ãë±ŞÇÑ´Ù.
-  - ¼öÁ¤ ¿äÃ»: Ansible inventory ¶Ç´Â group vars¿¡ ¼±¾ğÇÑ OSD µğ½ºÅ©¸¸ ´ë»óÀ¸·Î OSD¸¦ Àû¿ëÇÑ´Ù. Vagrant provider°¡ ¸¸µç µğ½ºÅ© ¿ÜÀÇ ÀåÄ¡¸¦ ÀÚµ¿ ´ë»óÀ¸·Î »ïÁö ¾Ê´Â´Ù.
+  - í˜„ì¬ ë¬¸ì œ: `ceph orch apply osd --all-available-devices`ëŠ” ë…¸ë“œì—ì„œ ì‚¬ìš© ê°€ëŠ¥í•œ ëª¨ë“  ë””ìŠ¤í¬ë¥¼ OSD í›„ë³´ë¡œ ì·¨ê¸‰í•œë‹¤.
+  - ìˆ˜ì • ìš”ì²­: Ansible inventory ë˜ëŠ” group varsì— ì„ ì–¸í•œ OSD ë””ìŠ¤í¬ë§Œ ëŒ€ìƒìœ¼ë¡œ OSDë¥¼ ì ìš©í•œë‹¤. Vagrant providerê°€ ë§Œë“  ë””ìŠ¤í¬ ì™¸ì˜ ì¥ì¹˜ë¥¼ ìë™ ëŒ€ìƒìœ¼ë¡œ ì‚¼ì§€ ì•ŠëŠ”ë‹¤.
 
-- [ ] `ubuntu/kubespray/ceph-rook` ÇÏÀ§ Rook/Ceph ½ºÅ©¸³Æ®¸¦ °ËÅäÇÑ´Ù.
-  - ´ë»ó:
+- [ ] `ubuntu/kubespray/ceph-rook` í•˜ìœ„ Rook/Ceph ìŠ¤í¬ë¦½íŠ¸ë¥¼ ê²€í† í•œë‹¤.
+  - ëŒ€ìƒ:
     - `ubuntu/kubespray/ceph-rook.sh`
     - `ubuntu/kubespray/ceph-rook/ceph_block/ceph_blockstorage.sh`
     - `ubuntu/kubespray/ceph-rook/ceph_file/ceph_filesystem.sh`
     - `ubuntu/kubespray/ceph-rook/ceph-object/ceph_objectstorage.sh`
     - `centos8/cephfs/master_node/ceph.sh`
-  - ¼öÁ¤ ¿äÃ»: Rook Operator / CephCluster / StorageClass / ObjectStore / Filesystem ¸Å´ÏÆä½ºÆ® ¹öÀüÀ» °íÁ¤ÇÑ´Ù. GitHub °ü·Ã yaml ¸Å´ÏÆä½ºÆ®´Â ÀúÀå¼Ò ¾ÈÀÇ ¾ÈÁ¤Àû À§Ä¡¿¡ º¸°üÇÏ°í `kubectl apply -f URL` ¹æ½ÄÀº Á¦°ÅÇÑ´Ù. `~/rook/deploy/examples`¿¡ ÀÇÁ¸ÇÏÁö ¸»°í Å¬·¯½ºÅÍº° manifests µğ·ºÅÍ¸®¿¡¼­ Àû¿ëÇÑ´Ù. Å¬·¯½ºÅÍ ³×Æ®¿öÅ©, storage device, replica count, pool size°¡ ½Ç½À Å¬·¯½ºÅÍ ±Ô¸ğ¿Í ¸Â´ÂÁö °ËÅäÇÑ´Ù. block/file/object storage ¼³Á¤ÀÌ ¼­·Î Áßº¹µÇ°Å³ª Ãæµ¹ÇÏÁö ¾Êµµ·Ï ÇÑ´Ù. StorageClass ÀÌ¸§ÀÌ ±âÁ¸ Kubernetes ¸®¼Ò½º¿Í Ãæµ¹ÇÏÁö ¾Ê´ÂÁö °ËÅäÇÑ´Ù. Cephadm ¹æ½Ä°ú Rook ¹æ½ÄÀÌ °°Àº Å¬·¯½ºÅÍ ¾È¿¡¼­ ¼¯¿© ÀÖÁö ¾ÊÀºÁö °ËÅäÇÑ´Ù.
+  - ìˆ˜ì • ìš”ì²­: Rook Operator / CephCluster / StorageClass / ObjectStore / Filesystem ë§¤ë‹ˆí˜ìŠ¤íŠ¸ ë²„ì „ì„ ê³ ì •í•œë‹¤. GitHub ê´€ë ¨ yaml ë§¤ë‹ˆí˜ìŠ¤íŠ¸ëŠ” ì €ì¥ì†Œ ì•ˆì˜ ì•ˆì •ì  ìœ„ì¹˜ì— ë³´ê´€í•˜ê³  `kubectl apply -f URL` ë°©ì‹ì€ ì œê±°í•œë‹¤. `~/rook/deploy/examples`ì— ì˜ì¡´í•˜ì§€ ë§ê³  í´ëŸ¬ìŠ¤í„°ë³„ manifests ë””ë ‰í„°ë¦¬ì—ì„œ ì ìš©í•œë‹¤. í´ëŸ¬ìŠ¤í„° ë„¤íŠ¸ì›Œí¬, storage device, replica count, pool sizeê°€ ì‹¤ìŠµ í´ëŸ¬ìŠ¤í„° ê·œëª¨ì™€ ë§ëŠ”ì§€ ê²€í† í•œë‹¤. block/file/object storage ì„¤ì •ì´ ì„œë¡œ ì¤‘ë³µë˜ê±°ë‚˜ ì¶©ëŒí•˜ì§€ ì•Šë„ë¡ í•œë‹¤. StorageClass ì´ë¦„ì´ ê¸°ì¡´ Kubernetes ë¦¬ì†ŒìŠ¤ì™€ ì¶©ëŒí•˜ì§€ ì•ŠëŠ”ì§€ ê²€í† í•œë‹¤. Cephadm ë°©ì‹ê³¼ Rook ë°©ì‹ì´ ê°™ì€ í´ëŸ¬ìŠ¤í„° ì•ˆì—ì„œ ì„ì—¬ ìˆì§€ ì•Šì€ì§€ ê²€í† í•œë‹¤.
 
-## ÀúÀå¼Ò Á¤¸® Ç×¸ñ
+## ì €ì¥ì†Œ ì •ë¦¬ í•­ëª©
 
-- [ ] ±úÁø ÇÑ±Û ÁÖ¼®°ú echo ¸Ş½ÃÁö¸¦ º¹±¸ÇÑ´Ù.
-  - ´ë»ó: `devops/local/kubernetes` ÇÏÀ§ ´ëºÎºĞÀÇ Vagrantfile°ú shell script
-  - ¼öÁ¤ ¿äÃ»: ±úÁø ÀÎÄÚµù ¹®ÀÚ¿­Àº UTF-8 ÇÑ±Û ¶Ç´Â ¸íÈ®ÇÑ ¿µ¾î ¸Ş½ÃÁö·Î º¹±¸ÇÑ´Ù. ½ÇÇà ·Î±×´Â ´Ü°è, ´ë»ó ³ëµå, ½ÇÆĞ ¿øÀÎÀÌ µå·¯³ªµµ·Ï Á¤¸®ÇÏ°í, ÀÇ¹Ì ¾ø´Â Àå½Ä¼º Ãâ·ÂÀº Á¦°ÅÇÑ´Ù.
+- [ ] ê¹¨ì§„ í•œê¸€ ì£¼ì„ê³¼ echo ë©”ì‹œì§€ë¥¼ ë³µêµ¬í•œë‹¤.
+  - ëŒ€ìƒ: `devops/local/kubernetes` í•˜ìœ„ ëŒ€ë¶€ë¶„ì˜ Vagrantfileê³¼ shell script
+  - ìˆ˜ì • ìš”ì²­: ê¹¨ì§„ ì¸ì½”ë”© ë¬¸ìì—´ì€ UTF-8 í•œê¸€ ë˜ëŠ” ëª…í™•í•œ ì˜ì–´ ë©”ì‹œì§€ë¡œ ë³µêµ¬í•œë‹¤. ì‹¤í–‰ ë¡œê·¸ëŠ” ë‹¨ê³„, ëŒ€ìƒ ë…¸ë“œ, ì‹¤íŒ¨ ì›ì¸ì´ ë“œëŸ¬ë‚˜ë„ë¡ ì •ë¦¬í•˜ê³ , ì˜ë¯¸ ì—†ëŠ” ì¥ì‹ì„± ì¶œë ¥ì€ ì œê±°í•œë‹¤.
 
-- [x] »ı¼º¹°/·ÎÄÃ »óÅÂ¿¡ ´ëÇÑ `.gitignore` Ç×¸ñÀ» Ãß°¡ÇÑ´Ù.
-  - ÀÌ¹Ì ignore ÁßÀÎ ÆĞÅÏ:
+- [x] ìƒì„±ë¬¼/ë¡œì»¬ ìƒíƒœì— ëŒ€í•œ `.gitignore` í•­ëª©ì„ ì¶”ê°€í•œë‹¤.
+  - ì´ë¯¸ ignore ì¤‘ì¸ íŒ¨í„´:
     - `.vagrant/`
     - `**/.claude`
     - `password.rb`
-  - Ãß°¡ ÇÊ¿ä ÆĞÅÏ:
+  - ì¶”ê°€ í•„ìš” íŒ¨í„´:
     - `devops/local/kubernetes/**/*.vdi`
     - `devops/local/kubernetes/**/*.vmdk`
     - `devops/local/kubernetes/**/*.qcow2`
@@ -219,58 +219,58 @@
     - `devops/local/kubernetes/**/tmp/`
     - `devops/local/kubernetes/**/rook/`
     - `devops/local/kubernetes/**/kubespray-repo/`
-  - ÇöÀç ÃßÀû ÁßÀÎ Á¤¸® °ËÅä ´ë»ó:
+  - í˜„ì¬ ì¶”ì  ì¤‘ì¸ ì •ë¦¬ ê²€í†  ëŒ€ìƒ:
     - `ubuntu/hadoop/tmp/core-site.xml`
-  - Ã³¸® °á°ú: ·çÆ® `.gitignore`¿¡ `devops/local/kubernetes` °æ·Î ÇÑÁ¤ ÆĞÅÏÀ» Ãß°¡Çß´Ù. ±âÁ¸ `.vagrant/`, `**/.claude`, `password.rb` Áßº¹ Ãß°¡´Â ÇÇÇß´Ù.
+  - ì²˜ë¦¬ ê²°ê³¼: ë£¨íŠ¸ `.gitignore`ì— `devops/local/kubernetes` ê²½ë¡œ í•œì • íŒ¨í„´ì„ ì¶”ê°€í–ˆë‹¤. ê¸°ì¡´ `.vagrant/`, `**/.claude`, `password.rb` ì¤‘ë³µ ì¶”ê°€ëŠ” í”¼í–ˆë‹¤.
 
-- [x] Å¬·¯½ºÅÍ Á¤ÀÇ¿Í ¹«°üÇÑ ¾Û ÀÇÁ¸¼º »êÃâ¹°À» Á¤¸®ÇÑ´Ù.
-  - ´ë»ó:
+- [x] í´ëŸ¬ìŠ¤í„° ì •ì˜ì™€ ë¬´ê´€í•œ ì•± ì˜ì¡´ì„± ì‚°ì¶œë¬¼ì„ ì •ë¦¬í•œë‹¤.
+  - ëŒ€ìƒ:
     - `examples/ubuntu-cephadm-share-object-app/package-lock.json`
     - `examples/kvm-cephadm-share-object-app/package-lock.json`
-  - Ã³¸® °á°ú: Ceph Å¬·¯½ºÅÍ Á¤ÀÇ¿Í »ùÇÃ ¾ÖÇÃ¸®ÄÉÀÌ¼ÇÀ» ºĞ¸®ÇÏ°í `examples/` ¾Æ·¡·Î ÀÌµ¿Çß´Ù.
+  - ì²˜ë¦¬ ê²°ê³¼: Ceph í´ëŸ¬ìŠ¤í„° ì •ì˜ì™€ ìƒ˜í”Œ ì• í”Œë¦¬ì¼€ì´ì…˜ì„ ë¶„ë¦¬í•˜ê³  `examples/` ì•„ë˜ë¡œ ì´ë™í–ˆë‹¤.
 
-- [x] µğ·ºÅÍ¸® ÀÌ¸§ ±ÔÄ¢À» ÅëÀÏÇÑ´Ù.
-  - Ã³¸® °á°ú: `Rocky`¸¦ `rocky`·Î º¯°æÇß´Ù.
+- [x] ë””ë ‰í„°ë¦¬ ì´ë¦„ ê·œì¹™ì„ í†µì¼í•œë‹¤.
+  - ì²˜ë¦¬ ê²°ê³¼: `Rocky`ë¥¼ `rocky`ë¡œ ë³€ê²½í–ˆë‹¤.
 
-- [x] `host/ubuntu/microk8s/kubeflow-gpu/scripts/lifecycle/destroy_cluster.sh` ¿ÀÅ¸¸¦ ¼öÁ¤ÇÑ´Ù.
-  - Ã³¸® °á°ú: `destory_cluster.sh`¸¦ `destroy_cluster.sh`·Î º¯°æÇß´Ù.
+- [x] `host/ubuntu/microk8s/kubeflow-gpu/scripts/lifecycle/destroy_cluster.sh` ì˜¤íƒ€ë¥¼ ìˆ˜ì •í•œë‹¤.
+  - ì²˜ë¦¬ ê²°ê³¼: `destory_cluster.sh`ë¥¼ `destroy_cluster.sh`ë¡œ ë³€ê²½í–ˆë‹¤.
 
-- [x] `devops/local/kubernetes` ÃÖ»óÀ§ README¸¦ Ãß°¡ÇÑ´Ù.
-  - Æ÷ÇÔ ³»¿ë:
-    - Å¬·¯½ºÅÍ ¸ñ·Ï
-    - Å¬·¯½ºÅÍº° Áö¿ø provider
-    - ÇÊ¿äÇÑ host µµ±¸
-    - ¿¹»ó ³×Æ®¿öÅ© ´ë¿ª
-    - Ansible inventory À§Ä¡
-    - »ı¼º/»èÁ¦ ¸í·É
-    - non-HA/lab-only °¡Á¤
-  - Ã³¸® °á°ú: `devops/local/kubernetes/README.md`¸¦ Ãß°¡ÇÏ°í °¢ Å¬·¯½ºÅÍÀÇ ¸ñÀû, Áö¿ø provider, ³×Æ®¿öÅ©, inventory À§Ä¡, »ı¼º/»èÁ¦ ¸í·É, known limitations¸¦ Á¤¸®Çß´Ù. `kvm/ubuntu/kubeadm/gpu`´Â ¿¹¿Ü Å¬·¯½ºÅÍÀÓÀ» README¿¡µµ ¸í½ÃÇß´Ù.
+- [x] `devops/local/kubernetes` ìµœìƒìœ„ READMEë¥¼ ì¶”ê°€í•œë‹¤.
+  - í¬í•¨ ë‚´ìš©:
+    - í´ëŸ¬ìŠ¤í„° ëª©ë¡
+    - í´ëŸ¬ìŠ¤í„°ë³„ ì§€ì› provider
+    - í•„ìš”í•œ host ë„êµ¬
+    - ì˜ˆìƒ ë„¤íŠ¸ì›Œí¬ ëŒ€ì—­
+    - Ansible inventory ìœ„ì¹˜
+    - ìƒì„±/ì‚­ì œ ëª…ë ¹
+    - non-HA/lab-only ê°€ì •
+  - ì²˜ë¦¬ ê²°ê³¼: `devops/local/kubernetes/README.md`ë¥¼ ì¶”ê°€í•˜ê³  ê° í´ëŸ¬ìŠ¤í„°ì˜ ëª©ì , ì§€ì› provider, ë„¤íŠ¸ì›Œí¬, inventory ìœ„ì¹˜, ìƒì„±/ì‚­ì œ ëª…ë ¹, known limitationsë¥¼ ì •ë¦¬í–ˆë‹¤. `kvm/ubuntu/kubeadm/gpu`ëŠ” ì˜ˆì™¸ í´ëŸ¬ìŠ¤í„°ì„ì„ READMEì—ë„ ëª…ì‹œí–ˆë‹¤.
 
-- [x] °ËÁõ ÁøÀÔÁ¡À» Ãß°¡ÇÑ´Ù.
-  - Ã³¸® °á°ú: `devops/local/kubernetes/validate.ps1`¸¦ Ãß°¡Çß´Ù. shellcheck, `vagrant validate`, `ansible-inventory --list`¸¦ ¼³Ä¡µÈ µµ±¸ ±âÁØÀ¸·Î ½ÇÇàÇÑ´Ù.
+- [x] ê²€ì¦ ì§„ì…ì ì„ ì¶”ê°€í•œë‹¤.
+  - ì²˜ë¦¬ ê²°ê³¼: `devops/local/kubernetes/validate.ps1`ë¥¼ ì¶”ê°€í–ˆë‹¤. shellcheck, `vagrant validate`, `ansible-inventory --list`ë¥¼ ì„¤ì¹˜ëœ ë„êµ¬ ê¸°ì¤€ìœ¼ë¡œ ì‹¤í–‰í•œë‹¤.
 
-## Å¬·¯½ºÅÍº° Ã³¸® ¹æÇâ
+## í´ëŸ¬ìŠ¤í„°ë³„ ì²˜ë¦¬ ë°©í–¥
 
-- [ ] `vagrant/ubuntu/kubeadm/basic`: »ç¿ë Àü ¼öÁ¤ ÇÊ¼ö. ½ºÅ©¸³Æ® °æ·Î ºÒÀÏÄ¡¿Í ´©¶ôµÈ ¹öÀü ÀÎÀÚ°¡ ÀÖ´Ù.
+- [ ] `vagrant/ubuntu/kubeadm/basic`: ì‚¬ìš© ì „ ìˆ˜ì • í•„ìˆ˜. ìŠ¤í¬ë¦½íŠ¸ ê²½ë¡œ ë¶ˆì¼ì¹˜ì™€ ëˆ„ë½ëœ ë²„ì „ ì¸ìê°€ ìˆë‹¤.
 
-- [ ] `vagrant/ubuntu/kubespray/rook-ceph`: inventory/node count¸¦ ´ÜÀÏ ¼Ò½º·Î ¸¸µé°í password SSH ÀÚµ¿È­¸¦ Á¦°ÅÇÑ µÚ »ç¿ëÇÑ´Ù.
+- [ ] `vagrant/ubuntu/kubespray/rook-ceph`: inventory/node countë¥¼ ë‹¨ì¼ ì†ŒìŠ¤ë¡œ ë§Œë“¤ê³  password SSH ìë™í™”ë¥¼ ì œê±°í•œ ë’¤ ì‚¬ìš©í•œë‹¤.
 
-- [ ] `../storage/vagrant/ubuntu/cephadm/basic`: º°µµ Å¬·¯½ºÅÍ Á¤ÀÇ·Î À¯ÁöÇÏ°í, À§ÇèÇÑ SSH ¼³Á¤°ú µğ½ºÅ© wipe µ¿ÀÛÀ» Á¦°ÅÇÏ¸ç, `.vagrant`¸¦ »èÁ¦ÇÑ´Ù. `../storage/kvm/ubuntu/cephadm/basic`¿ÍÀÇ provider/µğ½ºÅ©/³×Æ®¿öÅ© Â÷ÀÌ¸¦ ¹®¼­È­ÇÑ´Ù.
+- [ ] `../storage/vagrant/ubuntu/cephadm/basic`: ë³„ë„ í´ëŸ¬ìŠ¤í„° ì •ì˜ë¡œ ìœ ì§€í•˜ê³ , ìœ„í—˜í•œ SSH ì„¤ì •ê³¼ ë””ìŠ¤í¬ wipe ë™ì‘ì„ ì œê±°í•˜ë©°, `.vagrant`ë¥¼ ì‚­ì œí•œë‹¤. `../storage/kvm/ubuntu/cephadm/basic`ì™€ì˜ provider/ë””ìŠ¤í¬/ë„¤íŠ¸ì›Œí¬ ì°¨ì´ë¥¼ ë¬¸ì„œí™”í•œë‹¤.
 
-- [ ] `../storage/kvm/ubuntu/cephadm/basic`: º°µµ Å¬·¯½ºÅÍ Á¤ÀÇ·Î À¯ÁöÇÏ°í, libvirt Àü¿ë µğ½ºÅ©/provider ÀüÁ¦¸¦ ¹®¼­È­ÇÏ¸ç, `.vagrant`¿Í ·ÎÄÃ ¼³Á¤À» »èÁ¦ÇÑ´Ù.
+- [ ] `../storage/kvm/ubuntu/cephadm/basic`: ë³„ë„ í´ëŸ¬ìŠ¤í„° ì •ì˜ë¡œ ìœ ì§€í•˜ê³ , libvirt ì „ìš© ë””ìŠ¤í¬/provider ì „ì œë¥¼ ë¬¸ì„œí™”í•˜ë©°, `.vagrant`ì™€ ë¡œì»¬ ì„¤ì •ì„ ì‚­ì œí•œë‹¤.
 
-- [ ] `kvm/ubuntu/kubeadm/gpu`: ¿¹¿Ü Å¬·¯½ºÅÍ·Î µĞ´Ù. ±âÁ¸ VM »ı¼º/SSH ±â¹İ µ¿ÀÛÀº À¯ÁöÇÏµÇ ÁÖ¼®°ú README·Î ÀÌÀ¯¸¦ ¹®¼­È­ÇÑ´Ù. Flannel ¹öÀüÀ» °íÁ¤ÇÏ¸ç, ÆÄ±«Àû cleanupÀº rollback¿¡¸¸ µĞ´Ù.
+- [ ] `kvm/ubuntu/kubeadm/gpu`: ì˜ˆì™¸ í´ëŸ¬ìŠ¤í„°ë¡œ ë‘”ë‹¤. ê¸°ì¡´ VM ìƒì„±/SSH ê¸°ë°˜ ë™ì‘ì€ ìœ ì§€í•˜ë˜ ì£¼ì„ê³¼ READMEë¡œ ì´ìœ ë¥¼ ë¬¸ì„œí™”í•œë‹¤. Flannel ë²„ì „ì„ ê³ ì •í•˜ë©°, íŒŒê´´ì  cleanupì€ rollbackì—ë§Œ ë‘”ë‹¤.
 
-- [ ] `vagrant/centos8/minikube/kubevirt`: Minikube/KubeVirt ¹öÀüÀ» °íÁ¤ÇÏ°í, OSº° Â÷ÀÌ¸¦ ¹®¼­È­
+- [ ] `vagrant/centos8/minikube/kubevirt`: Minikube/KubeVirt ë²„ì „ì„ ê³ ì •í•˜ê³ , OSë³„ ì°¨ì´ë¥¼ ë¬¸ì„œí™”
 
-- [ ] `../storage/vagrant/centos8/cephfs/kubespray`: `devops/local/kubernetes` °ËÅä ´ë»ó¿¡ Æ÷ÇÔÇÑ´Ù. password SSH, sudoers append, expect ±â¹İ Kubespray ÀÚµ¿È­, Rook ¿¹Á¦ µğ·ºÅÍ¸® ÀÇÁ¸, ¿ÜºÎ µğ½ºÅ© °æ·Î ÇÏµåÄÚµùÀ» Á¦°ÅÇÏ°Å³ª Ansible inventory/group vars ±âÁØÀ¸·Î ÀüÈ¯ÇÑ´Ù.
+- [ ] `../storage/vagrant/centos8/cephfs/kubespray`: `devops/local/kubernetes` ê²€í†  ëŒ€ìƒì— í¬í•¨í•œë‹¤. password SSH, sudoers append, expect ê¸°ë°˜ Kubespray ìë™í™”, Rook ì˜ˆì œ ë””ë ‰í„°ë¦¬ ì˜ì¡´, ì™¸ë¶€ ë””ìŠ¤í¬ ê²½ë¡œ í•˜ë“œì½”ë”©ì„ ì œê±°í•˜ê±°ë‚˜ Ansible inventory/group vars ê¸°ì¤€ìœ¼ë¡œ ì „í™˜í•œë‹¤.
 
-- [x] `vagrant/rocky/minikube/kubevirt`: `vagrant/centos8/minikube/kubevirt` OSº° Â÷ÀÌ¸¦ ¹®¼­È­
+- [x] `vagrant/rocky/minikube/kubevirt`: `vagrant/centos8/minikube/kubevirt` OSë³„ ì°¨ì´ë¥¼ ë¬¸ì„œí™”
 
-- [ ] `vagrant/ubuntu/kubeadm/basic/scripts/addons/kubevirt`: KubeVirt ¹öÀüÀ» °íÁ¤ÇÏ°í GitHub API·Î `latest`¸¦ Á¶È¸ÇÏ´Â ¹æ½ÄÀ» Á¦°ÅÇÑ´Ù.
+- [ ] `vagrant/ubuntu/kubeadm/basic/scripts/addons/kubevirt`: KubeVirt ë²„ì „ì„ ê³ ì •í•˜ê³  GitHub APIë¡œ `latest`ë¥¼ ì¡°íšŒí•˜ëŠ” ë°©ì‹ì„ ì œê±°í•œë‹¤.
 
-- [ ] `host/ubuntu/microk8s/kubeflow-gpu`: channel/versionÀ» °íÁ¤ÇÏ°í, ³×Æ®¿öÅ© ´ë¿ªÀ» Å¬·¯½ºÅÍ Á¤ÀÇ°ªÀ¸·Î °ü¸®ÇÏ¸ç, ÀÏ¹İ ¼³Ä¡ Èå¸§¿¡¼­ ±¤¹üÀ§ÇÑ home/cache »èÁ¦¸¦ Á¦°ÅÇÑ´Ù.
+- [ ] `host/ubuntu/microk8s/kubeflow-gpu`: channel/versionì„ ê³ ì •í•˜ê³ , ë„¤íŠ¸ì›Œí¬ ëŒ€ì—­ì„ í´ëŸ¬ìŠ¤í„° ì •ì˜ê°’ìœ¼ë¡œ ê´€ë¦¬í•˜ë©°, ì¼ë°˜ ì„¤ì¹˜ íë¦„ì—ì„œ ê´‘ë²”ìœ„í•œ home/cache ì‚­ì œë¥¼ ì œê±°í•œë‹¤.
 
-- [ ] `host/ubuntu/k3s/ai`: pipe-to-shell latest installer¸¦ Á¦°ÅÇÏ°í, °íÁ¤µÈ installer ¹öÀü°ú ¸í½Ã ¼³Ä¡ ¿É¼ÇÀ» »ç¿ëÇÑ´Ù.
+- [ ] `host/ubuntu/k3s/ai`: pipe-to-shell latest installerë¥¼ ì œê±°í•˜ê³ , ê³ ì •ëœ installer ë²„ì „ê³¼ ëª…ì‹œ ì„¤ì¹˜ ì˜µì…˜ì„ ì‚¬ìš©í•œë‹¤.
 
-- [ ] `../data/vagrant/ubuntu/hadoop/basic`: Kubernetes Å¬·¯½ºÅÍ Á¤ÀÇ°¡ ¾Æ´Ï¶ó¸é `k8s` ÇÏÀ§¿¡¼­ ÀÌµ¿ÇÑ´Ù. À¯ÁöÇÑ´Ù¸é ¸ñÀû°ú ½ÇÇà ¹æ½ÄÀ» ¸íÈ®È÷ ¹®¼­È­ÇÑ´Ù.
+- [ ] `../data/vagrant/ubuntu/hadoop/basic`: Kubernetes í´ëŸ¬ìŠ¤í„° ì •ì˜ê°€ ì•„ë‹ˆë¼ë©´ `k8s` í•˜ìœ„ì—ì„œ ì´ë™í•œë‹¤. ìœ ì§€í•œë‹¤ë©´ ëª©ì ê³¼ ì‹¤í–‰ ë°©ì‹ì„ ëª…í™•íˆ ë¬¸ì„œí™”í•œë‹¤.
