@@ -6,8 +6,14 @@
 #       클러스터의 GPU 동작과는 무관합니다. 호스트에서의 이미지 빌드 또는 단독
 #       GPU 컨테이너 테스트 용도로만 필요하며, 그 용도가 아니면 생략할 수 있습니다.
 
-set -e  # 오류 발생 시 스크립트 중단
+set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive  # 비대화형 설치 보장
+
+DOCKER_VERSION="5:27.5.1-1~ubuntu.24.04~noble"
+CONTAINERD_VERSION="1.7.25-1"
+BUILDX_VERSION="0.20.0-1~ubuntu.24.04~noble"
+COMPOSE_VERSION="2.32.4-1~ubuntu.24.04~noble"
+NVIDIA_TOOLKIT_VERSION="1.17.8-1"
 
 ## Installing docker and containerd runtime
 sudo apt-get update
@@ -20,7 +26,13 @@ echo \
   $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo apt-get install -y \
+  "docker-ce=${DOCKER_VERSION}" \
+  "docker-ce-cli=${DOCKER_VERSION}" \
+  "containerd.io=${CONTAINERD_VERSION}" \
+  "docker-buildx-plugin=${BUILDX_VERSION}" \
+  "docker-compose-plugin=${COMPOSE_VERSION}"
+sudo apt-mark hold docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 ## Start and enable Docker service
 sudo systemctl enable --now docker
@@ -34,7 +46,8 @@ curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-contai
     sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
     sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
 sudo apt-get update -y
-sudo apt-get install -y nvidia-container-toolkit
+sudo apt-get install -y "nvidia-container-toolkit=${NVIDIA_TOOLKIT_VERSION}"
+sudo apt-mark hold nvidia-container-toolkit nvidia-container-toolkit-base
 
 ## Configure Docker to use NVIDIA runtime
 sudo nvidia-ctk runtime configure --runtime=docker

@@ -1,28 +1,23 @@
 #!/usr/bin/bash
+set -euo pipefail
 
-## install kubevirt
-sudo dnf install -y qemu-kvm libvirt virt-install bridge-utils virt-manager
+# Phase 1: install the host virtualization stack and grant access to it.
+sudo dnf install -y qemu-kvm libvirt libvirt-client virt-install bridge-utils
 sudo systemctl enable --now libvirtd
 
-MINIKUBE_VERSION="${MINIKUBE_VERSION:-v1.38.1}"
+current_user="$(id -un)"
+for required_group in libvirt kvm; do
+  if ! getent group "$required_group" >/dev/null; then
+    printf 'Required group %s was not created by the virtualization packages.\n' "$required_group" >&2
+    exit 1
+  fi
+done
+sudo usermod -aG libvirt,kvm "$current_user"
 
-## install kvm2 driver for minikube
-curl -LO "https://storage.googleapis.com/minikube/releases/${MINIKUBE_VERSION}/docker-machine-driver-kvm2"
-chmod +x docker-machine-driver-kvm2
-sudo mv docker-machine-driver-kvm2 /usr/local/bin/
+cat <<EOF
+Host virtualization prerequisites are installed for ${current_user}.
+Reboot the guest now so the libvirt/kvm group membership and libvirt networking
+are active, then run /vagrant/scripts/addons/kubevirt/kubevirt_start.sh as the same user.
 
-sudo usermod -aG libvirt $(whoami)
-sudo usermod -aG kvm $(whoami)
-newgrp libvirt
-newgrp kvm
-sudo chmod +x /usr/libexec/qemu-kvm
-
-sudo reboot
-
-sudo modprobe kvm
-sudo dbus-uuidgen --ensure
-
-## run minikube with kvm driver
-minikube start --vm-driver kvm2 --cpus 4 --memory 8192
-alias kubectl="minikube kubectl --"
-#minikube start --addons=kubevirt ## KubeVirt Addon broken due to missing curl in Pod 
+Minikube v1.38.1 contains its KVM driver; no external driver binary is required.
+EOF

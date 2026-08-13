@@ -30,7 +30,15 @@ log "=== VM 생성 시작 ==="
 VM_DIR="/var/lib/libvirt/images"
 SETUP_DIR="/var/lib/libvirt/images/k8s-setup"
 CLOUD_IMG="$SETUP_DIR/ubuntu-24.04-cloud.img"
-CLOUD_IMG_URL="https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+CLOUD_IMG_RELEASE="release-20241004"
+CLOUD_IMG_URL="https://cloud-images.ubuntu.com/releases/noble/${CLOUD_IMG_RELEASE}/ubuntu-24.04-server-cloudimg-amd64.img"
+CLOUD_IMG_SHA256="fad101d50b06b26590cf30542349f9e9d3041ad7929e3bc3531c81ec27f2c788"
+
+FLANNEL_VERSION="v0.28.5"
+DEVICE_PLUGIN_VERSION="v0.17.0"
+MANIFEST_DIR="$SCRIPT_DIR/manifests"
+FLANNEL_MANIFEST_SOURCE="$MANIFEST_DIR/kube-flannel-${FLANNEL_VERSION}.yml"
+DEVICE_PLUGIN_MANIFEST_SOURCE="$MANIFEST_DIR/nvidia-device-plugin-${DEVICE_PLUGIN_VERSION}.yml"
 
 # VM 리소스
 MASTER_VCPU=2;  MASTER_MEM=4096;  MASTER_DISK=30   # master only
@@ -47,6 +55,15 @@ sudo chown "$(id -u):$(id -g)" "$SETUP_DIR"
 # 0. 사전 확인
 # ────────────────────────────────────────────
 log "0. 사전 확인..."
+
+command -v sha256sum >/dev/null 2>&1 \
+  || error_exit "sha256sum이 없어 cloud image와 Kubernetes manifest를 검증할 수 없습니다."
+[[ -f "$MANIFEST_DIR/SHA256SUMS" ]] \
+  || error_exit "manifest checksum 파일이 없습니다: $MANIFEST_DIR/SHA256SUMS"
+(
+  cd "$MANIFEST_DIR"
+  sha256sum -c SHA256SUMS
+) || error_exit "vendored manifest checksum 검증에 실패했습니다. VM을 만들지 않습니다."
 
 [[ -f "/var/lib/libvirt/images/k8s-setup/host_info.env" ]] \
   && source "/var/lib/libvirt/images/k8s-setup/host_info.env" \
@@ -70,11 +87,21 @@ log "   GPU worker: 호스트 베어메탈 (VM 패스스루 없음)"
 log "1. Ubuntu 24.04 클라우드 이미지 확인 중..."
 
 if [[ -f "$CLOUD_IMG" ]]; then
-  log "   이미지 이미 존재: $CLOUD_IMG (재사용)"
+  CLOUD_IMG_ACTUAL_SHA256="$(sha256sum "$CLOUD_IMG" | awk '{print $1}')"
+  [[ "$CLOUD_IMG_ACTUAL_SHA256" == "$CLOUD_IMG_SHA256" ]] \
+    || error_exit "기존 cloud image checksum 불일치: $CLOUD_IMG (expected $CLOUD_IMG_SHA256, got $CLOUD_IMG_ACTUAL_SHA256). 안전한 위치로 옮긴 뒤 다시 실행하세요."
+  log "   고정 cloud image 검증 완료: Ubuntu 24.04 ${CLOUD_IMG_RELEASE}"
 else
   log "   다운로드 중: $CLOUD_IMG_URL"
-  wget -O "$CLOUD_IMG" "$CLOUD_IMG_URL"
-  log "   다운로드 완료"
+  CLOUD_IMG_DOWNLOAD="$(mktemp "$SETUP_DIR/ubuntu-24.04-cloud.img.XXXXXX")"
+  wget -O "$CLOUD_IMG_DOWNLOAD" "$CLOUD_IMG_URL"
+  CLOUD_IMG_ACTUAL_SHA256="$(sha256sum "$CLOUD_IMG_DOWNLOAD" | awk '{print $1}')"
+  if [[ "$CLOUD_IMG_ACTUAL_SHA256" != "$CLOUD_IMG_SHA256" ]]; then
+    rm -f "$CLOUD_IMG_DOWNLOAD"
+    error_exit "다운로드한 cloud image checksum 불일치 (expected $CLOUD_IMG_SHA256, got $CLOUD_IMG_ACTUAL_SHA256)."
+  fi
+  mv "$CLOUD_IMG_DOWNLOAD" "$CLOUD_IMG"
+  log "   다운로드 및 checksum 검증 완료"
 fi
 
 # ────────────────────────────────────────────
@@ -88,10 +115,12 @@ create_cloud_init() {
 
   # master VM에 필요한 스크립트를 base64로 인코딩 (write_files 삽입용)
   local write_files_section=""
-  local b64_02 b64_03 b64_05
+  local b64_02 b64_03 b64_05 b64_flannel b64_device_plugin
   b64_02=$(base64 -w0 "$SCRIPT_DIR/02_node_setup.sh" 2>/dev/null || true)
   b64_03=$(base64 -w0 "$SCRIPT_DIR/03_master_init.sh" 2>/dev/null || true)
   b64_05=$(base64 -w0 "$SCRIPT_DIR/05_gpu_plugin.sh"  2>/dev/null || true)
+  b64_flannel=$(base64 -w0 "$FLANNEL_MANIFEST_SOURCE")
+  b64_device_plugin=$(base64 -w0 "$DEVICE_PLUGIN_MANIFEST_SOURCE")
 
   # defer: true → modules-final 단계(유저 생성 완료 후)에 파일 기록
   if [[ -n "$b64_02" ]]; then
@@ -123,6 +152,23 @@ create_cloud_init() {
     defer: true
     content: $b64_05"
   fi
+
+  # 03_master_init.sh and 05_gpu_plugin.sh verify these vendored copies again
+  # immediately before applying them. Embedding them avoids network-dependent
+  # manifest content inside the VM while retaining checksum enforcement.
+  write_files_section+="
+  - path: /home/ubuntu/manifests/kube-flannel-${FLANNEL_VERSION}.yml
+    permissions: '0644'
+    owner: 'ubuntu:ubuntu'
+    encoding: b64
+    defer: true
+    content: $b64_flannel
+  - path: /home/ubuntu/manifests/nvidia-device-plugin-${DEVICE_PLUGIN_VERSION}.yml
+    permissions: '0644'
+    owner: 'ubuntu:ubuntu'
+    encoding: b64
+    defer: true
+    content: $b64_device_plugin"
 
   # user-data: 패키지 설치 없음 (02_node_setup.sh에서 처리)
   # cloud-init은 사용자/SSH키 설정 + 스크립트 배포 + swap off만 담당
@@ -186,8 +232,7 @@ create_vm_disk() {
     local backing
     backing=$(sudo qemu-img info "$dst" 2>/dev/null | awk '/backing file:/{print $3}')
     if [[ "$backing" != "$CLOUD_IMG" ]]; then
-      log "   backing file 불일치 ($backing) → 디스크 재생성"
-      sudo rm -f "$dst"
+      error_exit "기존 VM disk의 backing file이 다릅니다: $dst (actual ${backing:-none}, expected $CLOUD_IMG). 정상 생성 경로에서는 disk를 삭제하지 않습니다. 06_rollback.sh option 01로 정리하세요."
     else
       log "   디스크 이미 존재: $dst (스킵)"
       return 0

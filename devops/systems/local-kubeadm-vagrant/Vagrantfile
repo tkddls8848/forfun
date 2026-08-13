@@ -1,11 +1,15 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-KUBE_VERSION = "1.31.4"
-FLANNEL_VERSION = "v0.28.5"
+require "yaml"
+
+GROUP_VARS_PATH = File.expand_path("inventory/group_vars.yml", __dir__)
+GROUP_VARS = YAML.safe_load(File.read(GROUP_VARS_PATH), aliases: false)
+KUBE_VERSION = GROUP_VARS.fetch("kubernetes_version")
+FLANNEL_VERSION = GROUP_VARS.fetch("flannel_version")
 
 NETWORK_CONFIG = {
-  :pod_cidr => "10.244.0.0/16",
+  :pod_cidr => GROUP_VARS.fetch("pod_cidr"),
   :master_ip => "192.168.56.10",
   :network_prefix => "192.168.56"
 }

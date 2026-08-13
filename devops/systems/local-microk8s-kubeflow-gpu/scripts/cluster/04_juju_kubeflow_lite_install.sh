@@ -1,14 +1,54 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-JUJU_CHANNEL="${JUJU_CHANNEL:-3.6/stable}"
-KUBEFLOW_CHANNEL="${KUBEFLOW_CHANNEL:-1.10/stable}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYSTEM_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+CLUSTER_CONFIG="${CLUSTER_CONFIG:-$SYSTEM_DIR/config/cluster.env}"
 RESET_JUJU="${RESET_JUJU:-false}"
-KUBEFLOW_PORT="${KUBEFLOW_PORT:-1234}"
+
+[[ -f "$CLUSTER_CONFIG" ]] \
+  || { echo "Cluster config not found: $CLUSTER_CONFIG" >&2; exit 1; }
+# shellcheck source=/dev/null
+source "$CLUSTER_CONFIG"
+
+: "${JUJU_CHANNEL:?JUJU_CHANNEL must be set in $CLUSTER_CONFIG}"
+: "${KUBEFLOW_CHANNEL:?KUBEFLOW_CHANNEL must be set in $CLUSTER_CONFIG}"
+: "${KUBEFLOW_PORT:?KUBEFLOW_PORT must be set in $CLUSTER_CONFIG}"
+: "${KUBEFLOW_USERNAME:?KUBEFLOW_USERNAME must be set in $CLUSTER_CONFIG}"
+KUBEFLOW_PASSWORD="${KUBEFLOW_PASSWORD:-}"
+
+for channel_name in JUJU_CHANNEL KUBEFLOW_CHANNEL; do
+  channel_value="${!channel_name}"
+  if [[ ! "$channel_value" =~ ^[0-9]+\.[0-9]+/(stable|candidate|beta|edge)$ ]]; then
+    echo "Invalid $channel_name in $CLUSTER_CONFIG: $channel_value" >&2
+    exit 1
+  fi
+done
+if [[ ! "$KUBEFLOW_PORT" =~ ^[0-9]+$ ]] \
+  || (( KUBEFLOW_PORT < 1024 || KUBEFLOW_PORT > 65535 )); then
+  echo "KUBEFLOW_PORT must be an unprivileged TCP port (1024-65535)." >&2
+  exit 1
+fi
 
 if [[ "$RESET_JUJU" == "true" ]]; then
-  sudo snap remove juju --purge 2>/dev/null || true
-  rm -rf "$HOME/.local/share/juju" "$HOME/.juju" "$HOME/.config/juju" "$HOME/.cache/juju" 2>/dev/null || true
+  echo "RESET_JUJU is not allowed in the install path. Run scripts/lifecycle/destroy_cluster.sh first." >&2
+  exit 1
+fi
+
+command -v snap >/dev/null 2>&1 \
+  || { echo "snap is required; this system supports Ubuntu hosts with snapd installed." >&2; exit 1; }
+command -v microk8s >/dev/null 2>&1 \
+  || { echo "microk8s is not installed. Run 03_microk8s_gpu_addon_install.sh first." >&2; exit 1; }
+command -v jq >/dev/null 2>&1 \
+  || { echo "jq is required for the GPU readiness check." >&2; exit 1; }
+
+# This is a single-user local lab, not a production identity setup. An empty
+# config value generates a fresh credential; operators who need a stable lab
+# password can supply it through a private CLUSTER_CONFIG file.
+if [[ -z "$KUBEFLOW_PASSWORD" ]]; then
+  command -v openssl >/dev/null 2>&1 \
+    || { echo "openssl is required to generate the lab dashboard password." >&2; exit 1; }
+  KUBEFLOW_PASSWORD="$(openssl rand -hex 16)"
 fi
 
 if ! snap list juju >/dev/null 2>&1; then
@@ -23,8 +63,8 @@ juju bootstrap my-k8s
 juju add-model kubeflow
 juju deploy kubeflow-lite --trust --channel="$KUBEFLOW_CHANNEL"
 
-juju config dex-auth static-username=admin
-juju config dex-auth static-password=admin
+juju config dex-auth static-username="$KUBEFLOW_USERNAME"
+juju config dex-auth static-password="$KUBEFLOW_PASSWORD"
 
 sudo sysctl fs.inotify.max_user_instances=1280
 sudo sysctl fs.inotify.max_user_watches=655360
@@ -42,5 +82,6 @@ else
 fi
 
 echo "Kubeflow dashboard: http://localhost:${KUBEFLOW_PORT}"
-echo "Username: admin"
-echo "Password: admin"
+echo "LAB-ONLY static credential; do not expose this non-HA dashboard to an untrusted network."
+echo "Username: $KUBEFLOW_USERNAME"
+echo "Password: $KUBEFLOW_PASSWORD"

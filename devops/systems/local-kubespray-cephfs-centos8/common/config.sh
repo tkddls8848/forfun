@@ -1,33 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-sudo timedatectl set-timezone Asia/Seoul
-
+# Kubernetes requires swap to be disabled so kubelet can enforce pod memory limits reliably.
 sudo swapoff -a
-sudo sed -e '/swap/s/^/#/' -i /etc/fstab
+sudo sed -ri '/[[:space:]]swap[[:space:]]/s/^#?/#/' /etc/fstab
 
-sudo setenforce 0 2>/dev/null || true
-sudo sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
-sudo sed -i --follow-symlinks 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/sysconfig/selinux
+# Kubernetes networking needs bridged traffic to traverse netfilter after every reboot.
+printf '%s\n' br_netfilter | sudo tee /etc/modules-load.d/kubernetes.conf >/dev/null
+sudo modprobe br_netfilter
 
-sudo systemctl stop firewalld 2>/dev/null || true
-sudo systemctl disable firewalld 2>/dev/null || true
-sudo systemctl stop NetworkManager 2>/dev/null || true
-sudo systemctl disable NetworkManager 2>/dev/null || true
-
-cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf >/dev/null
+# Flannel and Kubernetes Services require bridged packet filtering and IPv4 forwarding.
+cat <<'EOF' | sudo tee /etc/sysctl.d/kubernetes.conf >/dev/null
 net.bridge.bridge-nf-call-ip6tables = 1
 net.bridge.bridge-nf-call-iptables = 1
 net.ipv4.ip_forward = 1
-net.ipv6.conf.all.forwarding = 1
 EOF
-sudo modprobe br_netfilter
 sudo sysctl --system
 
+# Kubespray and the CNI use the tc utility supplied by this CentOS package.
 sudo dnf install -y iproute-tc
 
-cat <<EOF | sudo tee /etc/resolv.conf >/dev/null
-nameserver 8.8.8.8
-EOF
+# NetworkManager remains enabled because it owns the Vagrant interfaces and their DNS state.
+# /etc/resolv.conf remains NetworkManager/DHCP-managed; public DNS would break local resolution.
 
-echo "Base node configuration complete"
+echo "Kubernetes node prerequisites configured"

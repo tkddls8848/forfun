@@ -1,5 +1,68 @@
 # Kubernetes GPU 클러스터 구성 (KVM Master + 베어메탈 GPU Worker)
 
+> **Declared exception — direct VM creation and SSH are intentional.** This is
+> the repository's one exception to the Ansible-inventory rule. The control
+> plane is a libvirt VM, while the only NVIDIA GPU remains attached to the
+> Ubuntu host and that host joins as a bare-metal worker. Converting this flow
+> to the shared Ansible inventory would hide the libvirt/cloud-init boundary
+> and its GPU-passthrough constraint: with no iGPU, the sole display/compute GPU
+> cannot safely be detached for VFIO, so the driver/runtime must be prepared on
+> the host instead of inside the VM. Keep the numbered scripts and direct SSH
+> handoff here.
+
+## Pinned compatibility set
+
+This lab targets Ubuntu 24.04 on x86-64. It was cross-checked against
+`devops/docs/os-compatibility-review.md`: the noble guest, `apt`, nftables
+libvirt backend, and `ubuntu` guest user match that review. Versions are a set;
+update and re-test them together rather than overriding one script locally.
+
+| Component | Pin |
+|---|---|
+| Ubuntu cloud image | `release-20241004`, SHA-256 `fad101d50b06b26590cf30542349f9e9d3041ad7929e3bc3531c81ec27f2c788` |
+| Kubernetes packages | `1.31.14-1.1` (`v1.31` package repository) |
+| containerd.io | `1.7.22-1` |
+| NVIDIA driver | `nvidia-driver-550-server=550.163.01-0ubuntu0.24.04.1` (runtime `550.163.01`) |
+| NVIDIA Container Toolkit | `1.17.8-1` |
+| Flannel | `v0.28.5`, vendored and SHA-256 verified |
+| NVIDIA device plugin | `v0.17.0`, vendored and SHA-256 verified |
+| CUDA smoke-test image | `nvidia/cuda:12.1.0-base-ubuntu22.04` |
+
+`01_vm_create.sh` verifies the cloud image and both vendored manifests before
+creating a VM. The manifests are embedded under `~/manifests` in the master VM;
+`03_master_init.sh` and `05_gpu_plugin.sh` verify them again immediately before
+`kubectl apply`. A pinned download URL plus the same expected checksum is the
+fallback when a script is copied without the vendored directory.
+
+## Why the NVIDIA runtime exceptions remain
+
+The bare-metal worker is deliberately different from a generic containerd
+node:
+
+- `mode = "legacy"` keeps NVIDIA's classic runtime-hook injection path. The
+  device-plugin pods in this lab request GPUs through environment variables and
+  direct `/dev/nvidia*` access; they do not carry CDI annotations, so `auto`
+  choosing CDI can omit the host driver libraries.
+- `disable-require = true` prevents image `NVIDIA_REQUIRE_*` metadata from
+  rejecting the pinned host driver before this lab's direct-device smoke test.
+  This weakens a compatibility guard and is acceptable only for this local lab.
+- `accept-nvidia-visible-devices-envvar-when-unprivileged = true` allows the
+  Kubernetes device plugin's `NVIDIA_VISIBLE_DEVICES` allocation to reach the
+  container runtime without making the workload itself privileged.
+- containerd `imports = ["/etc/containerd/conf.d/*.toml"]` is required because
+  `nvidia-ctk` writes the NVIDIA runtime drop-in there and containerd 1.7 does
+  not load that directory unless the root config imports it.
+
+## Destructive-operation policy
+
+Normal phases never reset kubeadm state, destroy/undefine a VM, or broadly
+remove cluster directories. They fail on conflicting pre-existing state and
+direct the operator to `06_rollback.sh`. All `kubeadm reset`, VM destruction,
+CNI removal, and package/config cleanup belongs to that interactive rollback
+script. In particular, `04_worker_join.sh` refuses existing kubelet/bootstrap,
+PKI, or `/var/lib/kubelet/config.yaml` state; use rollback option `04` before
+rejoining.
+
 ## 아키텍처
 
 ```

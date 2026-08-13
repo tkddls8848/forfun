@@ -11,9 +11,14 @@ log "Phase 4: worker join"
 kubeadm version >/dev/null 2>&1 || error_exit "kubeadm not found. Run 02_node_setup.sh first."
 systemctl is-active --quiet containerd || error_exit "containerd is not active."
 
-if [[ -f /etc/kubernetes/kubelet.conf ]]; then
-  error_exit "Existing kubeadm state found. Run 06_rollback.sh for cleanup before joining again."
-fi
+for kubeadm_state in \
+  /etc/kubernetes/kubelet.conf \
+  /etc/kubernetes/bootstrap-kubelet.conf \
+  /etc/kubernetes/pki/ca.crt \
+  /var/lib/kubelet/config.yaml; do
+  [[ ! -e "$kubeadm_state" ]] \
+    || error_exit "Existing kubeadm state found at $kubeadm_state. Run 06_rollback.sh option 04 before joining again."
+done
 
 if [[ $# -gt 0 && -n "$1" ]]; then
   JOIN_CMD="$1"

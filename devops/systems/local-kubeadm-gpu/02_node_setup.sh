@@ -7,9 +7,18 @@
 # hostname이 "k8s-master" 이면 GPU 설치 스킵 (master 노드)
 # 그 외 hostname 이면 GPU worker로 간주 (nvidia-container-toolkit 설치)
 
-set -e
+set -euo pipefail
 
-K8S_VERSION="1.31"
+# Mutually compatible, exact package set for Ubuntu 24.04. These values are
+# intentionally not environment-overridable: changing one component requires
+# re-validating the full set and updating the README version table.
+K8S_REPOSITORY_SERIES="1.31"
+KUBERNETES_PACKAGE_VERSION="1.31.14-1.1"
+CONTAINERD_PACKAGE_VERSION="1.7.22-1"
+NVIDIA_TOOLKIT_PACKAGE_VERSION="1.17.8-1"
+NVIDIA_DRIVER_PACKAGE="nvidia-driver-550-server"
+NVIDIA_DRIVER_PACKAGE_VERSION="550.163.01-0ubuntu0.24.04.1"
+NVIDIA_DRIVER_RUNTIME_VERSION="550.163.01"
 MASTER_HOSTNAME="k8s-master"
 
 log()        { echo "[$(date '+%H:%M:%S')] $1"; }
@@ -53,30 +62,26 @@ if [[ $IS_MASTER == false ]]; then
   log "2. NVIDIA 드라이버 확인 중..."
 
   if nvidia-smi > /dev/null 2>&1; then
-    DRIVER_VER=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)
-    log "   드라이버 이미 정상 동작 중 (버전: $DRIVER_VER) → 설치 스킵"
+    DRIVER_VER=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | sed -n '1p')
+    INSTALLED_DRIVER_PACKAGE_VERSION="$(dpkg-query -W -f='${Version}' "$NVIDIA_DRIVER_PACKAGE" 2>/dev/null || true)"
+    [[ "$DRIVER_VER" == "$NVIDIA_DRIVER_RUNTIME_VERSION" ]] \
+      || error_exit "NVIDIA runtime $DRIVER_VER 감지. 이 구성은 $NVIDIA_DRIVER_RUNTIME_VERSION 고정입니다. 정상 설치 경로에서 드라이버를 교체하지 않으므로 수동으로 버전을 맞춘 뒤 다시 실행하세요."
+    [[ "$INSTALLED_DRIVER_PACKAGE_VERSION" == "$NVIDIA_DRIVER_PACKAGE_VERSION" ]] \
+      || error_exit "$NVIDIA_DRIVER_PACKAGE package version 불일치 (expected $NVIDIA_DRIVER_PACKAGE_VERSION, got ${INSTALLED_DRIVER_PACKAGE_VERSION:-not-installed})."
+    log "   고정 NVIDIA 드라이버 확인 완료: $NVIDIA_DRIVER_PACKAGE=$INSTALLED_DRIVER_PACKAGE_VERSION"
   else
-    log "   드라이버 미설치 → 자동 설치 시작..."
-    sudo apt-get install -y ubuntu-drivers-common pciutils
+    log "   드라이버 미설치 → 고정 패키지 설치 시작..."
+    sudo apt-get install -y pciutils
 
-    NVIDIA_GPU=$(lspci | grep -iE "(VGA|3D|Display).*NVIDIA|NVIDIA.*(VGA|3D|Display)" | head -1)
+    NVIDIA_GPU=$(lspci | grep -iE "(VGA|3D|Display).*NVIDIA|NVIDIA.*(VGA|3D|Display)" | sed -n '1p')
     [[ -z "$NVIDIA_GPU" ]] && error_exit "NVIDIA GPU를 찾을 수 없습니다. lspci 출력을 확인하세요."
     log "   감지된 GPU: $NVIDIA_GPU"
 
-    RECOMMENDED_DRIVER=$(ubuntu-drivers devices 2>/dev/null \
-      | awk '/recommended/ && /nvidia/{print $3}' | head -1)
-    if [[ -z "$RECOMMENDED_DRIVER" ]]; then
-      RECOMMENDED_DRIVER=$(ubuntu-drivers devices 2>/dev/null \
-        | awk '/nvidia-driver-[0-9]+/{print $3}' \
-        | sort -t- -k3 -V | tail -1)
-    fi
-    [[ -z "$RECOMMENDED_DRIVER" ]] && \
-      error_exit "적합한 NVIDIA 드라이버를 찾을 수 없습니다. 'ubuntu-drivers devices' 를 확인하세요."
-    log "   설치할 드라이버: $RECOMMENDED_DRIVER"
-
-    sudo apt-get purge -y 'nvidia-*' 2>/dev/null || true
-    sudo apt-get autoremove -y 2>/dev/null || true
-    sudo apt-get install -y "$RECOMMENDED_DRIVER"
+    AVAILABLE_DRIVER_VERSIONS="$(apt-cache madison "$NVIDIA_DRIVER_PACKAGE" | awk '{print $3}')"
+    grep -Fxq "$NVIDIA_DRIVER_PACKAGE_VERSION" <<<"$AVAILABLE_DRIVER_VERSIONS" \
+      || error_exit "$NVIDIA_DRIVER_PACKAGE=$NVIDIA_DRIVER_PACKAGE_VERSION 를 Ubuntu 24.04 저장소에서 찾을 수 없습니다. 저장소/아키텍처를 확인하세요."
+    sudo apt-get install -y "${NVIDIA_DRIVER_PACKAGE}=${NVIDIA_DRIVER_PACKAGE_VERSION}"
+    sudo apt-mark hold "$NVIDIA_DRIVER_PACKAGE"
 
     # PRIME (노트북 iGPU+dGPU 환경에서만 적용, 서버는 자동 스킵)
     if apt-cache show nvidia-prime &>/dev/null 2>&1; then
@@ -109,7 +114,8 @@ if [[ $IS_MASTER == false ]]; then
     | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
 
   sudo apt-get update -y
-  sudo apt-get install -y nvidia-container-toolkit
+  sudo apt-get install -y "nvidia-container-toolkit=${NVIDIA_TOOLKIT_PACKAGE_VERSION}"
+  sudo apt-mark hold nvidia-container-toolkit nvidia-container-toolkit-base
 else
   log "3. nvidia-container-toolkit → 스킵 (master)"
 fi
@@ -153,7 +159,8 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.
   | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
 sudo apt-get update -y
-sudo apt-get install -y containerd.io
+sudo apt-get install -y "containerd.io=${CONTAINERD_PACKAGE_VERSION}"
+sudo apt-mark hold containerd.io
 
 sudo mkdir -p /etc/containerd
 sudo mkdir -p /etc/cni/net.d
@@ -161,10 +168,17 @@ containerd config default | sudo tee /etc/containerd/config.toml > /dev/null
 sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
 
 if [[ $IS_MASTER == false ]]; then
-  # nvidia-container-runtime: legacy 모드 강제 지정
-  # - auto 모드는 CDI를 우선하나 pod에 CDI annotation 없으면 라이브러리 미inject
-  # - disable-require: 드라이버가 이미지 NVIDIA_REQUIRE_CUDA 버전 범위 밖인 경우 우회
-  # - toolkit 신버전은 /etc/nvidia-container-toolkit/config.toml 사용 (구버전은 /etc/nvidia-container-runtime/)
+  # This exception uses the classic Kubernetes device-plugin envvar path and
+  # direct host /dev/nvidia* access. In `auto` mode toolkit 1.17 can prefer CDI,
+  # but these pods carry no CDI annotations, so the runtime hook would not inject
+  # the host driver libraries. Force `legacy` for this passthrough topology.
+  #
+  # `disable-require=true` prevents image NVIDIA_REQUIRE_* metadata from rejecting
+  # the lab's explicitly pinned host driver before the direct-device smoke test.
+  # This deliberately relaxes an image compatibility guard and is lab-only.
+  #
+  # Toolkit 1.17 uses /etc/nvidia-container-toolkit/config.toml; the older path is
+  # retained only so reruns can diagnose/migrate a pre-existing installation.
   NVIDIA_RT_CONFIG=""
   for _cfg in \
     "/etc/nvidia-container-toolkit/config.toml" \
@@ -198,15 +212,21 @@ if [[ $IS_MASTER == false ]]; then
 
   # nvidia-ctk로 containerd runtime 설정
   # - 버전(1.x/2.x) 자동 감지 후 올바른 포맷으로 conf.d/99-nvidia.toml 생성
-  # - 수동으로 만든 이전 파일 제거 (중복 방지)
+  # - 수동으로 만든 이전 파일은 정상 경로에서 지우지 않고 rollback을 안내한다.
   sudo mkdir -p /etc/containerd/conf.d
-  sudo rm -f /etc/containerd/conf.d/nvidia-runtime.toml \
-             /etc/containerd/conf.d/nvidia-runtime-v3.toml
+  for legacy_runtime_config in \
+    /etc/containerd/conf.d/nvidia-runtime.toml \
+    /etc/containerd/conf.d/nvidia-runtime-v3.toml; do
+    [[ ! -e "$legacy_runtime_config" ]] \
+      || error_exit "Legacy containerd runtime config exists: $legacy_runtime_config. Normal setup will not delete it; run 06_rollback.sh option 04 before retrying."
+  done
 
   sudo nvidia-ctk runtime configure --runtime=containerd --set-as-default \
     || error_exit "nvidia-ctk runtime configure 실패. nvidia-container-toolkit 설치를 확인하세요."
 
-  # containerd 1.x는 conf.d 로드를 위해 imports 라인 필요 (중복 방지)
+  # nvidia-ctk writes its runtime stanza under /etc/containerd/conf.d. Pinned
+  # containerd 1.7 ignores that drop-in unless the root config imports it, so the
+  # imports line is required for RuntimeClass `nvidia` to resolve after restart.
   if ! grep -q 'conf\.d' /etc/containerd/config.toml 2>/dev/null; then
     sudo sed -i '1s|^|imports = ["/etc/containerd/conf.d/*.toml"]\n|' /etc/containerd/config.toml
     log "   containerd: conf.d imports 라인 추가"
@@ -238,19 +258,23 @@ sudo systemctl enable containerd
 # ────────────────────────────────────────────
 # 6. kubeadm / kubelet / kubectl 설치
 # ────────────────────────────────────────────
-log "6. kubeadm/kubelet/kubectl v${K8S_VERSION} 설치..."
+log "6. kubeadm/kubelet/kubectl ${KUBERNETES_PACKAGE_VERSION} 설치..."
 
 sudo apt-get install -y apt-transport-https gpg
 
-curl -fsSL "https://pkgs.k8s.io/core:/stable:/v${K8S_VERSION}/deb/Release.key" \
+curl -fsSL "https://pkgs.k8s.io/core:/stable:/v${K8S_REPOSITORY_SERIES}/deb/Release.key" \
   | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
 echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] \
-  https://pkgs.k8s.io/core:/stable:/v${K8S_VERSION}/deb/ /" \
+  https://pkgs.k8s.io/core:/stable:/v${K8S_REPOSITORY_SERIES}/deb/ /" \
   | sudo tee /etc/apt/sources.list.d/kubernetes.list > /dev/null
 
 sudo apt-get update -y
-sudo apt-get install -y kubelet kubeadm kubectl conntrack
+sudo apt-get install -y \
+  "kubelet=${KUBERNETES_PACKAGE_VERSION}" \
+  "kubeadm=${KUBERNETES_PACKAGE_VERSION}" \
+  "kubectl=${KUBERNETES_PACKAGE_VERSION}" \
+  conntrack
 sudo apt-mark hold kubelet kubeadm kubectl
 sudo systemctl enable kubelet
 
@@ -262,7 +286,7 @@ echo ""
 if [[ $IS_MASTER == true ]]; then
   echo "✅ 설치 완료 (master 노드):"
   echo "   - containerd"
-  echo "   - kubeadm/kubelet/kubectl v${K8S_VERSION}"
+  echo "   - kubeadm/kubelet/kubectl ${KUBERNETES_PACKAGE_VERSION}"
   echo ""
   echo "재부팅 후: bash ~/03_master_init.sh"
 else
@@ -271,7 +295,7 @@ else
   echo "   - NVIDIA 드라이버 확인/설치"
   echo "   - nvidia-container-toolkit"
   echo "   - containerd (NVIDIA runtime 설정)"
-  echo "   - kubeadm/kubelet/kubectl v${K8S_VERSION}"
+  echo "   - kubeadm/kubelet/kubectl ${KUBERNETES_PACKAGE_VERSION}"
   echo ""
   echo "재부팅 후: bash 04_worker_join.sh \"<master join 명령>\""
   echo "join 명령 확인: ssh ubuntu@k8s-master cat ~/k8s-setup/worker_join.sh"
