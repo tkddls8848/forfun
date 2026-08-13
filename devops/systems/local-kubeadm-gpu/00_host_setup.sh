@@ -12,6 +12,13 @@
 
 set -e
 
+# Pinned for the Ubuntu 24.04 / Kubernetes 1.31 GPU lab. Keep this in sync
+# with 02_node_setup.sh and the README version table. The host driver is a
+# prerequisite because this bare-metal worker exposes /dev/nvidia* directly.
+NVIDIA_DRIVER_PACKAGE="nvidia-driver-550-server"
+NVIDIA_DRIVER_PACKAGE_VERSION="550.163.01-0ubuntu0.24.04.1"
+NVIDIA_DRIVER_RUNTIME_VERSION="550.163.01"
+
 log()        { echo "[$(date '+%H:%M:%S')] $1"; }
 warn()       { echo "[$(date '+%H:%M:%S')] WARNING: $1"; }
 error_exit() { echo "❌ ERROR: $1"; exit 1; }
@@ -126,11 +133,17 @@ log "   libvirtd 재시작 완료 (nftables 백엔드 적용)"
 log "5. NVIDIA 드라이버 확인 중..."
 
 nvidia-smi > /dev/null 2>&1 \
-  || error_exit "NVIDIA 드라이버가 로드되지 않았습니다. 먼저 'sudo apt install nvidia-driver-XXX' 로 설치 후 재부팅하세요."
+  || error_exit "NVIDIA 드라이버가 로드되지 않았습니다. Ubuntu 24.04에서 'sudo apt install ${NVIDIA_DRIVER_PACKAGE}=${NVIDIA_DRIVER_PACKAGE_VERSION}' 실행 후 재부팅하세요."
 
 DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)
 DRIVER_MAJOR=$(echo "$DRIVER_VERSION" | cut -d. -f1)
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
+INSTALLED_DRIVER_PACKAGE_VERSION="$(dpkg-query -W -f='${Version}' "$NVIDIA_DRIVER_PACKAGE" 2>/dev/null || true)"
+
+[[ "$DRIVER_VERSION" == "$NVIDIA_DRIVER_RUNTIME_VERSION" ]] \
+  || error_exit "NVIDIA driver $DRIVER_VERSION is loaded, but this lab pins $NVIDIA_DRIVER_RUNTIME_VERSION (${NVIDIA_DRIVER_PACKAGE}=${NVIDIA_DRIVER_PACKAGE_VERSION}). Refusing a mixed-version setup."
+[[ "$INSTALLED_DRIVER_PACKAGE_VERSION" == "$NVIDIA_DRIVER_PACKAGE_VERSION" ]] \
+  || error_exit "$NVIDIA_DRIVER_PACKAGE package version mismatch (expected $NVIDIA_DRIVER_PACKAGE_VERSION, got ${INSTALLED_DRIVER_PACKAGE_VERSION:-not-installed})."
 
 log "   GPU: $GPU_NAME"
 log "   드라이버 버전: $DRIVER_VERSION (major: $DRIVER_MAJOR)"

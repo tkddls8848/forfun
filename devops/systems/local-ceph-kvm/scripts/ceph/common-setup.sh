@@ -26,6 +26,17 @@ EOF
 MASTER_IP="${1:?master ip is required}"
 NETWORK_PREFIX="${2:?network prefix is required}"
 WORKER_LENGTH="${3:?worker length is required}"
+CEPH_PUBLIC_NETWORK="${CEPH_PUBLIC_NETWORK:?public network from inventory is required}"
+CEPH_CLUSTER_NETWORK="${CEPH_CLUSTER_NETWORK:?cluster network from inventory is required}"
+
+if [[ "$CEPH_PUBLIC_NETWORK" != "${NETWORK_PREFIX}.0/24" ]]; then
+  echo "ERROR: public network $CEPH_PUBLIC_NETWORK does not match network prefix $NETWORK_PREFIX" >&2
+  exit 1
+fi
+if [[ "$CEPH_PUBLIC_NETWORK" == "$CEPH_CLUSTER_NETWORK" ]]; then
+  echo "ERROR: public and cluster networks must be different: $CEPH_PUBLIC_NETWORK" >&2
+  exit 1
+fi
 
 # 노드 타입 확인 (호스트명으로 판단)
 NODE_TYPE="worker"
@@ -121,9 +132,8 @@ else
     echo ">> 워커 노드용 디렉토리 생성 중..."
     mkdir -p /opt/ceph/{osd,logs}
 
-    # libvirt/KVM은 virtio 디스크(vd*), VirtualBox는 sd* 를 사용하므로 둘 다 확인
-    echo ">> OSD 디스크 확인 중..."
-    lsblk | grep -E "vdb|vdc|vdd|vde|sdb|sdc|sdd|sde" || echo ">> OSD 디스크가 아직 마운트되지 않았습니다."
+    echo ">> 블록 디바이스 현황 (OSD 대상은 inventory의 osd_devices만 사용):"
+    lsblk -d -o NAME,SIZE,TYPE
 
     echo ">> 워커 노드 설정 완료"
 fi
@@ -135,8 +145,8 @@ echo -e "\n[단계 6/6] 환경 변수 설정을 시작합니다..."
 # 재프로비저닝 시 중복 누적을 막기 위해 기존 키를 제거 후 재기록(멱등).
 echo ">> Ceph 환경 변수 기록 중..."
 CEPH_ENV_LINES=(
-  "CEPH_PUBLIC_NETWORK=${NETWORK_PREFIX}.0/24"
-  "CEPH_CLUSTER_NETWORK=${CEPH_CLUSTER_NETWORK:-${NETWORK_PREFIX}.0/24}"
+  "CEPH_PUBLIC_NETWORK=${CEPH_PUBLIC_NETWORK}"
+  "CEPH_CLUSTER_NETWORK=${CEPH_CLUSTER_NETWORK}"
 )
 for line in "${CEPH_ENV_LINES[@]}"; do
   key="${line%%=*}"

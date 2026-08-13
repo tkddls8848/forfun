@@ -4,16 +4,62 @@
 require "fileutils"
 
 # 노드 설정
-K8S_CLUSTER = {
-  "k8s-worker1" => { :ip => "192.168.56.21", :cpus => 2, :memory => 4096, :ssh => 22001, :rook_disk_gb => 20 },
-  "k8s-worker2" => { :ip => "192.168.56.22", :cpus => 2, :memory => 4096, :ssh => 22002, :rook_disk_gb => 20 },
-  "k8s-worker3" => { :ip => "192.168.56.23", :cpus => 2, :memory => 4096, :ssh => 22003, :rook_disk_gb => 20 },
-  "k8s-master" => { :ip => "192.168.56.10", :cpus => 4, :memory => 4096, :ssh => 22000, :provision => ["./scripts/cluster/kubespray.sh", "./scripts/storage/rook-ceph.sh", "./scripts/addons/jenkins.sh", "./scripts/addons/monitoring.sh"] }
-}
+INVENTORY_PATH = File.expand_path("inventory/inventory.ini", __dir__)
+
+def parse_inventory(path)
+  hosts = {}
+  groups = Hash.new { |hash, key| hash[key] = [] }
+  section = nil
+
+  File.foreach(path) do |raw_line|
+    line = raw_line.strip
+    next if line.empty? || line.start_with?("#", ";")
+
+    if (match = line.match(/^\[([^]]+)\]$/))
+      section = match[1]
+      next
+    end
+
+    if section == "all"
+      hostname, *tokens = line.split
+      hosts[hostname] = tokens.to_h do |token|
+        key, value = token.split("=", 2)
+        [key, value]
+      end
+    elsif section && section != "all:vars" && !section.end_with?(":children")
+      groups[section] << line.split.first
+    end
+  end
+
+  [hosts, groups]
+end
+
+inventory_hosts, inventory_groups = parse_inventory(INVENTORY_PATH)
+workers = inventory_groups.fetch("kube_node")
+control_planes = inventory_groups.fetch("kube_control_plane")
+unknown_nodes = (workers + control_planes).uniq - inventory_hosts.keys
+raise "Inventory groups contain undefined hosts: #{unknown_nodes.join(', ')}" unless unknown_nodes.empty?
+raise "This lab expects exactly one control-plane node" unless control_planes.length == 1
+raise "Rook's replica-3 pools require at least three worker nodes" if workers.length < 3
+
+# Workers are brought up before the control plane so their SSH keys are scannable
+# when the control-plane provisioner runs. Topology and addresses come only from inventory.ini.
+ordered_hosts = workers + (inventory_hosts.keys - workers)
+K8S_CLUSTER = ordered_hosts.to_h do |hostname|
+  host_vars = inventory_hosts.fetch(hostname)
+  is_control_plane = control_planes.include?(hostname)
+  [hostname, {
+    :ip => host_vars.fetch("ansible_host"),
+    :cpus => is_control_plane ? 4 : 2,
+    :memory => 4096,
+    :ssh => Integer(host_vars.fetch("vagrant_ssh_port")),
+    :rook_disk_gb => workers.include?(hostname) ? 20 : nil,
+    :provision => is_control_plane ? ["./scripts/cluster/kubespray.sh", "./scripts/storage/rook-ceph.sh", "./scripts/addons/jenkins.sh", "./scripts/addons/monitoring.sh"] : nil
+  }]
+end
 
 # 환경 설정
 CLUSTER_NAME = "k8s-ubuntu2404-kubespray"
-NODE_NUMBER = K8S_CLUSTER.size()
 
 Vagrant.configure("2") do |config|
   K8S_CLUSTER.each do |hostname, info|
@@ -57,7 +103,7 @@ Vagrant.configure("2") do |config|
       # 프로비저닝 스크립트 실행
       if info[:provision]
         info[:provision].each do |script|
-          cfg.vm.provision "shell", path: script, args: [NODE_NUMBER], privileged: false
+          cfg.vm.provision "shell", path: script, privileged: false
         end
       end
     end

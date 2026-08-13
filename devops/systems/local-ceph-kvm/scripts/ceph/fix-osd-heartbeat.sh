@@ -6,7 +6,135 @@
 #   - 네트워크 설정 조정
 #
 
-set -e
+set -euo pipefail
+
+INVENTORY_FILE="${1:-/vagrant/inventory/inventory.ini}"
+ANSIBLE_INVENTORY="/tmp/cephadm-ansible/inventory.ini"
+OSD_CANDIDATE_REGEX='^(vd[b-z]|sd[b-z])$'
+
+declare -A OSD_DEVICES_BY_HOST=()
+
+load_declared_osd_devices() {
+  local raw_line line host field csv device
+  local -a fields raw_devices normalized_devices
+
+  [[ -r "$INVENTORY_FILE" ]] || {
+    echo "ERROR: Ceph inventory is not readable: $INVENTORY_FILE" >&2
+    exit 1
+  }
+  [[ -r "$ANSIBLE_INVENTORY" ]] || {
+    echo "ERROR: cephadm Ansible inventory is not readable: $ANSIBLE_INVENTORY" >&2
+    exit 1
+  }
+
+  while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
+    line="${raw_line%%#*}"
+    [[ -n "${line//[[:space:]]/}" ]] || continue
+    [[ "$line" == \[* ]] && continue
+
+    read -r -a fields <<< "$line"
+    host="${fields[0]}"
+    csv=""
+    for field in "${fields[@]:1}"; do
+      if [[ "$field" == osd_devices=* ]]; then
+        csv="${field#osd_devices=}"
+        break
+      fi
+    done
+    [[ -n "$csv" ]] || continue
+    [[ "$host" =~ ^[A-Za-z0-9._-]+$ ]] || {
+      echo "ERROR: invalid storage hostname in $INVENTORY_FILE: $host" >&2
+      exit 1
+    }
+
+    IFS=',' read -r -a raw_devices <<< "$csv"
+    normalized_devices=()
+    for device in "${raw_devices[@]}"; do
+      device="${device//[[:space:]]/}"
+      [[ "$device" =~ ^/dev/(vd[b-z]|sd[b-z])$ ]] || {
+        echo "ERROR: $host has invalid libvirt/KVM OSD device '$device' in $INVENTORY_FILE" >&2
+        exit 1
+      }
+      normalized_devices+=("$device")
+    done
+    [[ ${#normalized_devices[@]} -gt 0 ]] || {
+      echo "ERROR: $host has an empty osd_devices declaration in $INVENTORY_FILE" >&2
+      exit 1
+    }
+    OSD_DEVICES_BY_HOST["$host"]="$(IFS=,; echo "${normalized_devices[*]}")"
+  done < "$INVENTORY_FILE"
+
+  [[ ${#OSD_DEVICES_BY_HOST[@]} -gt 0 ]] || {
+    echo "ERROR: no hosts declare osd_devices in $INVENTORY_FILE" >&2
+    exit 1
+  }
+}
+
+apply_declared_scheduler_settings() {
+  local scheduler_script host osd_devices_csv
+
+  scheduler_script="$(mktemp)"
+  trap "rm -f '$scheduler_script'" EXIT
+  cat > "$scheduler_script" <<'REMOTE_SCRIPT'
+#!/bin/bash
+set -euo pipefail
+
+OSD_DEVICES_CSV="${1:?declared OSD device CSV is required}"
+CANDIDATE_REGEX="${2:?candidate disk regex is required}"
+
+declare -A DECLARED_DISKS=()
+IFS=',' read -r -a declared_devices <<< "$OSD_DEVICES_CSV"
+for device in "${declared_devices[@]}"; do
+  disk="${device#/dev/}"
+  DECLARED_DISKS["$disk"]=1
+done
+
+mapfile -t candidate_disks < <(lsblk -dn -o NAME | grep -E "$CANDIDATE_REGEX" || true)
+for disk in "${candidate_disks[@]}"; do
+  if [[ -z "${DECLARED_DISKS[$disk]+x}" ]]; then
+    echo "WARNING: undeclared candidate disk /dev/$disk found; scheduler left unchanged" >&2
+  fi
+done
+
+for device in "${declared_devices[@]}"; do
+  disk="${device#/dev/}"
+  if ! lsblk -dn -o NAME | grep -Fxq "$disk"; then
+    echo "ERROR: declared OSD device $device is not present" >&2
+    exit 1
+  fi
+
+  sched_file="/sys/block/$disk/queue/scheduler"
+  if [[ ! -w "$sched_file" ]]; then
+    echo "WARNING: scheduler for declared OSD device $device is not writable" >&2
+    continue
+  fi
+
+  available="$(<"$sched_file")"
+  selected=""
+  for candidate in none noop mq-deadline deadline; do
+    if [[ "$available" == *"$candidate"* ]] && printf '%s\n' "$candidate" > "$sched_file"; then
+      selected="$candidate"
+      echo "$device -> $candidate"
+      break
+    fi
+  done
+  [[ -n "$selected" ]] || echo "WARNING: no supported scheduler found for $device: $available" >&2
+done
+REMOTE_SCRIPT
+  chmod 0755 "$scheduler_script"
+
+  for host in "${!OSD_DEVICES_BY_HOST[@]}"; do
+    osd_devices_csv="${OSD_DEVICES_BY_HOST[$host]}"
+    echo ">> $host: declared OSD scheduler tuning ($osd_devices_csv)"
+    ansible "$host" -i "$ANSIBLE_INVENTORY" -b -m script \
+      -a "$scheduler_script '$osd_devices_csv' '$OSD_CANDIDATE_REGEX'"
+  done
+
+  rm -f "$scheduler_script"
+  trap - EXIT
+}
+
+load_declared_osd_devices
 
 echo "=========================================="
 echo "OSD Heartbeat 문제 해결 스크립트 시작"
@@ -65,19 +193,10 @@ EOF
 sysctl -p /etc/sysctl.d/90-ceph-osd.conf
 
 echo ">> I/O 스케줄러 설정 중..."
-# 최신 multi-queue 커널엔 noop이 없으므로, 디스크가 지원하는 스케줄러 중 선택
-# (SSD/가상 디스크는 none 우선, 없으면 mq-deadline)
-for disk in $(lsblk -dn -o NAME | grep -E "vd[b-z]|sd[b-z]"); do
-    sched_file="/sys/block/$disk/queue/scheduler"
-    [[ -w "$sched_file" ]] || continue
-    available="$(cat "$sched_file")"
-    for candidate in none noop mq-deadline deadline; do
-        if [[ "$available" == *"$candidate"* ]]; then
-            echo "$candidate" > "$sched_file" 2>/dev/null && \
-                echo "   $disk -> $candidate" && break
-        fi
-    done
-done
+# OSD 디스크는 worker에 연결되어 있으므로 cephadm이 만든 Ansible 연결 정보를 사용한다.
+# 각 worker의 선언 목록은 inventory/inventory.ini에서 직접 읽으며, 선언되지 않은
+# vd[b-z]/sd[b-z] 후보 디스크는 경고만 남기고 절대 변경하지 않는다.
+apply_declared_scheduler_settings
 
 # --- 5. OSD 서비스 재시작 및 상태 확인 ---
 echo -e "\n[단계 5/5] OSD 서비스 재시작 및 상태 확인 중..."
@@ -136,4 +255,4 @@ echo "  1. KVM VM 메모리를 4GB 이상으로 증가"
 echo "  2. CPU 코어 수를 4개 이상으로 증가"
 echo "  3. cpu_mode = host-passthrough 설정 권장"
 echo "  4. 호스트 시스템 리소스 모니터링"
-echo "==========================================" 
+echo "=========================================="

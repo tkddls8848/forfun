@@ -14,31 +14,35 @@ OSD
 *.svg
 *.woff
 **/data
-!devops/local/data/
-!devops/local/data/**
 **/api_data
 **/api_docs
 **/output
 **/embeddings
 **/pipeline-venv
 
-# devops/k8s generated local state
-devops/k8s/**/*.vdi
-devops/k8s/**/*.vmdk
-devops/k8s/**/*.qcow2
-devops/k8s/**/*.img
-devops/k8s/**/*.iso
-devops/k8s/**/kubeconfig
-devops/k8s/**/kubeconfig-*
-devops/k8s/**/admin.conf
-devops/k8s/**/join-command.sh
-devops/k8s/**/worker_join.sh
-devops/k8s/**/*.retry
-devops/k8s/**/.ansible/
-devops/k8s/**/.cache/
-devops/k8s/**/tmp/
-devops/k8s/**/rook/
-devops/k8s/**/kubespray-repo/
+# devops/systems generated local state
+# VM disk / installer images
+devops/systems/**/*.vdi
+devops/systems/**/*.vmdk
+devops/systems/**/*.qcow2
+devops/systems/**/*.img
+devops/systems/**/*.iso
+# cluster credentials & join secrets
+devops/systems/**/kubeconfig
+devops/systems/**/kubeconfig-*
+devops/systems/**/admin.conf
+devops/systems/**/join-command.sh
+devops/systems/**/worker_join.sh
+# provisioner scratch / generated state
+devops/systems/**/*.retry
+devops/systems/**/.ansible/
+devops/systems/**/.cache/
+devops/systems/**/.generated/
+devops/systems/**/.lab/
+devops/systems/**/tmp/
+# upstream repos cloned in-tree
+devops/systems/**/rook/
+devops/systems/**/kubespray-repo/
 
 # dependencies
 node_modules

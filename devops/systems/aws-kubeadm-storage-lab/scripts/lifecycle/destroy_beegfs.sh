@@ -1,13 +1,14 @@
 #!/bin/bash
 set -e
+CURRENT_STEP="init"
+CURRENT_TARGET="local"
+trap 'status=$?; command_name=${BASH_COMMAND%% *}; printf "[step=%s][target=%s][failed] reason=command exited %d: %s\\n" "$CURRENT_STEP" "$CURRENT_TARGET" "$status" "$command_name" >&2' ERR
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LAB_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SSH_KEY="${SSH_KEY_PATH:-$HOME/.ssh/storage-lab.pem}"
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -i $SSH_KEY"
 
-echo "=============================="
-echo " [1/3] ?�프???�보 ?�집"
-echo "=============================="
+CURRENT_STEP="1/3"; CURRENT_TARGET="aws:${REGION:-${AWS_REGION:-default}}"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] 인프라 정보 수집"
 cd "$LAB_ROOT/opentofu"
 BASTION_IP=$(tofu output -raw bastion_public_ip)
 MASTER_IP=$(tofu output -json master_private_ips | jq -r '.[0]')
@@ -18,9 +19,7 @@ echo "  Bastion : $BASTION_IP"
 echo "  Master  : $MASTER_IP"
 echo "  Workers : ${WORKER_IPS[*]}"
 
-echo "=============================="
-echo " [2/3] Bastion ?�경 준�?
-echo "=============================="
+CURRENT_STEP="2/3"; CURRENT_TARGET="bastion:${BASTION_IP:-pending}"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] Bastion 환경 준비"
 ssh $SSH_OPTS ubuntu@$BASTION_IP "mkdir -p ~/scripts"
 printf "SSH_KEY=\$HOME/.ssh/storage-lab.pem
 MASTER_IP=%s
@@ -30,7 +29,7 @@ WORKER_IPS=(%s)
   "${WORKER_IPS[*]}" \
   | ssh $SSH_OPTS ubuntu@$BASTION_IP "cat > ~/scripts/.env"
 
-# kubectl ?�치 (?�는 경우)
+# kubectl 설치 (없는 경우)
 ssh $SSH_OPTS ubuntu@$BASTION_IP "
   if ! command -v kubectl &>/dev/null; then
     curl -sLO https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl
@@ -39,9 +38,7 @@ ssh $SSH_OPTS ubuntu@$BASTION_IP "
   fi
 "
 
-echo "=============================="
-echo " [3/3] BeeGFS ??�� (Bastion?�서 ?�행)"
-echo "=============================="
+CURRENT_STEP="3/3"; CURRENT_TARGET="bastion:${BASTION_IP:-pending}"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] BeeGFS 삭제 (Bastion에서 실행)"
 ssh $SSH_OPTS ubuntu@$BASTION_IP << 'REMOTE'
 set -e
 export KUBECONFIG=~/.kube/config-k8s-storage-lab
@@ -50,30 +47,24 @@ SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=15 -i $SSH_KEY"
 CSSH="ssh $SSH_OPTS ubuntu@"
 WORKER_COUNT=${#WORKER_IPS[@]}
 
-echo "=============================="
-echo " [1/5] API ?�버 ?�결 ?�인"
-echo "=============================="
+CURRENT_STEP="1/5"; CURRENT_TARGET="local"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] API 서버 연결 확인"
 API_OK=false
 if kubectl cluster-info --request-timeout=10s &>/dev/null; then
-  echo "  ??API ?�버 ?�답 ?�인"
+  echo "  API 서버 응답 확인"
   API_OK=true
 else
-  echo "  ?�️  API ?�버 ?�답 ?�음 - K8s 리소????�� ?�계 ?�킵"
+  echo "  [warning] API 서버 응답 없음 - K8s 리소스 삭제 단계 스킵"
 fi
 
-echo "=============================="
-echo " [2/5] StorageClass ??��"
-echo "=============================="
+CURRENT_STEP="2/5"; CURRENT_TARGET="local"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] StorageClass 삭제"
 if $API_OK; then
   kubectl delete storageclass beegfs-scratch --ignore-not-found
-  echo "  ??StorageClass ??�� ?�료"
+  echo "  StorageClass 삭제 완료"
 else
-  echo "  ?�킵 (API ?�버 미응??"
+  echo "  스킵 (API 서버 미응답)"
 fi
 
-echo "=============================="
-echo " [3/5] beegfs-system ?�임?�페?�스 리소????��"
-echo "=============================="
+CURRENT_STEP="3/5"; CURRENT_TARGET="local"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] beegfs-system 네임스페이스 리소스 삭제"
 if $API_OK; then
   # Deployment / DaemonSet / Service / ServiceMonitor / ConfigMap
   kubectl delete deployment beegfs-mgmtd beegfs-meta beegfs-exporter \
@@ -86,37 +77,32 @@ if $API_OK; then
     -n beegfs-system --ignore-not-found 2>/dev/null || true
   kubectl delete configmap beegfs-exporter-script \
     -n beegfs-system --ignore-not-found
-  echo "  [?��? Pod 종료 ?��?(20s)..."
+  echo "  [대기] Pod 종료 대기 (20s)..."
   sleep 20
-  echo "  ??beegfs-system 리소????�� ?�료"
+  echo "  beegfs-system 리소스 삭제 완료"
 else
-  echo "  ?�킵 (API ?�버 미응??"
+  echo "  스킵 (API 서버 미응답)"
 fi
 
-echo "=============================="
-echo " [4/5] Grafana ?�?�보??ConfigMap ??��"
-echo "=============================="
+CURRENT_STEP="4/5"; CURRENT_TARGET="local"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] Grafana 대시보드 ConfigMap 삭제"
 if $API_OK; then
   kubectl delete configmap beegfs-grafana-dashboard \
     -n monitoring --ignore-not-found
-  echo "  ??Grafana ?�?�보??ConfigMap ??�� ?�료"
+  echo "  Grafana 대시보드 ConfigMap 삭제 완료"
 else
-  echo "  ?�킵 (API ?�버 미응??"
+  echo "  스킵 (API 서버 미응답)"
 fi
 
-echo "=============================="
-echo " [5/5] beegfs-system ?�임?�페?�스 ??��"
-echo "=============================="
+CURRENT_STEP="5/5"; CURRENT_TARGET="local"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] beegfs-system 네임스페이스 삭제"
 if $API_OK; then
   kubectl delete namespace beegfs-system --ignore-not-found
-  echo "  [?��? ?�임?�페?�스 ??�� ?��?(20s)..."
+  echo "  [대기] 네임스페이스 삭제 대기 (20s)..."
   sleep 20
-  echo "  ???�임?�페?�스 ??�� ?�료"
+  echo "  네임스페이스 삭제 완료"
 else
-  echo "  ?�킵 (API ?�버 미응??"
+  echo "  스킵 (API 서버 미응답)"
 fi
 
-echo ""
-echo "??BeeGFS ??�� ?�료"
-echo "   ?�설�? bash scripts/lifecycle/start_beegfs.sh"
+echo "BeeGFS 삭제 완료"
+echo "   재설치: bash scripts/lifecycle/start_beegfs.sh"
 REMOTE

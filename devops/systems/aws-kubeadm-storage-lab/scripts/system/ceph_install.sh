@@ -1,10 +1,13 @@
 #!/bin/bash
 set -e
+CURRENT_STEP="init"
+CURRENT_TARGET="local"
+trap 'status=$?; command_name=${BASH_COMMAND%% *}; printf "[step=%s][target=%s][failed] reason=command exited %d: %s\\n" "$CURRENT_STEP" "$CURRENT_TARGET" "$status" "$command_name" >&2' ERR
 
-# Lock ?�일 ?�인 - ?�시 ?�행 방�?
+# Lock 파일 확인 - 동시 실행 방지
 LOCK_FILE="/tmp/ceph-setup.lock"
 if [ -f "$LOCK_FILE" ]; then
-  echo "???�른 ?�로?�스가 Ceph ?�정 중입?�다 (lock: $LOCK_FILE)"
+  echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET][failed] reason=다른 프로세스가 Ceph 설정 중입니다 (lock: $LOCK_FILE)" >&2
   exit 1
 fi
 
@@ -14,95 +17,85 @@ export KUBECONFIG=~/.kube/config-k8s-storage-lab
 SSH_OPTS="-o StrictHostKeyChecking=no -i $SSH_KEY"
 CSSH="ssh $SSH_OPTS ubuntu@"
 
-# K8s ?�러?�터 존재 ?�인
+# K8s 클러스터 존재 확인
 if ! kubectl cluster-info &>/dev/null; then
-  echo "??K8s ?�러?�터???�근?????�습?�다."
-  echo "   먼�? start_k8s.sh �??�행?�세??"
+  echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET][failed] reason=K8s 클러스터에 접근할 수 없습니다." >&2
+  echo "   먼저 start_k8s.sh 를 실행하세요."
   exit 1
 fi
 
 ROOK_VERSION="v1.16.6"
 CEPH_IMAGE="quay.io/ceph/ceph:v19.2.3"
 
-# Lock ?�일 ?�성 �?trap ?�정
+# Lock 파일 생성 및 trap 설정
 touch "$LOCK_FILE"
 trap 'rm -f "$LOCK_FILE"' EXIT
 
 WORKER_COUNT=${#WORKER_PUBS[@]}
 
-# 카운?�다???�시 ?�수
+# 카운트다운 표시 함수
 countdown() {
   local sec=$1
   local msg=$2
   for s in $(seq $sec -1 1); do
-    printf "\r  [?��? %s - %2ds ?�음..." "$msg" $s
+    printf "\r  [대기] %s - %2ds 남음..." "$msg" $s
     sleep 1
   done
-  printf "\r  [?�료] %s                    \n" "$msg"
+  printf "\r  [완료] %s                    \n" "$msg"
 }
 
-echo "=============================="
-echo " Step 1: Helm ?�치 (master-1)"
-echo "=============================="
+CURRENT_STEP="1"; CURRENT_TARGET="master:${MASTER_IP:-${M1_PUB:-pending}}"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] Helm 설치 (master-1)"
 $CSSH$M1_PUB "
   curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
   helm version
 "
 
-echo "=============================="
-echo " Step 1-1: rook-ceph Helm repo 추�?"
-echo "=============================="
+CURRENT_STEP="1-1"; CURRENT_TARGET="k8s-storage-cluster"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] rook-ceph Helm repo 추가"
 $CSSH$M1_PUB "
   helm repo add rook-release https://charts.rook.io/release
   helm repo update
   kubectl create namespace rook-ceph || true
 "
 
-echo "=============================="
-echo " Step 1-2: rook-ceph Operator 배포"
-echo "=============================="
+CURRENT_STEP="1-2"; CURRENT_TARGET="k8s-storage-cluster"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] rook-ceph Operator 배포"
 $CSSH$M1_PUB "helm upgrade --install rook-ceph rook-release/rook-ceph --namespace rook-ceph --version $ROOK_VERSION"
-echo "  [?��? rook-ceph-operator Deployment rollout ?�료 ?��?(최�? 300s)..."
+echo "  [대기] rook-ceph-operator Deployment rollout 완료 대기 (최대 300s)..."
 $CSSH$M1_PUB "kubectl -n rook-ceph rollout status deployment/rook-ceph-operator --timeout=300s"
 
-# operator??CRD watch ?�결(20+�????�정?�될 ?�간 ?�보
-# 바로 CephCluster�?배포?�면 watch ??�� + reconcile 루프�?etcd 과�???발생
-countdown 60 "rook-ceph-operator CRD watch ?�정??
+# operator의 CRD watch 연결(20+개)이 안정화될 시간 확보
+# 바로 CephCluster를 배포하면 watch 폭풍 + reconcile 루프로 etcd 과부하 발생
+countdown 60 "rook-ceph-operator CRD watch 안정화"
 $CSSH$M1_PUB "kubectl -n rook-ceph get pods"
 
-echo "=============================="
-echo " Step 1-2-1: ?�커 ?�드 rbd 모듈 로드 ?�인"
-echo "=============================="
+CURRENT_STEP="1-2-1"; CURRENT_TARGET="workers"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] 워커 노드 rbd 모듈 로드 확인"
 for i in $(seq 0 $((WORKER_COUNT - 1))); do
   NODE_IP="${WORKER_PUBS[$i]}"
   NODE_NAME="worker-$((i + 1))"
   $CSSH$NODE_IP "
     if lsmod | grep -q '^rbd'; then
-      echo '  ??rbd 모듈 로드?? $NODE_NAME'
+      echo '  rbd 모듈 로드됨: $NODE_NAME'
     else
-      echo '  rbd 모듈 로드 ?�도: $NODE_NAME'
+      echo '  rbd 모듈 로드 시도: $NODE_NAME'
       sudo modprobe rbd
-      lsmod | grep -q '^rbd' && echo '  ??rbd 로드 ?�공' || echo '  ??rbd 로드 ?�패 - linux-modules-extra-aws ?�인 ?�요'
+      lsmod | grep -q '^rbd' && echo '  rbd 로드 성공' || echo '  ❌ rbd 로드 실패 - linux-modules-extra-aws 확인 필요'
     fi
   "
 done
 
-echo "=============================="
-echo " Step 1-3: CephCluster CR 배포"
-echo "=============================="
+CURRENT_STEP="1-3"; CURRENT_TARGET="k8s-storage-cluster"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] CephCluster CR 배포"
 
-# OSD ?��? ???�상 ?��? ?�고 ?�속 5???�일?????�정?�로 ?�단 (최�? 8�?
-# useAllDevices: true ?��?�?목표 ?��? ?�드코딩?��? ?�음
+# OSD 수가 더 이상 늘지 않고 연속 5회 동일할 때 안정으로 판단 (최대 8분)
+# useAllDevices: true 이므로 목표 수를 하드코딩하지 않음
 wait_osd_running() {
   $CSSH$M1_PUB "
     PREV=0
     STABLE=0
     for i in \$(seq 1 48); do
       UP=\$(kubectl -n rook-ceph get pods -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -c Running || true)
-      echo \"  [?��? OSD 기동 ?�인 [\$i/48] Running: \$UP\"
+      echo \"  [대기] OSD 기동 확인 [\$i/48] Running: \$UP\"
       if [ \"\$UP\" -gt 0 ] && [ \"\$UP\" -eq \"\$PREV\" ]; then
         STABLE=\$((STABLE + 1))
-        [ \"\$STABLE\" -ge 5 ] && echo \"  ??OSD ?�정 ?�인 (5???�속 \$UP �?\" && break
+        [ \"\$STABLE\" -ge 5 ] && echo \"  OSD 안정 확인 (5회 연속 \$UP 개)\" && break
       else
         STABLE=0
       fi
@@ -110,10 +103,10 @@ wait_osd_running() {
       sleep 10
     done
   "
-  countdown 45 "OSD I/O 초기??�?API server ?�정??
+  countdown 45 "OSD I/O 초기화 및 API server 안정화"
 }
 
-# CephCluster CR 배포 (useAllNodes: true ??K8s ?�드명에 무�??�게 control-plane ?�외 ?�체 ?�용)
+# CephCluster CR 배포 (useAllNodes: true — K8s 노드명에 무관하게 control-plane 제외 전체 적용)
 $CSSH$M1_PUB "
 cat <<'CREOF' | kubectl apply -f -
 apiVersion: ceph.rook.io/v1
@@ -157,27 +150,23 @@ spec:
 CREOF
 "
 
-echo "  deviceFilter: ^nvme1n1$ ??Ceph OSD ?�용 ?�스?�만 ?�용 (/dev/xvdb, nvme2n1=BeeGFS ?�외)"
+echo "  deviceFilter: ^nvme1n1$ — Ceph OSD 전용 디스크만 사용 (/dev/xvdb, nvme2n1=BeeGFS 제외)"
 wait_osd_running
 
-echo "=============================="
-echo " Step 1-4: Ceph ?�러?�터 HEALTH_OK ?��?
-echo "=============================="
+CURRENT_STEP="1-4"; CURRENT_TARGET="k8s-storage-cluster"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] Ceph 클러스터 HEALTH_OK 대기"
 $CSSH$M1_PUB "
   for i in \$(seq 1 90); do
     STATUS=\$(kubectl -n rook-ceph get cephcluster rook-ceph \
       -o jsonpath='{.status.ceph.health}' 2>/dev/null || echo 'PENDING')
-    echo \"  [?��? Ceph ?�러?�터 ?�태 ?�인 [\$i/90]: \$STATUS\"
-    [ \"\$STATUS\" = 'HEALTH_OK' ] && echo '  ??HEALTH_OK ?�성' && break
+    echo \"  [대기] Ceph 클러스터 상태 확인 [\$i/90]: \$STATUS\"
+    [ \"\$STATUS\" = 'HEALTH_OK' ] && echo '  HEALTH_OK 달성' && break
     sleep 10
   done
   kubectl -n rook-ceph get cephcluster rook-ceph
   kubectl -n rook-ceph get pods -o wide
 "
 
-echo "=============================="
-echo " Step 1-4-1: CSI Provisioner master ?�드 배치"
-echo "=============================="
+CURRENT_STEP="1-4-1"; CURRENT_TARGET="master:${MASTER_IP:-${M1_PUB:-pending}}"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] CSI Provisioner master 노드 배치"
 $CSSH$M1_PUB "
 cat > /tmp/csi-patch.yaml << 'PATCHEOF'
 data:
@@ -190,20 +179,16 @@ PATCHEOF
     deployment/csi-rbdplugin-provisioner -n rook-ceph
   kubectl -n rook-ceph rollout status deployment/csi-cephfsplugin-provisioner --timeout=180s
   kubectl -n rook-ceph rollout status deployment/csi-rbdplugin-provisioner --timeout=180s
-  echo '  ??CSI Provisioner ??master ?�드 ?�배�??�료'
+  echo '  CSI Provisioner → master 노드 재배치 완료'
 "
 
-echo "=============================="
-echo " Step 1-4-2: rook-ceph-tools 배포"
-echo "=============================="
+CURRENT_STEP="1-4-2"; CURRENT_TARGET="k8s-storage-cluster"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] rook-ceph-tools 배포"
 $CSSH$M1_PUB "kubectl apply -f https://raw.githubusercontent.com/rook/rook/$ROOK_VERSION/deploy/examples/toolbox.yaml"
-echo "  [?��? rook-ceph-tools 기동 ?��?.."
+echo "  [대기] rook-ceph-tools 기동 대기..."
 $CSSH$M1_PUB "kubectl -n rook-ceph rollout status deploy/rook-ceph-tools --timeout=120s"
 
 
-echo "=============================="
-echo " Step 1-5: CephBlockPool + StorageClass (RBD)"
-echo "=============================="
+CURRENT_STEP="1-5"; CURRENT_TARGET="k8s-storage-cluster"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] CephBlockPool + StorageClass (RBD)"
 $CSSH$M1_PUB "
 cat <<'EOF' | kubectl apply -f -
 apiVersion: ceph.rook.io/v1
@@ -237,9 +222,7 @@ allowVolumeExpansion: true
 EOF
 "
 
-echo "=============================="
-echo " Step 1-6: CephFilesystem + StorageClass (CephFS)"
-echo "=============================="
+CURRENT_STEP="1-6"; CURRENT_TARGET="k8s-storage-cluster"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] CephFilesystem + StorageClass (CephFS)"
 $CSSH$M1_PUB "
 cat <<'EOF' | kubectl apply -f -
 apiVersion: ceph.rook.io/v1
@@ -287,36 +270,26 @@ allowVolumeExpansion: true
 EOF
 "
 
-echo "=============================="
-echo " Step 1-7: StorageClass ?�인"
-echo "=============================="
+CURRENT_STEP="1-7"; CURRENT_TARGET="k8s-storage-cluster"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] StorageClass 확인"
 kubectl get storageclass
 kubectl -n rook-ceph get pods -o wide
 
-echo "=============================="
-echo " Step 1-8: rook-ceph ?�태 ?�인"
-echo "=============================="
-echo "--- CephCluster ?�태 ---"
+CURRENT_STEP="1-8"; CURRENT_TARGET="k8s-storage-cluster"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] rook-ceph 상태 확인"
 kubectl -n rook-ceph get cephcluster rook-ceph \
   -o custom-columns=NAME:.metadata.name,PHASE:.status.phase,HEALTH:.status.ceph.health
 
-echo ""
-echo "--- CSI ?�라?�버 ---"
 kubectl get csidrivers
 
-echo "=============================="
-echo " Step 1-9: Ceph Dashboard ?�속 ?�보"
-echo "=============================="
+CURRENT_STEP="1-9"; CURRENT_TARGET="k8s-storage-cluster"; echo "[step=$CURRENT_STEP][target=$CURRENT_TARGET] Ceph Dashboard 접속 정보"
 $CSSH$M1_PUB "
   NODE_PORT=\$(kubectl -n rook-ceph get svc rook-ceph-mgr-dashboard \
-    -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo 'NodePort ?�음')
+    -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo 'NodePort 없음')
   ADMIN_PASS=\$(kubectl -n rook-ceph get secret rook-ceph-dashboard-password \
     -o jsonpath='{.data.password}' | base64 --decode)
   echo \"Dashboard NodePort : \$NODE_PORT\"
-  echo \"?�속 URL           : http://<worker-IP>:\$NODE_PORT\"
-  echo \"Dashboard 비�?번호 : \$ADMIN_PASS\"
+  echo \"접속 URL           : http://<worker-IP>:\$NODE_PORT\"
+  echo \"Dashboard 비밀번호 : \$ADMIN_PASS\"
 "
 
-echo ""
-echo "??Ceph ?�치 ?�료 - StorageClass: ceph-rbd, ceph-cephfs"
-echo "   ?�음 (BeeGFS): bash scripts/lifecycle/start_beegfs.sh"
+echo "Ceph 설치 완료 - StorageClass: ceph-rbd, ceph-cephfs"
+echo "   다음 (BeeGFS): bash scripts/lifecycle/start_beegfs.sh"

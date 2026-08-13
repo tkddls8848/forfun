@@ -1,29 +1,123 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-KUBESPRAY_VERSION="${KUBESPRAY_VERSION:-v2.31.0}"
 KUBESPRAY_HOME="${KUBESPRAY_HOME:-$HOME/kubespray}"
 VENV_PATH="${VENV_PATH:-$HOME/.venv/kubespray}"
 SOURCE_INVENTORY="${SOURCE_INVENTORY:-/vagrant/inventory/inventory.ini}"
 CLUSTER_INVENTORY="$KUBESPRAY_HOME/inventory/k8s-clusters"
-K8S_HOSTS=(k8s-master k8s-worker1 k8s-worker2 k8s-worker3)
+
+inventory_var() {
+  local key="$1"
+  awk -F= -v key="$key" '
+    /^\[all:vars\][[:space:]]*$/ { in_all_vars = 1; next }
+    /^\[/ { in_all_vars = 0 }
+    in_all_vars {
+      name = $1
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
+      if (name == key) {
+        value = substr($0, index($0, "=") + 1)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+        print value
+        exit
+      }
+    }
+  ' "$SOURCE_INVENTORY"
+}
+
+inventory_host_rows() {
+  awk '
+    /^\[all\][[:space:]]*$/ { in_all = 1; next }
+    /^\[/ { in_all = 0 }
+    in_all && $0 !~ /^[[:space:]]*(#|;|$)/ {
+      host = $1
+      ip = ""
+      key_file = ""
+      for (i = 2; i <= NF; i++) {
+        if ($i ~ /^ansible_host=/) {
+          split($i, field, "=")
+          ip = field[2]
+        } else if ($i ~ /^ansible_ssh_private_key_file=/) {
+          split($i, field, "=")
+          key_file = field[2]
+        }
+      }
+      print host "|" ip "|" key_file
+    }
+  ' "$SOURCE_INVENTORY"
+}
+
+require_inventory_var() {
+  local name="$1"
+  local value
+  value="$(inventory_var "$name")"
+  if [[ -z "$value" ]]; then
+    echo "[kubespray] missing required [all:vars] value: $name" >&2
+    exit 1
+  fi
+  printf '%s\n' "$value"
+}
+
+KUBESPRAY_VERSION="$(require_inventory_var kubespray_version)"
+KUBE_VERSION="$(require_inventory_var kube_version)"
+KUBE_NETWORK_PLUGIN="$(require_inventory_var kube_network_plugin)"
+KUBE_PODS_SUBNET="$(require_inventory_var kube_pods_subnet)"
+METALLB_IP_RANGE="$(require_inventory_var metallb_ip_range)"
+
+if [[ "$KUBE_NETWORK_PLUGIN" != "flannel" ]]; then
+  echo "[kubespray] this cluster requires kube_network_plugin=flannel in $SOURCE_INVENTORY" >&2
+  exit 1
+fi
+
+mapfile -t INVENTORY_HOST_ROWS < <(inventory_host_rows)
+if [[ "${#INVENTORY_HOST_ROWS[@]}" -eq 0 ]]; then
+  echo "[kubespray] no hosts found in [all] in $SOURCE_INVENTORY" >&2
+  exit 1
+fi
 
 copy_vagrant_keys() {
   install -m 0700 -d "$HOME/.ssh"
-  for host in "${K8S_HOSTS[@]}"; do
+  local row host ip key_file src
+  for row in "${INVENTORY_HOST_ROWS[@]}"; do
+    IFS='|' read -r host ip key_file <<< "$row"
+    if [[ -z "$ip" || -z "$key_file" ]]; then
+      echo "[kubespray] host $host must define ansible_host and ansible_ssh_private_key_file" >&2
+      exit 1
+    fi
     src="/vagrant/.vagrant/machines/$host/virtualbox/private_key"
-    dst="$HOME/.ssh/${host}_key"
     if [[ ! -f "$src" ]]; then
       echo "[kubespray] missing Vagrant SSH key: $src" >&2
       exit 1
     fi
-    install -m 0600 "$src" "$dst"
+    install -m 0600 "$src" "$key_file"
   done
+}
+
+populate_known_hosts() {
+  local known_hosts="$HOME/.ssh/known_hosts"
+  local scan_file merged_file row host ip key_file scan
+  scan_file="$(mktemp)"
+  merged_file="$(mktemp)"
+
+  for row in "${INVENTORY_HOST_ROWS[@]}"; do
+    IFS='|' read -r host ip key_file <<< "$row"
+    if ! scan="$(ssh-keyscan -T 10 "$ip" 2>/dev/null)" || [[ -z "$scan" ]]; then
+      echo "[kubespray] failed to scan SSH host key for $host ($ip)" >&2
+      rm -f "$scan_file" "$merged_file"
+      exit 1
+    fi
+    printf '%s\n' "$scan" >> "$scan_file"
+  done
+
+  touch "$known_hosts"
+  chmod 0600 "$known_hosts"
+  sort -u "$known_hosts" "$scan_file" > "$merged_file"
+  install -m 0600 "$merged_file" "$known_hosts"
+  rm -f "$scan_file" "$merged_file"
 }
 
 echo "[kubespray] installing host packages"
 sudo apt-get update
-sudo apt-get install -y git python3 python3-venv python3-pip bash-completion
+sudo apt-get install -y git openssh-client python3 python3-venv python3-pip bash-completion
 
 if [[ ! -d "$KUBESPRAY_HOME/.git" ]]; then
   echo "[kubespray] cloning $KUBESPRAY_VERSION"
@@ -48,13 +142,16 @@ fi
 install -m 0755 -d "$CLUSTER_INVENTORY/group_vars/all" "$CLUSTER_INVENTORY/group_vars/k8s_cluster"
 cp "$SOURCE_INVENTORY" "$CLUSTER_INVENTORY/inventory.ini"
 copy_vagrant_keys
+populate_known_hosts
 
 cat > "$CLUSTER_INVENTORY/group_vars/all/etcd.yml" <<EOF
 etcd_kubeadm_enabled: true
 EOF
 
 cat > "$CLUSTER_INVENTORY/group_vars/k8s_cluster/k8s-cluster.yml" <<EOF
-kube_network_plugin: calico
+kube_version: $KUBE_VERSION
+kube_network_plugin: $KUBE_NETWORK_PLUGIN
+kube_pods_subnet: $KUBE_PODS_SUBNET
 kube_proxy_strict_arp: true
 EOF
 
@@ -67,7 +164,7 @@ metallb_config:
   address_pools:
     primary:
       ip_range:
-        - 192.168.56.128-192.168.56.143
+        - "$METALLB_IP_RANGE"
       auto_assign: true
   layer2:
     - primary
