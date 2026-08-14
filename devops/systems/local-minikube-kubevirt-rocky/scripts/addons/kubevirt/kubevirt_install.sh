@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Phase 1: install the host virtualization stack and grant access to it.
-sudo dnf install -y qemu-kvm libvirt libvirt-client virt-install bridge-utils
+# Rocky 9 no longer provides bridge-utils; libvirt's default network does not require brctl.
+sudo dnf install -y qemu-kvm libvirt libvirt-client virt-install
 sudo systemctl enable --now libvirtd
 
 current_user="$(id -un)"

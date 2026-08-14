@@ -1,4 +1,4 @@
-# Local Kubespray + Rook CephFS lab on CentOS 8
+# Local Kubespray + Rook CephFS lab on Rocky Linux 9
 
 This system creates a four-VM Kubernetes and Rook/Ceph lab with Vagrant and the
 VirtualBox provider. It is intended for disposable local testing of Kubespray,
@@ -31,7 +31,7 @@ silently replaced by a public resolver.
 
 ## Pinned stack
 
-- Vagrant box: `generic/centos8` `4.3.12` (CentOS Linux 8.5)
+- Vagrant box: `bento/rockylinux-9` `202510.26.0` (Rocky Linux 9)
 - Kubespray: `v2.25.0` at commit `7e0a4072`
 - Kubernetes: `v1.29.5`, Flannel `v0.22.0`, and MetalLB `v0.13.9`
 - Python controller runtime: `3.11.9`, source archive SHA-256
@@ -48,14 +48,12 @@ the required upstream files into `manifests/rook-<version>/`, renders only the
 inventory-declared nodes/devices, and applies those local files. It never applies a
 remote URL or reads manifests directly from an upstream examples directory.
 
-[CentOS Linux 8 reached end of life on 2021-12-31](https://www.centos.org/centos-linux-eol/)
-and must not be used for a security-sensitive or production cluster. Its final 8.5
-repositories predate the Python 3.11 RPM introduced with
-[RHEL 8.8](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html-single/8.8_release_notes/index),
-so the provisioner retains a checksum-verified, non-PGO source build and skips it
-when the exact interpreter already exists. Archived CentOS repositories and the old
-Vagrant box may disappear or fail to receive fixes; prefer a maintained EL release
-for new work.
+The [Kubespray v2.25.0 supported-distributions list](https://github.com/kubernetes-sigs/kubespray/blob/v2.25.0/README.md#supported-linux-distributions)
+explicitly includes Rocky Linux 8 and 9, so this lab keeps the pinned Kubespray
+release and immutable commit. The provisioner also retains the checksum-verified,
+non-PGO Python source build to guarantee the exact pinned 3.11.9 controller runtime;
+it skips the build only when that exact interpreter already exists. Rocky Linux 9
+keeps two build dependencies in CRB, which the provisioner enables explicitly.
 
 ## Create and destroy
 
@@ -63,7 +61,7 @@ Prerequisites are Vagrant, VirtualBox, enough memory for the four VMs, and acces
 to the pinned upstream repositories and container registries.
 
 ```bash
-cd devops/systems/local-kubespray-cephfs-centos8
+cd devops/systems/local-kubespray-cephfs-rocky9
 vagrant validate
 vagrant up --provider=virtualbox
 ```

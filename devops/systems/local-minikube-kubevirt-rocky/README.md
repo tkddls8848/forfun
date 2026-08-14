@@ -1,8 +1,8 @@
-# Rocky 8 Minikube + KubeVirt lab
+# Rocky Linux 9 Minikube + KubeVirt lab
 
 ## Purpose and provider
 
-This lab creates one Rocky Linux 8 guest with Vagrant and VirtualBox, then starts a second-level Minikube VM with Minikube's built-in `kvm2` driver. KubeVirt runs on the Minikube cluster and starts a small CirrOS test VM. It remains a separate definition from the CentOS 8 variant so the supported Rocky lifecycle is not obscured by EOL compatibility handling.
+This lab creates one Rocky Linux 9 guest with Vagrant and VirtualBox, then starts a second-level Minikube VM with Minikube's built-in `kvm2` driver. KubeVirt runs on the Minikube cluster and starts a small CirrOS test VM. This directory is the consolidated Minikube/KubeVirt definition after the duplicate CentOS 8 variant was retired.
 
 ## Prerequisites
 
@@ -11,12 +11,13 @@ This lab creates one Rocky Linux 8 guest with Vagrant and VirtualBox, then start
 - VirtualBox host-only networking configured to allow `192.168.81.0/24`; newer VirtualBox releases otherwise reject the configured `192.168.81.10` address.
 - Internet access to Rocky and Docker package repositories, Google Storage, GitHub, `registry.k8s.io`, and Quay.
 
-Minikube's KVM driver requires libvirt 1.3.1+ and qemu-kvm 2.0+. Rocky 8 supplies newer versions and remains supported through its Rocky 8 lifecycle. The scripts fail early when nested KVM or the required group membership is unavailable.
+Minikube's KVM driver requires libvirt 1.3.1+ and qemu-kvm 2.0+. Rocky Linux 9 supplies newer versions through its supported repositories. The scripts fail early when nested KVM, `/dev/kvm`, libvirt capabilities, or the required group membership is unavailable.
 
 ## Pinned versions
 
 | Component | Pin |
 | --- | --- |
+| Vagrant box | `bento/rockylinux-9` `202510.26.0` |
 | Minikube | `v1.38.1` (`minikube-linux-amd64` SHA-256 verified) |
 | Kubernetes | `v1.35.1` |
 | KubeVirt and `virtctl` | `v1.8.2` (release SHA-256 values verified) |
@@ -39,13 +40,13 @@ The operator and custom-resource manifests are vendored from the KubeVirt v1.8.2
 
 The install script never invokes `newgrp` or reboots itself. The post-reboot script checks that the new `libvirt` and `kvm` memberships are active before starting Minikube. The Docker group change made during Vagrant provisioning is also picked up by the later login rather than by a `newgrp` subshell.
 
-## How this differs from the CentOS 8 variant
+## Consolidation from CentOS 8
 
-| Area | Rocky definition | CentOS 8 definition |
+| Area | Current Rocky definition | Retired CentOS 8 definition |
 | --- | --- | --- |
-| Vagrant box | `generic/rocky8` | `generic/centos8` |
-| OS lifecycle | Supported Rocky 8 lifecycle; viable fresh provisioning | EOL since 2021-12-31; no supported public package bootstrap |
+| Vagrant box | `bento/rockylinux-9` `202510.26.0` | `generic/centos8` |
+| OS lifecycle | Supported Rocky Linux 9 lifecycle; viable fresh provisioning | EOL since 2021-12-31; no supported public package bootstrap |
 | Package source | Active Rocky repositories; Docker uses Docker's RHEL-compatible CentOS repository | Retired CentOS mirror metadata unless an operator supplies an archive/internal mirror |
-| Intended use | Runnable lab and recommended variant | Historical/reference definition |
+| Intended use | Runnable canonical lab | Removed duplicate definition |
 
-The Minikube, Kubernetes, KubeVirt, local manifests, resource sizing, network, and numbered reboot flow intentionally remain the same so only the OS-specific behavior differs.
+The Minikube, Kubernetes, KubeVirt, local manifests, resource sizing, network, and numbered reboot flow intentionally remain the same after consolidation; only the supported OS base changed.

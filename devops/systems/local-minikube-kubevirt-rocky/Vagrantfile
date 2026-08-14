@@ -1,11 +1,12 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-CLUSTER_NAME = "k8s-rocky8-minikube"
+CLUSTER_NAME = "k8s-rocky9-minikube"
 
 Vagrant.configure("2") do |config|
   config.vm.define "minikube-master" do |node|
-    node.vm.box = "generic/rocky8"
+    node.vm.box = "bento/rockylinux-9"
+    node.vm.box_version = "202510.26.0"
     node.vm.provider "virtualbox" do |vb|
       vb.name = "minikube-master"
       vb.memory = 16000

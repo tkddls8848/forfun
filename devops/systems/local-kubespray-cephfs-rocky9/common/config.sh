@@ -17,7 +17,7 @@ net.ipv4.ip_forward = 1
 EOF
 sudo sysctl --system
 
-# Kubespray and the CNI use the tc utility supplied by this CentOS package.
+# Kubespray and the CNI use the tc utility supplied by Rocky Linux 9 BaseOS.
 sudo dnf install -y iproute-tc
 
 # NetworkManager remains enabled because it owns the Vagrant interfaces and their DNS state.

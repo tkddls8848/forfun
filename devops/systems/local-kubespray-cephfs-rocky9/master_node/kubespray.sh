@@ -33,7 +33,10 @@ if [[ -n "$python_bin" ]]; then
     exit 1
   fi
 else
-  # CentOS Linux 8.5 predates the python3.11 RPM, so build the pinned controller runtime.
+  # Build the exact pinned controller runtime instead of accepting a different package patch level.
+  # Rocky Linux 9 keeps gdbm-devel and uuid-devel in CRB.
+  sudo dnf install -y dnf-plugins-core
+  sudo dnf config-manager --set-enabled crb
   sudo dnf install -y \
     bzip2 bzip2-devel gcc gdbm-devel libffi-devel libuuid-devel make ncurses-devel openssl-devel \
     readline-devel sqlite sqlite-devel tar uuid-devel wget xz-devel zlib-devel
