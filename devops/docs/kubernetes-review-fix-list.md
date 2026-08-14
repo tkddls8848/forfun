@@ -12,9 +12,9 @@
 | `ubuntu/kubespray`, `vagrant/ubuntu/kubespray/rook-ceph` | `local-kubespray-rook-ceph` |
 | `ubuntu/cephadm`, `../storage/vagrant/ubuntu/cephadm/basic` | `local-ceph-vagrant` |
 | `kvm/cephadm`, `../storage/kvm/ubuntu/cephadm/basic` | `local-ceph-kvm` |
-| `centos8/cephfs`, `../storage/vagrant/centos8/cephfs/kubespray` | `local-kubespray-cephfs-centos8` |
+| `centos8/cephfs`, `../storage/vagrant/centos8/cephfs/kubespray` | `local-kubespray-cephfs-rocky9` |
 | `kvm/kubeadm_GPU`, `kvm/ubuntu/kubeadm/gpu` | `local-kubeadm-gpu` |
-| `centos8/minikube`, `vagrant/centos8/minikube/kubevirt` | `local-minikube-kubevirt-centos8` |
+| `centos8/minikube`, `vagrant/centos8/minikube/kubevirt` | `local-minikube-kubevirt-rocky` |
 | `rocky/minikube`, `vagrant/rocky/minikube/kubevirt` | `local-minikube-kubevirt-rocky` |
 | `host/ubuntu/microk8s/kubeflow-gpu` | `local-microk8s-kubeflow-gpu` |
 | `host/ubuntu/k3s/ai`, `ubuntu/k3s/ai.sh` | `local-k3s-ai` |
@@ -78,7 +78,7 @@
 
 - [x] 클러스터별 Ansible inventory를 추가한다.
   - 처리 결과: `local-kubeadm-vagrant`, `local-kubespray-rook-ceph`,
-    `local-ceph-vagrant`, `local-ceph-kvm`, `local-kubespray-cephfs-centos8`에
+    `local-ceph-vagrant`, `local-ceph-kvm`, `local-kubespray-cephfs-rocky9`에
     inventory가 존재하며 `control_plane`/`workers`/`storage` 그룹을 정의한다.
     노드 수·IP·역할·버전·네트워크 대역이 inventory 단일 기준으로 관리되고,
     Vagrantfile이 이를 읽어 토폴로지를 구성한다. `local-kubeadm-gpu`는 예외로 두고
@@ -99,7 +99,7 @@
 - [x] Kubespray 프로비저닝을 재실행 가능하게 정리한다.
   - 처리 결과: SSH 키, Kubespray checkout, inventory, Python venv, 패키지 설치를
     존재 여부와 버전 확인 후 필요한 경우에만 수행하도록 바꾸었다.
-    `local-kubespray-cephfs-centos8`의 Python 소스 빌드도 체크섬 검증과
+    `local-kubespray-cephfs-rocky9`의 Python 소스 빌드도 체크섬 검증과
     멱등 처리를 추가했다.
 
 - [x] 다운로드한 Kubernetes 매니페스트를 `sed`로 직접 수정하는 방식을 제거한다.
@@ -129,7 +129,7 @@
 - [x] root 비밀번호 변경과 sudoers 직접 append를 제거한다.
   - 처리 결과: vagrant 기본 sudo만 사용한다. root 비밀번호 변경, root SSH 허용,
     password auth 허용, sudoers append는 모두 제거되었다.
-  - 추가로 `local-kubespray-cephfs-centos8/common/config.sh`에 있던 과도한 호스트
+  - 추가로 `local-kubespray-cephfs-rocky9/common/config.sh`에 있던 과도한 호스트
     설정(`setenforce 0`, SELinux 설정 재작성, firewalld/NetworkManager 비활성화,
     `/etc/resolv.conf`를 8.8.8.8로 덮어쓰기)을 제거했다. 현재는 swap, `br_netfilter`,
     sysctl, `iproute-tc`만 남기고 각 항목에 필요한 이유를 주석으로 달았다.
@@ -186,7 +186,7 @@
     StorageClass 이름 충돌을 없애고 이미지 버전을 고정했다. 3-worker 실습 규모에
     맞춰 replica/pool 크기를 검토했다. Cephadm 방식과 Rook 방식은 서로 다른
     시스템 폴더로 분리되어 있어 한 클러스터 안에서 섞이지 않는다.
-  - `local-kubespray-cephfs-centos8`는 inventory에 선언한 `rook_device` 기준으로
+  - `local-kubespray-cephfs-rocky9`는 inventory에 선언한 `rook_device` 기준으로
     Rook 클러스터를 렌더링하는 `manifests/render_rook_cluster.py`를 추가했다.
 
 ## 저장소 정리 항목
@@ -252,19 +252,24 @@
   유지하되 주석과 README로 이유를 문서화했다. Flannel 버전을 고정하고, 파괴적
   cleanup은 rollback에만 두었다.
 
-- [x] `local-minikube-kubevirt-centos8`: Minikube/KubeVirt 버전을 고정하고 OS별 차이를
-  문서화했다. 실행 불가능했던 설치 흐름(`newgrp` 서브셸, `sudo reboot` 이후의 도달
-  불가 명령)을 pre/post-reboot 단계로 분리했다.
-  - **알려진 제약**: CentOS 8은 공개 저장소가 EOL이라 stock 이미지에서 패키지
-    부트스트랩이 불가능하다. 버전 고정만으로는 해결되지 않으며 README에 명시했다.
+- [x] 현재 `local-minikube-kubevirt-rocky`에 통합된 CentOS 8 변형: Minikube/KubeVirt
+  버전을 고정하고 OS별 차이를 문서화했다. 실행 불가능했던 설치 흐름(`newgrp` 서브셸,
+  `sudo reboot` 이후의 도달 불가 명령)을 pre/post-reboot 단계로 분리했다.
+  - **당시 알려진 제약**: CentOS 8은 공개 저장소가 EOL이라 stock 이미지에서 패키지
+    부트스트랩이 불가능했다. 버전 고정만으로는 해결되지 않아 README에 명시했다.
+  - **해결 (2026-08-15)**: 중복 정의를 삭제하고 아래 Rocky Linux 9 정의로 통합했다.
 
 - [x] `local-minikube-kubevirt-rocky`: 위와 동일하게 처리하고 CentOS 8 변형과의
   차이를 문서화했다.
+  - **적용 (2026-08-15)**: `bento/rockylinux-9` `202510.26.0`으로 이주했다. 단,
+    `192.168.81.10`이 VirtualBox 기본 허용 범위 밖인 H-3은 여전히 미해결이다.
 
-- [x] `local-kubespray-cephfs-centos8`: password SSH, sudoers append, expect 기반
+- [x] `local-kubespray-cephfs-rocky9`: password SSH, sudoers append, expect 기반
   Kubespray 자동화, Rook 예제 디렉터리 의존, 외부 디스크 경로 하드코딩을 제거하고
   Ansible inventory/group vars 기준으로 전환했다.
-  - **알려진 제약**: CentOS 8 EOL 제약은 위와 동일하다.
+  - **당시 알려진 제약**: CentOS 8 EOL 제약은 위와 동일했다.
+  - **해결 (2026-08-15)**: 디렉터리를 현재 이름으로 바꾸고 Rocky Linux 9로 이주했다.
+    NetworkManager 비활성화 문제(M-5)는 이 이주 전 커밋 `fc14c70`에서 이미 해결됐다.
 
 - [x] `local-microk8s-kubeflow-gpu`: channel/version을 고정하고, 네트워크 대역을
   클러스터 설정값으로 관리하며, 일반 설치 흐름에서 광범위한 home/cache 삭제를
@@ -282,10 +287,16 @@
 2. **실기동 검증**: 모든 항목이 정적 검증까지만 수행되었다. 각 시스템을 실제로
    `vagrant up` 하여 클러스터가 기동되는지 확인하는 절차가 남아 있다.
 3. **shellcheck 실행**: 작업 환경에 설치되어 있지 않아 실행하지 못했다.
-4. **CentOS 8 EOL 대응**: `local-kubespray-cephfs-centos8`,
-   `local-minikube-kubevirt-centos8` 두 시스템은 stock 저장소로 부트스트랩할 수 없다.
-   vault 저장소 전환 또는 Rocky/RHEL9 계열로의 이관 여부를 결정해야 한다.
+4. **CentOS 8 EOL 대응 (해결, 2026-08-15)**: `local-kubespray-cephfs-rocky9`로
+   이주했고, 중복 Minikube/KubeVirt 정의는 Rocky Linux 9 기반
+   `local-minikube-kubevirt-rocky`로 통합했다. 이주 판단은
    `devops/docs/os-migration-rhel9-ubuntu2604.md` 참고.
+5. **H-3 VirtualBox 네트워크 (미해결)**: `local-minikube-kubevirt-rocky`의
+   `192.168.81.10`은 기본 허용 범위 `192.168.56.0/21` 밖에 있다.
+6. **RHEL 9 이주 우선순위 3·4·5 (미적용)**: `aws-kubeadm-storage-lab`,
+   `local-ceph-kvm`, `local-ceph-vagrant`, `local-kubespray-rook-ceph` 이주는 남아 있다.
+7. **Ubuntu 26.04 이주 (보류)**: BeeGFS, Ceph, Kubespray 지원이 충족되지 않아 위 이주
+   문서 7.1의 판단을 유지한다.
 
 ## 이번 검토 범위 밖에서 발견된 사항
 

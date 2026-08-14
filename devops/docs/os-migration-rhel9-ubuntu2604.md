@@ -1,8 +1,12 @@
 # RHEL 9 / Ubuntu 26.04 이주 가능성 검토
 
-검토 대상: `devops/systems/*` 13개 시스템
-검토 기준일: 2026-08-12 / 기준 커밋: `f379280`
+검토 대상: `devops/systems/*` (검토 시점 13개 → **현재 12개**)
+최초 검토: 2026-08-12 (`f379280`) / **현행화: 2026-08-15**
 선행 문서: [`os-compatibility-review.md`](./os-compatibility-review.md)
+
+> **우선순위 1·2는 2026-08-15에 적용 완료됐다.** 해당 항목은 본문에서 `적용 완료`로
+> 표시하고 판정 근거는 보존한다. 우선순위 3~5와 Ubuntu 26.04는 미적용이며,
+> 그 판정은 현재도 유효하다. 경과는 문서 끝 [적용 이력](#적용-이력) 참조.
 
 ---
 
@@ -89,9 +93,9 @@
 | `local-k3s-ai` | 미선언 | ✅ 가능 (미검증) | ✅ 가능 (미검증) |
 | `local-kubeadm-gpu` | Ubuntu 24.04 호스트+VM | ⚠️ 가능하나 대규모 개편 | ⚠️ 가능 — GPU 스택 재검증 필요 |
 | `local-microk8s-kubeflow-gpu` | Ubuntu 호스트 (snap) | ❌ 부적합 — snap/Juju/Kubeflow가 Ubuntu 전제 | ⚠️ 미검증 |
-| `local-kubespray-cephfs-centos8` | CentOS 8 (EOL) | ✅ **가능·권장** (EOL 해소) | ❌ 배포판 계열 변경 |
-| `local-minikube-kubevirt-centos8` | CentOS 8 (EOL) | ✅ **가능·권장** (EOL 해소) | ❌ 배포판 계열 변경 |
-| `local-minikube-kubevirt-rocky` | Rocky 8 | ✅ **가능·권장** (Rocky 9) | ❌ 배포판 계열 변경 |
+| `local-kubespray-cephfs-centos8` | CentOS 8 (EOL) | ✅ **적용 완료** → `local-kubespray-cephfs-rocky9` | ❌ 배포판 계열 변경 |
+| `local-minikube-kubevirt-centos8` | CentOS 8 (EOL) | ✅ **적용 완료** — 랩 제거 후 rocky 랩으로 통합 | ❌ 배포판 계열 변경 |
+| `local-minikube-kubevirt-rocky` | Rocky 8 → **Rocky 9** | ✅ **적용 완료** | ❌ 배포판 계열 변경 |
 
 **한 줄 요약.**
 Ubuntu 26.04는 **스토리지 랩 전부(BeeGFS·Ceph 사용 5개)에서 불가**하며, 이는 버전 조정으로 우회할 수 없다.
@@ -289,9 +293,9 @@ RHEL에는 해당 메타패키지 구조 자체가 없다.
 | --- | --- | --- |
 | `local-kubespray-rook-ceph` | ✅ | Kubespray v2.31.0이 RHEL/Rocky/Alma **9·10을 공식 검증**. Rook v1.20.0은 컨테이너라 OS 무관. 다만 선행 문서 **H-1**(Ruby 히어독 `\b` → 백스페이스)은 OS와 무관하게 **먼저 고쳐야 한다** — Rocky 9로 옮겨도 swap 비활성화는 계속 무효다 |
 | `local-kubeadm-vagrant` | ⚠️ | K8s 1.31.4 RPM 확인(`kubeadm-1.31.4-150500.1.1.x86_64.rpm`). 단 현재 배포판 `containerd`(22.04에서 2.2.1)를 쓰는데 RHEL에는 배포판 containerd가 없어 **Docker el9 저장소로 조달처가 바뀐다.** 고정 버전이 없으므로 조건 1 위반은 아니나, 명시적 버전 고정을 권한다 |
-| `local-kubespray-cephfs-centos8` | ✅ 권장 | 선행 문서 **B-2**(CentOS 8 EOL로 `vagrant up` 중단)의 정공법 해결책. 이전 시 **M-5**(NetworkManager 비활성화)를 반드시 함께 제거해야 한다 — RHEL 9에는 `network-scripts`가 없어 재부팅 후 인터페이스가 올라오지 않는다 |
-| `local-minikube-kubevirt-centos8` | ✅ 권장 | 동일. `generic/centos8` → `bento/rockylinux-9` |
-| `local-minikube-kubevirt-rocky` | ✅ 권장 | `generic/rocky8` → `bento/rockylinux-9`. Rocky 8은 2029년까지 지원되므로 긴급하지는 않으나, 위 두 랩과 함께 9로 통일하면 **3개 랩이 하나의 베이스로 수렴**한다 |
+| `local-kubespray-cephfs-centos8` | ✅ **적용 완료 (2026-08-15)** | 선행 문서 **B-2**의 정공법 해결책. `local-kubespray-cephfs-rocky9`로 `git mv`하고 박스를 `bento/rockylinux-9` `202510.26.0`으로 교체했다. **M-5**(NetworkManager 비활성화)는 `fc14c70`에서 이미 제거된 상태였고 이주 후에도 되살아나지 않았음을 확인했다. Kubespray v2.25.0이 Rocky 9를 공식 지원함을 릴리스 README로 확인해 **버전을 그대로 유지**했다. OS가 강제한 변경은 CRB 저장소 활성화 한 가지뿐이다 (Rocky 9가 `gdbm-devel`/`uuid-devel`을 CRB로 이동) |
+| `local-minikube-kubevirt-centos8` | ✅ **적용 완료 (2026-08-15)** | 사용자 결정으로 rocky 랩에 통합하고 랩을 제거했다. 제거 전 SHA-256 비교로 고유 내용이 없음을 확인했다 |
+| `local-minikube-kubevirt-rocky` | ✅ **적용 완료 (2026-08-15)** | `generic/rocky8` → `bento/rockylinux-9` `202510.26.0`. OS가 강제한 변경은 `bridge-utils` 제거 한 가지뿐이다 (RHEL/Rocky 9에서 제공되지 않으며 libvirt 기본 네트워크는 `brctl`을 요구하지 않는다). **3개 랩이 하나의 베이스로 수렴**했다 |
 
 ### R-4. RHEL 9에 부적합한 시스템
 
@@ -339,22 +343,29 @@ RHEL에는 해당 메타패키지 구조 자체가 없다.
 
 우선순위 순:
 
-| 순위 | 대상 | 근거 |
-| --- | --- | --- |
-| 1 | CentOS 8 랩 2개 → **Rocky 9** | 선행 문서 **B-2**의 정공법 해결. 지금은 `vagrant up`조차 안 된다. 이전 시 **M-5** 동반 제거 필수 |
-| 2 | `local-minikube-kubevirt-rocky` → **Rocky 9** | 위 2개와 합쳐 3개 랩이 단일 베이스로 수렴 |
-| 3 | `aws-kubeadm-storage-lab` → **RHEL 9** | 유일하게 전 버전이 그대로 유지되는 이주이며, 커널 6.8 고정 장치 150여 줄과 **M-1** 결함을 함께 제거. 단 **AMI ID 고정(H-4 대응)이 선행 조건** |
-| 4 | `local-ceph-*` → **Rocky 9** | cephadm 19.2.1 정확 고정 + podman 통일. 이득은 있으나 급하지 않음 |
-| 5 | `local-kubespray-rook-ceph` → **Rocky 9** | 선택. **H-1**은 OS와 무관하게 먼저 고쳐야 함 |
+| 순위 | 대상 | 상태 | 근거 |
+| --- | --- | --- | --- |
+| 1 | CentOS 8 랩 2개 → **Rocky 9** | ✅ **완료 (2026-08-15)** | 선행 문서 **B-2**의 정공법 해결. 이전에는 `vagrant up`조차 되지 않았다 |
+| 2 | `local-minikube-kubevirt-rocky` → **Rocky 9** | ✅ **완료 (2026-08-15)** | 위 2개와 합쳐 3개 랩이 `bento/rockylinux-9` 단일 베이스로 수렴했다 |
+| 3 | `aws-kubeadm-storage-lab` → **RHEL 9** | ⬜ 미적용 | 유일하게 전 버전이 그대로 유지되는 이주이며, 커널 6.8 고정 장치 150여 줄과 **M-1** 결함을 함께 제거. 단 **AMI ID 고정(H-4 대응)이 선행 조건** |
+| 4 | `local-ceph-*` → **Rocky 9** | ⬜ 미적용 | cephadm 19.2.1 정확 고정 + podman 통일. 이득은 있으나 급하지 않음. 선행 문서 **M-3**(쌍둥이 랩 zap 하드닝 드리프트)이 아직 잔존하므로 이주 전 동기화가 필요하다 |
+| 5 | `local-kubespray-rook-ceph` → **Rocky 9** | ⬜ 미적용 | 선택. 전제였던 **H-1**은 2026-08-15에 해결됐다 |
 
-### 7.3 이주 전 선결 과제
+### 7.3 이주 전 선결 과제 — ✅ 전부 해소
 
-OS 이주는 아래를 해결한 **뒤에** 착수해야 한다. 그렇지 않으면 깨진 코드를 그대로 옮기게 된다.
+OS 이주는 아래를 해결한 **뒤에** 착수해야 했다. 그렇지 않으면 깨진 코드를 그대로 옮기게 된다.
+**세 항목 모두 우선순위 1·2 착수 시점에 해소된 상태였다.**
 
-1. 선행 문서 **B-1** — 셸 스크립트 16개 구문 오류. 두 AWS 랩이 현재 실행·정리 모두 불가하므로,
-   이 상태에서 RHEL 9로 포팅하면 **손상된 스크립트를 dnf로 번역하는 작업**이 된다.
-2. 선행 문서 **H-1** — Vagrantfile 히어독 `<<-'SHELL'`. Rocky 9로 옮겨도 swap 하드닝은 계속 무효다.
-3. 선행 문서 **M-5** — CentOS 8 랩의 NetworkManager 비활성화. RHEL 9에서 재부팅 후 네트워크 단절로 이어진다.
+1. 선행 문서 **B-1** — 셸 스크립트 16개 구문 오류. ✅ `fc14c70`에서 복구됐다.
+   현재 추적 중인 셸 99개 전부 `bash -n`을 통과하고 추적 파일 전체가 UTF-8 검증을 통과한다.
+   다만 **재발 방지 CI 게이트는 여전히 없다.**
+2. 선행 문서 **H-1** — Vagrantfile 히어독 `<<-'SHELL'`. ✅ 2026-08-15에 적용했다.
+   Vagrant 내장 ruby로 실제 평가해 백스페이스 바이트 0개를 확인했다.
+3. 선행 문서 **M-5** — CentOS 8 랩의 NetworkManager 비활성화. ✅ `fc14c70`에서 제거됐고,
+   Rocky 9 이주 후에도 되살아나지 않았음을 확인했다.
+
+우선순위 3~5를 착수할 때는 **H-4(AMI ID 고정)**와 **M-3(쌍둥이 랩 드리프트)**가
+각각 3번과 4번의 선행 조건이라는 점에 유의한다.
 
 ---
 
@@ -370,3 +381,39 @@ OS 이주는 아래를 해결한 **뒤에** 착수해야 한다. 그렇지 않�
 | `bento/rockylinux-9`의 VirtualBox 프로바이더 동작 | `builds.yml`에 항목이 있음은 확인했으나 실제 `vagrant up`은 미시도 |
 | MicroK8s/Kubeflow의 Ubuntu 26.04 동작 | snap 기반이라 원리상 가능하나 Canonical의 26.04 검증 여부 불명 |
 | Ubuntu 26.04 AMI의 cloud-init/기본 사용자 | AMI 존재는 확인(`ami-0d0353075b90e6937`, ap-northeast-2). 기본 사용자가 `ubuntu`로 유지되는지는 미검증 |
+
+---
+
+## 적용 이력
+
+### 2026-08-15 — 우선순위 1·2 적용
+
+**조건 1(동일 버전 유지)을 완전히 만족했다.** 이주로 바뀐 상위 버전은 하나도 없다:
+K8s 1.29.5, Kubespray v2.25.0(+커밋 `7e0a4072`), Flannel v0.22.0, MetalLB v0.13.9,
+Python 3.11.9, Rook v1.14.8, Ceph v18.2.2, Minikube v1.38.1, KubeVirt v1.8.2.
+따라서 **조건 2(변경 시 호환성 확인)는 발동하지 않았다.**
+
+OS가 강제한 구현 변경은 두 가지뿐이다.
+
+| 변경 | 사유 |
+| --- | --- |
+| `kubespray.sh`에 CRB 저장소 활성화 추가 | Rocky 9가 `gdbm-devel`·`uuid-devel`을 CRB로 이동 |
+| `kubevirt_install.sh`에서 `bridge-utils` 제거 | RHEL/Rocky 9에서 제공되지 않음. libvirt 기본 네트워크는 `brctl`을 요구하지 않는다 |
+
+검증 근거:
+
+- 박스 `bento/rockylinux-9` `202510.26.0`이 active이며 `virtualbox/amd64` 프로바이더를
+  제공함을 Vagrant Cloud API로 확인
+- Kubespray v2.25.0 README의 지원 배포판 목록에 **Rocky Linux 8, 9**가 명시돼 있고,
+  `git ls-remote`의 `refs/tags/v2.25.0` 커밋이 고정값과 일치함을 확인
+- Vagrantfile 8개 `ruby -c` 통과, 셸 99개 `bash -n` 통과, 추적 파일 전체 UTF-8 검증 통과
+
+### 미적용 (판정은 현재도 유효)
+
+| 항목 | 상태 |
+| --- | --- |
+| 우선순위 3 `aws-kubeadm-storage-lab` → RHEL 9 | 미적용. **H-4(AMI ID 고정)가 선행 조건** |
+| 우선순위 4 `local-ceph-*` → Rocky 9 | 미적용. **M-3(쌍둥이 랩 드리프트)가 선행 조건** |
+| 우선순위 5 `local-kubespray-rook-ceph` → Rocky 9 | 미적용. 전제였던 H-1은 해결됨 |
+| 선행 문서 **H-3** | 미해결. `local-hadoop-vagrant`, `local-minikube-kubevirt-rocky` 2개 랩이 VirtualBox 허용 대역 밖이라 현재도 `vagrant up` 실패 |
+| **Ubuntu 26.04 이주** | §7.1 판단대로 계속 보류. BeeGFS·Ceph·Kubespray의 서드파티 릴리스 일정에 달려 있어 저장소 내부 수정으로 풀 수 없다 |

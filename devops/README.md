@@ -28,11 +28,10 @@ devops/
 | `local-k3s-ai` | 호스트 K3s, 선택적 K3ai | `bash scripts/addons/ai.sh` |
 | `local-kubeadm-gpu` | libvirt/KVM, kubeadm, GPU | `bash 00_host_setup.sh` |
 | `local-kubeadm-vagrant` | VirtualBox, kubeadm | `vagrant up` |
-| `local-kubespray-cephfs-centos8` | VirtualBox, Kubespray, CephFS, CentOS 8 | `vagrant up` |
+| `local-kubespray-cephfs-rocky9` | VirtualBox, Kubespray, CephFS, Rocky Linux 9 | `vagrant up` |
 | `local-kubespray-rook-ceph` | VirtualBox, Kubespray, Rook/Ceph | `vagrant up` |
 | `local-microk8s-kubeflow-gpu` | 호스트 MicroK8s, Kubeflow, GPU | `bash scripts/host/01_nvidia_driver_install.sh`부터 순서대로 실행 |
-| `local-minikube-kubevirt-centos8` | VirtualBox, Minikube, KubeVirt, CentOS 8 | `vagrant up` |
-| `local-minikube-kubevirt-rocky` | VirtualBox, Minikube, KubeVirt, Rocky Linux | `vagrant up` |
+| `local-minikube-kubevirt-rocky` | VirtualBox, Minikube, KubeVirt, Rocky Linux 9 | `vagrant up` |
 
 ## 폴더 규칙
 
