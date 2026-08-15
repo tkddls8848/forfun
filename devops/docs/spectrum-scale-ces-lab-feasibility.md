@@ -285,3 +285,21 @@ CES floating IP는 노드 기본 주소와 분리하고, GPFS `subnets=`에는 �
 - 제안한 local-VDI NSD, replication 2, CES floating IP 구성으로 실제 노드 장애조치를 수행하지 않았다.
 - AWS의 리전별 RHEL 9.8 AMI ID, 정확한 메모리 최적화 인스턴스 타입, 비용과 secondary IP 이동 자동화는 2단계에서 고정해야 한다.
 - 설치 이미지 사전 다운로드를 랩의 공식 전제조건으로 받아들일지 조정자 결정을 받지 못했다. Orca 질문 전송은 `dispatch_capability_invalid`로 실패했다.
+
+## 12. 구현된 로컬 축소 모드 기록
+
+2026-08-15 사용자 결정에 따라 `devops/systems/local-spectrum-scale-ces-s3`에
+단일 노드 Rocky Linux 9 축소 랩을 구현했다. 이 구현은 이 문서가 권장한 RHEL 9.8
+3노드·노드당 64 GiB 조합이 아니며, **Rocky Linux 9와 단일 16 GiB 노드라는 두
+독립 축에서 IBM 지원 조합 밖이다. IBM 지원을 주장하지 않는다.** 명시적 미지원
+모드 opt-in 없이는 프로비저닝을 거부하며, 사용자 소유 5.2.3.8 Developer Edition
+설치 이미지의 `--manifest`에서 Developer Edition과 EL9 `gpfs.mms3`/`noobaa-core`
+RPM을 확인한 뒤 네이티브 CES S3만 구성한다.
+
+이 축소 모드는 section 9의 네 가지 합격 기준 중 S3 API put/get/list/delete와 IBM
+비트·라이선스·자격증명의 저장소 미포함만 검사할 수 있다. Rocky Linux 9와 고정한
+`5.14.0-570.49.1.el9_6` 커널은 RHEL 9.8
+`5.14.0-687.30.1.el9_8` 일치 기준을 포기한다. 단일 노드는 CES IP 장애조치와
+quorum 유지 기준도 포기한다. replication 1과 failure group 하나만 사용하므로
+데이터 중복성이나 스토리지 가용성도 보여주지 않는다. 기존의 조건부 판정과 근거,
+3노드 권장안은 그대로 유효하며 이 축소 구현이 그 판정을 상향하지 않는다.

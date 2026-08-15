@@ -32,6 +32,7 @@ devops/
 | `local-kubespray-rook-ceph` | VirtualBox, Kubespray, Rook/Ceph | `vagrant up` |
 | `local-microk8s-kubeflow-gpu` | 호스트 MicroK8s, Kubeflow, GPU | `bash scripts/host/01_nvidia_driver_install.sh`부터 순서대로 실행 |
 | `local-minikube-kubevirt-rocky` | VirtualBox, Minikube, KubeVirt, Rocky Linux 9 | `vagrant up` |
+| `local-spectrum-scale-ces-s3` | VirtualBox, IBM Storage Scale CES S3, Rocky Linux 9, 미지원 단일 노드 실험 | opt-in 후 `vagrant up --provider=virtualbox` |
 
 ## 폴더 규칙
 
