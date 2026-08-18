@@ -227,6 +227,11 @@ Vagrant.configure("2") do |config|
       if hostname == "ceph-master"
         # 블록 스토어 앱 소스를 master에 마운트 (ansible로 워커에 배포). 앱 폴더명 변경 시 경로도 수정.
         cfg.vm.synced_folder "./apps/block-store-app", "/opt/ceph-block-store-src"
+        # 같은 앱의 Go 구현. 두 구현을 같은 RBD 마운트 위에 나란히 띄워 비교한다.
+        # 배포는 dist/ 에 빌드된 바이너리가 있을 때만 일어난다(없으면 건너뛴다) —
+        # Go 툴체인이 없는 호스트에서도 기존 랩이 그대로 동작해야 하기 때문이다.
+        #   호스트에서: bash apps/block-store-app-go/scripts/build.sh
+        cfg.vm.synced_folder "./apps/block-store-app-go", "/opt/ceph-block-store-go-src"
         # Ceph 설치 및 설정 (OSD 준비 통합).
         # 마지막 인자 = 인벤토리에서 읽은 OSD 디바이스 CSV. 디스크를 만지는 모든 경로는 이 값만 사용한다.
         cfg.vm.provision "shell", path: "./scripts/ceph/cephadm-setup.sh", name: "cephadm",
@@ -258,7 +263,12 @@ Vagrant.configure("2") do |config|
         # 블록 스토어 앱 배포 (master 중앙앱 + 워커 에이전트, ansible)
         cfg.vm.provision "shell", path: "./scripts/ceph/block-store-app-setup.sh", name: "blockstoreapp",
           args: ["#{NETWORK_CONFIG[:network_prefix]}", "#{CEPH_WORKER_NODES}"],
-          env: { "AGENT_TOKEN" => "ceph-block-store-secret", "APP_SRC" => "/opt/ceph-block-store-src", "RBD_POOL" => "rbd-pool" },
+          env: {
+            "AGENT_TOKEN" => "ceph-block-store-secret",
+            "APP_SRC"     => "/opt/ceph-block-store-src",
+            "GO_APP_SRC"  => "/opt/ceph-block-store-go-src",
+            "RBD_POOL"    => "rbd-pool"
+          },
           privileged: true
       end
     end

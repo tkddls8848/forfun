@@ -67,6 +67,43 @@ Useful access points after provisioning:
 - SSH: `vagrant ssh ceph-master` (or either worker name)
 - Ceph Dashboard: `http://192.168.60.10:8080` (`admin` / `admin`, lab credentials)
 - RGW S3 endpoint: `http://192.168.60.10:7480`
+- Block store UI (Node.js): `http://192.168.60.10:3333`
+- Block store UI (Go): `http://192.168.60.10:3334` (only when the Go binary was built, see below)
 - Ceph status: `vagrant ssh ceph-master -c "sudo ceph -s"`
+
+## Block store application: two implementations side by side
+
+The RBD block store app ships twice, as the same application written two ways:
+
+| | [`apps/block-store-app`](apps/block-store-app) | [`apps/block-store-app-go`](apps/block-store-app-go) |
+|---|---|---|
+| Language | Node.js | Go |
+| Central UI | `:3333` | `:3334` |
+| Node agent | `:4000` | `:4001` |
+
+Both implementations expose the same HTTP API, serve the same UI, and read and
+write the **same RBD mount** (`/srv/rbd-store`) on each worker. A file uploaded
+through one UI appears in the other, so the two can be compared directly on the
+same data and the same storage.
+
+The Go implementation is optional. `block-store-app-setup.sh` deploys it only
+when a built binary is present, so a host without a Go toolchain provisions the
+lab exactly as before. To include it:
+
+```bash
+bash apps/block-store-app-go/scripts/build.sh   # host, once
+vagrant provision --provision-with blockstoreapp
+```
+
+Then compare them on the master:
+
+```bash
+vagrant ssh ceph-master -c "bash /vagrant/scripts/ceph/block-store-compare.sh"
+```
+
+The script reports deployment footprint, idle memory, peak memory during a large
+upload, node-list latency, and confirms both implementations see the same files.
+Measured results and the reasons behind them are in
+[`apps/block-store-app-go/README.md`](apps/block-store-app-go/README.md).
 
 Stop or destroy the VMs with `vagrant halt` or `vagrant destroy -f`. The VDI files under `~/vagrant_osd/ceph-cluster` persist across VM destruction so the lab can be reprovisioned; remove them separately only when their data is no longer needed.
