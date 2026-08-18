@@ -1,0 +1,220 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+#
+# local-gostore-vagrant — Go 단일 정적 바이너리로 배포되는 스토리지 랩.
+#
+# 이 랩의 목적은 스토리지 백엔드 자체가 아니라 "배포 산출물이 파일 하나일 때
+# 노드 프로비저닝이 어떻게 달라지는가"를 보이는 것이다. 그래서 백엔드는
+# 커널 파일시스템(xfs/ext4/tmpfs)으로만 구성하고 Ceph 같은 외부 클러스터를
+# 끌어들이지 않는다. 백엔드 비교 자체가 목적이라면 local-ceph-vagrant 를 볼 것.
+#
+# 대조군: local-ceph-vagrant/apps/block-store-app (Node.js). 그쪽 에이전트는
+# 노드마다 NodeSource 저장소 추가 → apt-get install nodejs → npm install 이
+# 필요하다. 이 랩의 노드 프로비저닝에는 패키지 설치가 한 줄도 없다.
+
+ENV['VAGRANT_NO_PARALLEL'] = 'yes'
+
+# 데이터 디스크 경로를 만들 때 쓴다. Vagrant 가 이미 로드하지만 명시해 둔다.
+require 'fileutils'
+
+INVENTORY_PATH = File.expand_path("inventory/inventory.ini", File.dirname(__FILE__))
+DIST_DIR       = File.expand_path("dist", File.dirname(__FILE__))
+
+# ---------------------------------------------------------------------------
+# 인벤토리 파서 — 호스트 IP, 저장소 경로, 백엔드 라벨, 데이터 디스크 크기의 단일 소스.
+# ---------------------------------------------------------------------------
+def parse_inventory(path)
+  raise "인벤토리 파일을 찾을 수 없습니다: #{path}" unless File.exist?(path)
+
+  hosts   = {}
+  groups  = Hash.new { |h, k| h[k] = [] }
+  vars    = {}
+  section = nil
+
+  # 인코딩을 명시한다. 기본값은 로케일(LANG)을 따라가므로, LANG 이 C/POSIX 인
+  # 환경에서는 주석의 한글이 US-ASCII 로 읽혀 strip 단계에서 터진다.
+  File.readlines(path, encoding: "UTF-8").each do |raw|
+    line = raw.strip
+    next if line.empty? || line.start_with?("#", ";")
+
+    if line.start_with?("[")
+      section = line.delete("[]")
+      next
+    end
+
+    if section.to_s.end_with?(":vars")
+      key, value = line.split("=", 2)
+      vars[key.strip] = value.to_s.strip unless value.nil?
+      next
+    end
+
+    fields = line.split(/\s+/)
+    host   = fields.shift
+    attrs  = {}
+    fields.each do |field|
+      key, value = field.split("=", 2)
+      attrs[key] = value unless value.nil?
+    end
+    next if attrs.empty?
+
+    hosts[host] = attrs
+    groups[section] << host if section
+  end
+
+  { :hosts => hosts, :groups => groups, :vars => vars }
+end
+
+INVENTORY = parse_inventory(INVENTORY_PATH)
+
+def inventory_var!(name)
+  value = INVENTORY[:vars][name]
+  raise "인벤토리 [all:vars] 에 #{name} 선언이 없습니다: #{INVENTORY_PATH}" if value.nil? || value.empty?
+  value
+end
+
+def cidr_prefix(cidr)
+  unless cidr.match?(%r{\A(?:\d{1,3}\.){3}\d{1,3}/24\z})
+    raise "이 실습은 /24 IPv4 CIDR만 지원합니다: #{cidr}"
+  end
+  cidr.split("/").first.split(".")[0, 3].join(".")
+end
+
+LAB_NETWORK  = inventory_var!("lab_network")
+NET_PREFIX   = cidr_prefix(LAB_NETWORK)
+AGENT_PORT   = inventory_var!("agent_port")
+CONTROL_PORT = inventory_var!("control_port")
+LAB_TOKEN    = inventory_var!("gostore_token")
+
+CONTROL_HOSTS = INVENTORY[:groups]["control"] || []
+STORAGE_HOSTS = INVENTORY[:groups]["storage"] || []
+
+raise "인벤토리 [control] 그룹에 호스트가 정확히 1개 있어야 합니다: #{INVENTORY_PATH}" if CONTROL_HOSTS.length != 1
+raise "인벤토리 [storage] 그룹에 호스트가 없습니다: #{INVENTORY_PATH}"                  if STORAGE_HOSTS.empty?
+
+CONTROL_HOST = CONTROL_HOSTS.first
+
+# 호스트 IP 를 읽고 랩 네트워크에 속하는지 검증한다.
+def host_ip!(hostname)
+  attrs = INVENTORY[:hosts][hostname]
+  raise "인벤토리에 #{hostname} 호스트 항목이 없습니다: #{INVENTORY_PATH}" if attrs.nil?
+  ip = attrs["ansible_host"]
+  raise "#{hostname}: ansible_host 선언이 없습니다" if ip.nil?
+  unless ip.split(".")[0, 3].join(".") == NET_PREFIX
+    raise "#{hostname}: IP #{ip} 가 lab_network(#{LAB_NETWORK}) 에 속하지 않습니다"
+  end
+  ip
+end
+
+# 스토리지 노드 속성 — 저장소 경로, 백엔드 라벨, 데이터 디스크 크기.
+def storage_attrs!(hostname)
+  attrs = INVENTORY[:hosts][hostname]
+  backend = attrs["backend"].to_s
+  raise "#{hostname}: backend 선언이 없습니다: #{INVENTORY_PATH}" if backend.empty?
+
+  # backend 라벨이 "<fs>-disk" 면 그 파일시스템으로 데이터 디스크를 포맷한다.
+  # "tmpfs-ram" 은 디스크 없이 tmpfs 를 마운트한다 — 캐시 상한선을 보기 위한 노드다.
+  fs = backend.split("-").first
+  unless %w[xfs ext4 tmpfs].include?(fs)
+    raise "#{hostname}: 지원하지 않는 backend 입니다(xfs-*/ext4-*/tmpfs-*): #{backend}"
+  end
+
+  disk_gb = attrs.fetch("data_disk", "0").to_i
+  if fs == "tmpfs" && disk_gb != 0
+    raise "#{hostname}: tmpfs 백엔드에는 data_disk 가 필요 없습니다(0 이어야 함): #{disk_gb}"
+  end
+  if fs != "tmpfs" && disk_gb < 1
+    raise "#{hostname}: #{fs} 백엔드에는 data_disk 를 1GB 이상 선언해야 합니다"
+  end
+
+  {
+    :ip        => host_ip!(hostname),
+    :store_dir => attrs.fetch("store_dir", "/srv/gostore"),
+    :backend   => backend,
+    :fs        => fs,
+    :disk_gb   => disk_gb
+  }
+end
+
+STORAGE = STORAGE_HOSTS.map { |h| [h, storage_attrs!(h)] }.to_h
+
+# 컨트롤러에 넘길 노드 목록: "name=host:port:backend,..."
+NODES_SPEC = STORAGE.map { |name, a| "#{name}=#{a[:ip]}:#{AGENT_PORT}:#{a[:backend]}" }.join(",")
+
+# ---------------------------------------------------------------------------
+# 바이너리 사전 확인.
+#   프로비저닝 중간에 "파일이 없다"로 실패하면 VM 을 되돌리는 비용이 크므로
+#   vagrant up 진입 시점에 먼저 막는다.
+# ---------------------------------------------------------------------------
+BINARY = File.join(DIST_DIR, "gostore-linux-amd64")
+unless File.exist?(BINARY)
+  raise "바이너리가 없습니다: #{BINARY}\n" \
+        "먼저 호스트에서 빌드하세요:  bash scripts/build.sh"
+end
+
+VERSION_CONFIG = { :box => "bento/ubuntu-24.04" }
+
+Vagrant.configure("2") do |config|
+  config.vm.box = VERSION_CONFIG[:box]
+  # dist/ 를 게스트에 마운트한다. 배포는 이 안의 파일 하나를 복사하는 것이 전부다.
+  config.vm.synced_folder "./dist", "/vagrant-dist"
+
+  # ---- 스토리지 노드 ----
+  STORAGE.each_with_index do |(hostname, attrs), idx|
+    config.vm.define hostname do |cfg|
+      cfg.vm.host_name = hostname
+      cfg.vm.network "private_network", ip: attrs[:ip]
+      cfg.vm.provider "virtualbox" do |vb|
+        vb.name   = hostname
+        vb.memory = 1536
+        vb.cpus   = 2
+        vb.customize ["modifyvm", :id, "--groups", "/gostore-lab"]
+
+        # 데이터 디스크. tmpfs 노드는 디스크를 붙이지 않는다.
+        if attrs[:disk_gb] > 0
+          disk = File.join(Dir.home, "vagrant_disks", "gostore-lab", "#{hostname}-data.vdi")
+          FileUtils.mkdir_p(File.dirname(disk))
+          unless File.exist?(disk)
+            vb.customize ['createhd', '--filename', disk,
+                          '--size', attrs[:disk_gb] * 1024, '--variant', 'Fixed']
+          end
+          vb.customize ['storageattach', :id, '--storagectl', 'SATA Controller',
+                        '--port', 1, '--device', 0, '--type', 'hdd', '--medium', disk]
+        end
+      end
+
+      # 1) 저장소 마운트 준비 (이 단계만 OS 패키지를 건드린다 — 파일시스템 도구)
+      cfg.vm.provision "shell", name: "storage", privileged: true,
+        path: "./scripts/provision/10_storage.sh",
+        args: [attrs[:fs], attrs[:store_dir]]
+
+      # 2) 에이전트 배포 — 바이너리 복사 + systemd 유닛. 패키지 설치 없음.
+      cfg.vm.provision "shell", name: "agent", privileged: true,
+        path: "./scripts/provision/20_agent.sh",
+        args: [hostname, attrs[:store_dir], attrs[:backend], AGENT_PORT],
+        env: { "GOSTORE_TOKEN" => LAB_TOKEN }
+    end
+  end
+
+  # ---- 컨트롤 노드 (마지막에 올려서 에이전트가 이미 떠 있게 한다) ----
+  config.vm.define CONTROL_HOST do |cfg|
+    cfg.vm.host_name = CONTROL_HOST
+    cfg.vm.network "private_network", ip: host_ip!(CONTROL_HOST)
+    cfg.vm.network "forwarded_port", guest: CONTROL_PORT.to_i, host: CONTROL_PORT.to_i,
+                   id: "gostore-ui", auto_correct: true
+    cfg.vm.provider "virtualbox" do |vb|
+      vb.name   = CONTROL_HOST
+      vb.memory = 1024
+      vb.cpus   = 2
+      vb.customize ["modifyvm", :id, "--groups", "/gostore-lab"]
+    end
+
+    cfg.vm.provision "shell", name: "control", privileged: true,
+      path: "./scripts/provision/30_control.sh",
+      args: [NODES_SPEC, CONTROL_PORT],
+      env: { "GOSTORE_TOKEN" => LAB_TOKEN }
+
+    cfg.vm.provision "shell", name: "verify", privileged: false,
+      path: "./scripts/provision/40_verify.sh",
+      args: [host_ip!(CONTROL_HOST), CONTROL_PORT]
+  end
+end

@@ -24,6 +24,7 @@ devops/
 | `aws-kubeadm-storage-lab` | AWS, kubeadm HA, Ceph, BeeGFS | `bash scripts/lifecycle/start_k8s.sh` |
 | `local-ceph-kvm` | libvirt/KVM, Cephadm | `vagrant up --provider=libvirt` |
 | `local-ceph-vagrant` | VirtualBox, Cephadm, Block Store 앱 | `vagrant up --provider=virtualbox` |
+| `local-gostore-vagrant` | VirtualBox, Go 정적 바이너리 에이전트, xfs/ext4/tmpfs 지연 비교 | `bash scripts/build.sh && vagrant up` |
 | `local-hadoop-vagrant` | VirtualBox, Hadoop | `vagrant up` |
 | `local-k3s-ai` | 호스트 K3s, 선택적 K3ai | `bash scripts/addons/ai.sh` |
 | `local-kubeadm-gpu` | libvirt/KVM, kubeadm, GPU | `bash 00_host_setup.sh` |
