@@ -1,43 +1,11 @@
-# DevOps Systems
+# forfun (archived)
 
-이 저장소는 배포 가능한 시스템 하나를 `systems/`의 폴더 하나로 관리합니다.
-환경·분야·OS를 여러 단계의 디렉터리로 나누지 않고 폴더명에 핵심 특징을 표시합니다.
+이 저장소는 더 이상 갱신되지 않는다. `systems/`의 랩 인프라 코드와 `docs/`의 검토
+문서는 [`tkddls8848/remote_coding`](https://github.com/tkddls8848/remote_coding)으로
+이관되었다 — 이관 절차는 그 저장소의
+[docs/forfun-consolidation-plan.md](https://github.com/tkddls8848/remote_coding/blob/main/docs/forfun-consolidation-plan.md)를 본다.
 
-```text
-devops/
-├── systems/
-│   ├── aws-k3s-storage-lab/
-│   ├── aws-kubeadm-storage-lab/
-│   ├── local-ceph-kvm/
-│   └── ...
-└── docs/
-```
+앞으로 랩을 추가하거나 고칠 일이 있으면 `remote_coding`의 `systems/`에서 한다.
 
-각 명령은 해당 시스템 폴더에서 실행합니다. 시스템이 사용하는 앱과 설치 스크립트도
-같은 폴더에 있으므로 다른 시스템 폴더를 참조하지 않습니다.
-
-## 시스템 목록
-
-| 폴더 | 구성 | 시작 명령 |
-| --- | --- | --- |
-| `aws-k3s-storage-lab` | AWS, K3s, Ceph, BeeGFS | `bash scripts/lifecycle/start.sh` |
-| `aws-kubeadm-storage-lab` | AWS, kubeadm HA, Ceph, BeeGFS | `bash scripts/lifecycle/start_k8s.sh` |
-| `local-ceph-kvm` | libvirt/KVM, Cephadm | `vagrant up --provider=libvirt` |
-| `local-ceph-vagrant` | VirtualBox, Cephadm, Block Store 앱 | `vagrant up --provider=virtualbox` |
-| `local-hadoop-vagrant` | VirtualBox, Hadoop | `vagrant up` |
-| `local-k3s-ai` | 호스트 K3s, 선택적 K3ai | `bash scripts/addons/ai.sh` |
-| `local-kubeadm-gpu` | libvirt/KVM, kubeadm, GPU | `bash 00_host_setup.sh` |
-| `local-kubeadm-vagrant` | VirtualBox, kubeadm | `vagrant up` |
-| `local-kubespray-cephfs-rocky9` | VirtualBox, Kubespray, CephFS, Rocky Linux 9 | `vagrant up` |
-| `local-kubespray-rook-ceph` | VirtualBox, Kubespray, Rook/Ceph | `vagrant up` |
-| `local-microk8s-kubeflow-gpu` | 호스트 MicroK8s, Kubeflow, GPU | `bash scripts/host/01_nvidia_driver_install.sh`부터 순서대로 실행 |
-| `local-minikube-kubevirt-rocky` | VirtualBox, Minikube, KubeVirt, Rocky Linux 9 | `vagrant up` |
-| `local-spectrum-scale-ces-s3` | VirtualBox, IBM Storage Scale CES S3, Rocky Linux 9, 미지원 단일 노드 실험 | opt-in 후 `vagrant up --provider=virtualbox` |
-
-## 폴더 규칙
-
-- 새 시스템은 `systems/<위치>-<핵심 기술>-<목적>` 형태로 추가합니다.
-- 시스템 실행에 필요한 코드는 해당 폴더 안에 둡니다.
-- 여러 시스템에서 같은 설치 코드가 필요하면 각 시스템 폴더에 복제합니다.
-- 시스템 간 상대경로 참조는 만들지 않습니다.
-- 생성 파일과 비밀정보는 각 시스템의 `.gitignore`에서 관리합니다.
+이 저장소는 삭제될 예정이다. 히스토리(옛 `AI/`·`LLM/` 등 학습 결과물 포함)가 필요하면
+삭제 전에 미리 클론해 둔다.
